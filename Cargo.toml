@@ -1,0 +1,6 @@
+[package]
+name = "fearless-NES"
+version = "0.1.0"
+authors = ["TomasKralCZ <tomas@kral.hk>"]
+
+[dependencies]
