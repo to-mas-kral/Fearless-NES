@@ -1,10 +1,17 @@
-
 #![allow(non_snake_case)]
 
 use std::fs::File;
 use std::io::Read;
 
-//use std::{thread, time};
+macro_rules! set_z_n {
+    ($var:expr, $self:ident) => (
+        {
+            let tmp = $var;
+            $self.Z(tmp);
+            $self.N(tmp);
+        }
+    )
+}
 
 pub struct Cpu {
     A: u8, //Accumulator
@@ -20,6 +27,8 @@ pub struct Cpu {
     C: bool, //Carry flag
     B: bool, //Break flag
     D: bool, //BCD flag
+
+    pub halt: bool, //halt "flag"
 
     mem: [u8; 0x10000],
 }
@@ -41,13 +50,12 @@ impl Cpu {
             B: false,
             D: false,
 
+            halt: false,
+
             mem: [0; 0x10000],
         };
 
-        //cpu.load_to_memory(&mut File::open("SMB.nes").unwrap());
         cpu.load_to_memory(&mut File::open("nestest.nes").unwrap());
-        cpu.mem[0x180] = 0x33;
-        cpu.mem[0x17F] = 0x69;
         cpu
     }
 
@@ -62,7 +70,6 @@ impl Cpu {
 
         for _ in 0..0x4000 {
             let b = bytes.next().unwrap().unwrap();
-            self.mem[self.pc - 0x7FF0];
             self.mem[self.pc] = b;
             self.mem[self.pc + 0x4000] = b;
             self.pc += 1;
@@ -71,76 +78,65 @@ impl Cpu {
         self.pc = 0xC000;
     }
 
-    //pub fn load_to_memory(&mut self, file: &mut File) {
-    //    //TODO: Create separate module for mappers and loaders
-    //    self.mem = [0; 0x10000];
-    //    self.pc = 0x8000;
-//
-    //    let mut bytes = file.bytes();
-    //    for _ in 0..16 {
-    //        bytes.next();
-    //    }
-//
-    //    for _ in 0..0x8000 {
-    //        let b = bytes.next().unwrap().unwrap();
-    //        self.mem[self.pc] = b;
-    //        self.pc += 1;
-    //    }
-//
-    //    self.pc = (((self.mem[0xFFFD] as u16) << 8) | self.mem[0xFFFC] as u16) as usize;
-    //}
+    pub fn print_debug_info(&mut self) {        
+        let mut status: u8 = 1 << 5;
+        status |= (if self.N { 1 } else { 0 }) << 7;
+        status |= (if self.V { 1 } else { 0 }) << 6;
+        status |= (if self.B { 1 } else { 0 }) << 4;
+        status |= (if self.D { 1 } else { 0 }) << 3;
+        status |= (if self.I { 1 } else { 0 }) << 2;
+        status |= (if self.Z { 1 } else { 0 }) << 1;
+        status |= if self.C { 1 } else { 0 };
+
+        println!(
+            "{:X} {:X} A:{:X} X:{:X} Y:{:X} P:{:X} S:{:X}",
+            self.pc,
+            self.mem[self.pc],
+            self.A,
+            self.X,
+            self.Y,
+            status,
+            self.sp,
+        );
+    }
 
     pub fn step(&mut self) {
+        if self.halt {return};
         let opcode = self.mem[self.pc];
-        let pc = self.pc;
-        let (adr, mut cycles): (usize, u8) = match opcode {
-            0x69 | 0x29 | 0xC9 | 0xE0 | 0xC0 | 0x49 | 0xA9 | 0xA2 | 0xA0 | 0x09 | 0xE9 |
-            0x80 | 0x82 | 0x89 | 0xC2 | 0xE2 | 0xEB => self.imm(),
-            0x65 | 0x25 | 0x06 | 0x24 | 0xC5 | 0xE4 | 0xC4 | 0xC6 | 0x45 | 0xE6 | 0xA5 |
-            0xA6 | 0xA4 | 0x46 | 0x05 | 0x26 | 0x66 | 0xE5 | 0x85 | 0x86 | 0x84 | 0x04 |
-            0x44 | 0x64 | 0xA7 | 0x87 | 0xC7 | 0xE7 | 0x07 | 0x27 | 0x47 | 0x67 => self.zpg(),
-            0x75 | 0x35 | 0x16 | 0xD5 | 0xD6 | 0x55 | 0xF6 | 0xB5 | 0xB4 | 0x56 | 0x15 |
-            0x36 | 0x76 | 0xF5 | 0x95 | 0x94 | 0x14 | 0x34 | 0x54 | 0x74 | 0xD4 | 0xF4 |
-            0xD7 | 0xF7 | 0x17 | 0x37 | 0x57 | 0x77 => self.zpgx(),
-            0xB6 | 0x96 | 0xB7 | 0x97 => self.zpgy(),
-            0x6D | 0x2D | 0x0E | 0x2C | 0xCD | 0xEC | 0xCC | 0xCE | 0x4D | 0xEE | 0x4C |
-            0x20 | 0xAD | 0xAE | 0xAC | 0x4E | 0x0D | 0x2E | 0x6E | 0xED | 0x8D | 0x8E |
-            0x8C | 0x0C | 0xAF | 0x8F | 0xCF | 0xEF | 0x0F | 0x2F | 0x4F | 0x6F => self.abs(),
-            0x7D | 0x3D | 0x1E | 0xDD | 0xDE | 0x5D | 0xFE | 0xBD | 0xBC | 0x5E | 0x1D |
-            0x3E | 0x7E | 0xFD | 0x9D | 0x1C | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC | 0xDF | 
-            0xFF | 0x1F | 0x3F | 0x5F | 0x7F => self.absx(),
-            0x79 | 0x39 | 0xD9 | 0x59 | 0xB9 | 0xBE | 0x19 | 0xF9 | 0x99 | 0xBF | 0xDB |
-            0xFB | 0x1B | 0x3B | 0x5B | 0x7B => self.absy(),
-            0x90 | 0xB0 | 0xF0 | 0x30 | 0xD0 | 0x10 | 0x50 | 0x70 => self.rel(),
-            0x6C => self.ind(),
-            0x61 | 0x21 | 0xC1 | 0x41 | 0xA1 | 0x01 | 0xE1 | 0x81 | 0xA3 | 0x83 | 0xC3 |
-            0xE3 | 0x03 | 0x23 | 0x43 | 0x63 => self.indx(),
-            0x71 | 0x31 | 0xD1 | 0x51 | 0xB1 | 0x11 | 0xF1 | 0x91 | 0xB3 | 0xD3 | 0xF3 |
-            0x13 | 0x33 | 0x53 | 0x73 => self.indy(),
-            0x0A | 0x00 | 0x18 | 0xD8 | 0x58 | 0xB8 | 0xCA | 0x88 | 0xE8 | 0xC8 | 0x4A |
-            0xEA | 0x48 | 0x08 | 0x68 | 0x28 | 0x2A | 0x6A | 0x40 | 0x60 | 0x38 | 0xF8 |
-            0x78 | 0xAA | 0xA8 | 0xBA | 0x8A | 0x9A | 0x98 | 0x1A | 0x3A | 0x5A | 0x7A |
-            0xDA | 0xFA => (70000, 0),
-            _ => {
-                println!("ERROR CODE: {:X}", self.mem[0x02]);
-                println!("ERROR CODE: {:X}", self.mem[0x03]);
-                println!("ADDRESS: {:X}", self.pc);
-                panic!("Illegal opcode: {:X}", opcode);
-            },
-        };
-
-    //TODO: clean this
-        let mut status: u8 = 1 << 5;
-        status |= (if self.N {1} else {0}) << 7;
-        status |= (if self.V {1} else {0}) << 6;
-        status |= (if self.B {1} else {0}) << 4;
-        status |= (if self.D {1} else {0}) << 3;
-        status |= (if self.I {1} else {0}) << 2;
-        status |= (if self.Z {1} else {0}) << 1;
-        status |= if self.C {1} else {0};
-
-        print!("{:X} {:X} {:X} A:{:X} X:{:X} Y:{:X} P:{:X} S:{:X} {} ", pc, opcode, adr, self.A, self.X, self.Y, status, self.sp, cycles);
-        print!("{}", cycles);
+        let (adr, mut cycles): (usize, u8) =
+            match opcode {
+                0x69 | 0x29 | 0xC9 | 0xE0 | 0xC0 | 0x49 | 0xA9 | 0xA2 | 0xA0 | 0x09 | 0xE9 |
+                0x80 | 0x82 | 0x89 | 0xC2 | 0xE2 | 0xEB => self.imm(),
+                0x65 | 0x25 | 0x06 | 0x24 | 0xC5 | 0xE4 | 0xC4 | 0xC6 | 0x45 | 0xE6 | 0xA5 |
+                0xA6 | 0xA4 | 0x46 | 0x05 | 0x26 | 0x66 | 0xE5 | 0x85 | 0x86 | 0x84 | 0x04 |
+                0x44 | 0x64 | 0xA7 | 0x87 | 0xC7 | 0xE7 | 0x07 | 0x27 | 0x47 | 0x67 => self.zpg(),
+                0x75 | 0x35 | 0x16 | 0xD5 | 0xD6 | 0x55 | 0xF6 | 0xB5 | 0xB4 | 0x56 | 0x15 |
+                0x36 | 0x76 | 0xF5 | 0x95 | 0x94 | 0x14 | 0x34 | 0x54 | 0x74 | 0xD4 | 0xF4 |
+                0xD7 | 0xF7 | 0x17 | 0x37 | 0x57 | 0x77 => self.zpgx(),
+                0xB6 | 0x96 | 0xB7 | 0x97 => self.zpgy(),
+                0x6D | 0x2D | 0x0E | 0x2C | 0xCD | 0xEC | 0xCC | 0xCE | 0x4D | 0xEE | 0x4C |
+                0x20 | 0xAD | 0xAE | 0xAC | 0x4E | 0x0D | 0x2E | 0x6E | 0xED | 0x8D | 0x8E |
+                0x8C | 0x0C | 0xAF | 0x8F | 0xCF | 0xEF | 0x0F | 0x2F | 0x4F | 0x6F => self.abs(),
+                0x7D | 0x3D | 0x1E | 0xDD | 0xDE | 0x5D | 0xFE | 0xBD | 0xBC | 0x5E | 0x1D |
+                0x3E | 0x7E | 0xFD | 0x9D | 0x1C | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC | 0xDF |
+                0xFF | 0x1F | 0x3F | 0x5F | 0x7F => self.absx(),
+                0x79 | 0x39 | 0xD9 | 0x59 | 0xB9 | 0xBE | 0x19 | 0xF9 | 0x99 | 0xBF | 0xDB |
+                0xFB | 0x1B | 0x3B | 0x5B | 0x7B => self.absy(),
+                0x90 | 0xB0 | 0xF0 | 0x30 | 0xD0 | 0x10 | 0x50 | 0x70 => self.rel(),
+                0x6C => self.ind(),
+                0x61 | 0x21 | 0xC1 | 0x41 | 0xA1 | 0x01 | 0xE1 | 0x81 | 0xA3 | 0x83 | 0xC3 |
+                0xE3 | 0x03 | 0x23 | 0x43 | 0x63 => self.indx(),
+                0x71 | 0x31 | 0xD1 | 0x51 | 0xB1 | 0x11 | 0xF1 | 0x91 | 0xB3 | 0xD3 | 0xF3 |
+                0x13 | 0x33 | 0x53 | 0x73 => self.indy(),
+                0x0A | 0x00 | 0x18 | 0xD8 | 0x58 | 0xB8 | 0xCA | 0x88 | 0xE8 | 0xC8 | 0x4A |
+                0xEA | 0x48 | 0x08 | 0x68 | 0x28 | 0x2A | 0x6A | 0x40 | 0x60 | 0x38 | 0xF8 |
+                0x78 | 0xAA | 0xA8 | 0xBA | 0x8A | 0x9A | 0x98 | 0x1A | 0x3A | 0x5A | 0x7A |
+                0xDA | 0xFA | 0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 |
+                0xB2 | 0xD2 | 0xF2  => (70000, 0), //70000 signifies an operation, that doesn't use any address
+                _ => {
+                    panic!("Opcode: {:X} not implemented", opcode);
+                }
+            };
 
         cycles += match opcode {
             0x69 | 0x65 | 0x75 | 0x6D | 0x7D | 0x79 | 0x61 | 0x71 => self.ADC(adr),
@@ -210,7 +206,11 @@ impl Cpu {
             //AXS
             0xC7 | 0xD7 | 0xCF | 0xDF | 0xDB | 0xC3 | 0xD3 => self.DCP(adr),
             0xE7 | 0xF7 | 0xEF | 0xFF | 0xFB | 0xE3 | 0xF3 => self.ISC(adr),
-            //KIL
+            0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 | 0xB2 | 0xD2 |
+            0xF2 => {
+                self.KIL();
+                return;
+            },
             //LAR
             0xA7 | 0xB7 | 0xAF | 0xBF | 0xA3 | 0xB3 => self.LAX(adr),
             0x27 | 0x37 | 0x2F | 0x3F | 0x3B | 0x23 | 0x33 => self.RLA(adr),
@@ -224,20 +224,20 @@ impl Cpu {
             _ => panic!("Opcode not implemented"),
         };
 
+        //0B, 4B, CB, 8B
+
         self.pc += 1;
     }
 
     fn ADC(&mut self, adr: usize) -> u8 {
-        let mut num = self.mem[adr];
-        let carry = (num as u16 + self.A as u16 + (if self.C {1} else {0})) & (1 << 8) != 0;
-        let (num, v1): (i8, bool) = (num as i8).overflowing_add(if self.C {1} else {0});
+        let num = self.mem[adr];
+        let carry = (num as u16 + self.A as u16 + (if self.C { 1 } else { 0 })) & (1 << 8) != 0;
+        let (num, v1): (i8, bool) = (num as i8).overflowing_add(if self.C { 1 } else { 0 });
         let (num, v2): (i8, bool) = (num as i8).overflowing_add(self.A as i8);
         self.A = num as u8;
         self.V = v1 || v2;
         self.C = carry;
-        let a = self.A;
-        self.Z(a);
-        self.N(a);
+        set_z_n!(self.A, self);
         1
     }
 
@@ -250,148 +250,128 @@ impl Cpu {
 
     fn ASL(&mut self, adr: usize) -> u8 {
         let tmp = {
-            let target = if adr == 70000 {&mut self.A} else {&mut self.mem[adr]};
+            let target = if adr == 70000 {
+                &mut self.A
+            } else {
+                &mut self.mem[adr]
+            };
             let tmp = (*target as u16) << 1;
             *target = tmp as u8;
             tmp
         };
 
         self.C = tmp & (1 << 8) != 0;
-        self.Z(tmp as u8);
-        self.N(tmp as u8);
-
-        if adr == 70000 {2} else {3}
+        set_z_n!(tmp as u8, self);
+        if adr == 70000 { 2 } else { 3 }
     }
 
     fn LSR(&mut self, adr: usize) -> u8 {
         let tmp = {
-            let target = if adr == 70000 {&mut self.A} else {&mut self.mem[adr]};
+            let target = if adr == 70000 {
+                &mut self.A
+            } else {
+                &mut self.mem[adr]
+            };
             self.C = (*target & 1) != 0;
             *target >>= 1;
             let tmp = *target;
             tmp
         };
 
-        self.Z(tmp);
-        self.N(tmp);
-
-        if adr == 70000 {2} else {3}
+        set_z_n!(tmp, self);
+        if adr == 70000 { 2 } else { 3 }
     }
 
     fn ROL(&mut self, adr: usize) -> u8 {
         let tmp = {
-            let target = if adr == 70000 {&mut self.A} else {&mut self.mem[adr]};
+            let target = if adr == 70000 {
+                &mut self.A
+            } else {
+                &mut self.mem[adr]
+            };
             let C = *target & (1 << 7) != 0;
             *target <<= 1;
-            *target |= if self.C {1} else {0};
+            *target |= if self.C { 1 } else { 0 };
             self.C = C;
             let tmp = *target;
             tmp
         };
 
-        self.Z(tmp);
-        self.N(tmp);
-
-        if adr == 70000 {2} else {3}
+        set_z_n!(tmp, self);
+        if adr == 70000 { 2 } else { 3 }
     }
 
     fn ROR(&mut self, adr: usize) -> u8 {
         let tmp = {
-            let target = if adr == 70000 {&mut self.A} else {&mut self.mem[adr]};
+            let target = if adr == 70000 {
+                &mut self.A
+            } else {
+                &mut self.mem[adr]
+            };
             let C = *target & 1 != 0;
             *target >>= 1;
-            *target |= (if self.C {1} else {0}) << 7;
+            *target |= (if self.C { 1 } else { 0 }) << 7;
             self.C = C;
             let tmp = *target;
             tmp
         };
 
-        self.Z(tmp);
-        self.N(tmp);
-
-        if adr == 70000 {2} else {3}
+        set_z_n!(tmp, self);
+        if adr == 70000 { 2 } else { 3 }
     }
 
     fn INC(&mut self, adr: usize) -> u8 {
-         self.mem[adr] = self.mem[adr].wrapping_add(1);
-         let n = self.mem[adr];
-         self.Z(n);
-         self.N(n);
-
-         3
+        self.mem[adr] = self.mem[adr].wrapping_add(1);
+        set_z_n!(self.mem[adr], self);
+        3
     }
 
     fn INX(&mut self) -> u8 {
         self.X = self.X.wrapping_add(1);
-        let x = self.X;
-        self.Z(x);
-        self.N(x);
-
+        set_z_n!(self.X, self);
         2
     }
 
     fn INY(&mut self) -> u8 {
         self.Y = self.Y.wrapping_add(1);
-        let y = self.Y;
-        self.Z(y);
-        self.N(y);
-
+        set_z_n!(self.Y, self);
         2
     }
 
     fn DEC(&mut self, adr: usize) -> u8 {
-         self.mem[adr] = self.mem[adr].wrapping_sub(1);
-         let n = self.mem[adr];
-         self.Z(n);
-         self.N(n);
-
-         3
+        self.mem[adr] = self.mem[adr].wrapping_sub(1);
+        set_z_n!(self.mem[adr], self);
+        3
     }
 
     fn DEX(&mut self) -> u8 {
         self.X = self.X.wrapping_sub(1);
-        let x = self.X;
-        self.Z(x);
-        self.N(x);
-
+        set_z_n!(self.X, self);
         2
     }
 
     fn DEY(&mut self) -> u8 {
         self.Y = self.Y.wrapping_sub(1);
-        let y = self.Y;
-        self.Z(y);
-        self.N(y);
-        
+        set_z_n!(self.Y, self);
         2
     }
 
     fn AND(&mut self, adr: usize) -> u8 {
         self.A &= self.mem[adr];
-
-        let a = self.A;
-        self.Z(a);
-        self.N(a);
-
+        set_z_n!(self.A, self);
         1
     }
 
     fn EOR(&mut self, adr: usize) -> u8 {
-         self.A ^= self.mem[adr];
-         let a = self.A;
-         self.Z(a);
-         self.N(a);
-
-         1
+        self.A ^= self.mem[adr];
+        set_z_n!(self.A, self);
+        1
     }
 
     fn ORA(&mut self, adr: usize) -> u8 {
-         self.A |= self.mem[adr];
-         let a = self.A;
-         self.Z(a);
-         self.N(a);
-
-         1
+        self.A |= self.mem[adr];
+        set_z_n!(self.A, self);
+        1
     }
 
     fn CMP(&mut self, adr: usize) -> u8 {
@@ -410,40 +390,29 @@ impl Cpu {
     }
 
     fn BIT(&mut self, adr: usize) -> u8 {
-         let mut byte = self.mem[adr];
-         self.Z = (byte & self.A) == 0;
-         self.V = (byte >> 6) & 1 != 0;
-         self.N = (byte >> 7) & 1 != 0;
+        let byte = self.mem[adr];
+        self.Z = (byte & self.A) == 0;
+        self.V = (byte >> 6) & 1 != 0;
+        self.N = (byte >> 7) & 1 != 0;
 
-         1
+        1
     }
 
     fn LDA(&mut self, adr: usize) -> u8 {
         self.A = self.mem[adr];
-        let a = self.A;
-        self.Z(a);
-        self.N(a);
-
+        set_z_n!(self.A, self);
         1
     }
 
     fn LDX(&mut self, adr: usize) -> u8 {
         self.X = self.mem[adr];
-        
-        let x = self.X;
-        self.Z(x);
-        self.N(x);
-
+        set_z_n!(self.X, self);
         1
     }
 
     fn LDY(&mut self, adr: usize) -> u8 {
         self.Y = self.mem[adr];
-
-        let y = self.Y;
-        self.Z(y);
-        self.N(y);
-
+        set_z_n!(self.Y, self);
         1
     }
 
@@ -472,14 +441,13 @@ impl Cpu {
         self.push((pc >> 8) as u8);
         self.push(pc as u8);
         self.pc = adr - 1;
-
         6
     }
 
     fn RTI(&mut self) -> u8 {
-         self.pull_status();
-         self.pc = ((self.pop() as u16) | ((self.pop() as u16) << 8)) as usize - 1;
-         6
+        self.pull_status();
+        self.pc = ((self.pop() as u16) | ((self.pop() as u16) << 8)) as usize - 1;
+        6
     }
 
     fn RTS(&mut self) -> u8 {
@@ -488,8 +456,8 @@ impl Cpu {
     }
 
     fn BCC(&mut self, adr: usize) -> u8 {
-         let c = !self.C;
-         self.branch(adr, c)
+        let c = !self.C;
+        self.branch(adr, c)
     }
 
     fn BCS(&mut self, adr: usize) -> u8 {
@@ -503,8 +471,8 @@ impl Cpu {
     }
 
     fn BMI(&mut self, adr: usize) -> u8 {
-         let n = self.N;
-         self.branch(adr, n)
+        let n = self.N;
+        self.branch(adr, n)
     }
 
     fn BNE(&mut self, adr: usize) -> u8 {
@@ -518,13 +486,13 @@ impl Cpu {
     }
 
     fn BVC(&mut self, adr: usize) -> u8 {
-         let v = !self.V;
-         self.branch(adr, v)
+        let v = !self.V;
+        self.branch(adr, v)
     }
 
     fn BVS(&mut self, adr: usize) -> u8 {
-         let v = self.V;
-         self.branch(adr, v)
+        let v = self.V;
+        self.branch(adr, v)
     }
 
     fn SEI(&mut self) -> u8 {
@@ -564,39 +532,25 @@ impl Cpu {
 
     fn TAX(&mut self) -> u8 {
         self.X = self.A;
-
-        let x  = self.X;
-        self.Z(x);
-        self.N(x);
-
+        set_z_n!(self.X, self);
         2
     }
 
     fn TAY(&mut self) -> u8 {
         self.Y = self.A;
-        let y = self.Y;
-        self.Z(y);
-        self.N(y);
-
+        set_z_n!(self.Y, self);
         2
     }
 
     fn TSX(&mut self) -> u8 {
-         self.X = self.sp as u8;
-         let x = self.X;
-         self.Z(x);
-         self.N(x);
-
-         2
+        self.X = self.sp as u8;
+        set_z_n!(self.X, self);
+        2
     }
 
     fn TXA(&mut self) -> u8 {
         self.A = self.X;
-
-        let a = self.A;
-        self.Z(a);
-        self.N(a);
-
+        set_z_n!(self.A, self);
         2
     }
 
@@ -607,11 +561,7 @@ impl Cpu {
 
     fn TYA(&mut self) -> u8 {
         self.A = self.Y;
-
-        let a = self.A;
-        self.Z(a);
-        self.N(a);
-
+        set_z_n!(self.A, self);
         2
     }
 
@@ -627,10 +577,9 @@ impl Cpu {
     }
 
     fn PHA(&mut self) -> u8 {
-         let a = self.A;
-         self.push(a);
-
-         3
+        let a = self.A;
+        self.push(a);
+        3
     }
 
     fn PHP(&mut self) -> u8 {
@@ -639,12 +588,9 @@ impl Cpu {
     }
 
     fn PLA(&mut self) -> u8 {
-         self.A = self.pop();
-         let a = self.A;
-         self.Z(a);
-         self.N(a);
-
-         4
+        self.A = self.pop();
+        set_z_n!(self.A, self);
+        4
     }
 
     fn PLP(&mut self) -> u8 {
@@ -673,12 +619,14 @@ impl Cpu {
         3
     }
 
+    fn KIL(&mut self) {
+        self.halt = true;
+    }
+
     fn LAX(&mut self, adr: usize) -> u8 {
         self.A = self.mem[adr];
         self.X = self.A;
-        let x = self.X;
-        self.N(x);
-        self.Z(x);
+        set_z_n!(self.X, self);
         1
     }
 
@@ -722,7 +670,11 @@ impl Cpu {
         if cond {
             let diff = adr as i8 as isize;
             let before = self.pc;
-            if diff > 0 { self.pc += diff as usize } else { self.pc -= diff.abs() as usize };
+            if diff > 0 {
+                self.pc += diff as usize
+            } else {
+                self.pc -= diff.abs() as usize
+            };
             cycles += 1 + Cpu::crosses(before, self.pc);
         }
 
@@ -730,24 +682,26 @@ impl Cpu {
     }
 
     fn push(&mut self, b: u8) {
-        self.mem[self.sp] = b;
-        self.sp -= 1;
+        let _sp = (self.sp as u16 | ((0x01 << 8) as u16)) as usize;
+        self.mem[_sp] = b;
+        self.sp = (self.sp as u8).wrapping_sub(1) as usize;
     }
 
     fn pop(&mut self) -> u8 {
-        self.sp += 1;
-        self.mem[self.sp]
+        self.sp = (self.sp as u8).wrapping_add(1) as usize;
+        let _sp = (self.sp as u16 | ((0x01 << 8) as u16)) as usize;
+        self.mem[_sp]
     }
 
     fn push_status(&mut self, brk_php: bool) {
         let mut status: u8 = 1 << 5;
-        status |= (if self.N {1} else {0}) << 7;
-        status |= (if self.V {1} else {0}) << 6;
-        status |= (if brk_php {1} else {0}) << 4;
-        status |= (if self.D {1} else {0}) << 3;
-        status |= (if self.I {1} else {0}) << 2;
-        status |= (if self.Z {1} else {0}) << 1;
-        status |= if self.C {1} else {0};
+        status |= (if self.N { 1 } else { 0 }) << 7;
+        status |= (if self.V { 1 } else { 0 }) << 6;
+        status |= (if brk_php { 1 } else { 0 }) << 4;
+        status |= (if self.D { 1 } else { 0 }) << 3;
+        status |= (if self.I { 1 } else { 0 }) << 2;
+        status |= (if self.Z { 1 } else { 0 }) << 1;
+        status |= if self.C { 1 } else { 0 };
         self.push(status);
     }
 
@@ -759,6 +713,24 @@ impl Cpu {
         self.D = (status >> 3) & 1 != 0;
         self.Z = (status >> 1) & 1 != 0;
         self.C = status & 1 != 0;
+    }
+
+    #[inline]
+    fn Z(&mut self, b: u8) {
+        self.Z = b == 0
+    }
+
+    #[inline]
+    fn N(&mut self, b: u8) {
+        self.N = (b & 0b1000_0000) > 0
+    }
+
+    fn crosses(before: usize, after: usize) -> u8 {
+        if ((before as u16) & 0xFF00) != ((after as u16) & 0xFF00) {
+            1
+        } else {
+            0
+        }
     }
 
     //Addressing modes
@@ -785,13 +757,15 @@ impl Cpu {
 
     fn rel(&mut self) -> (usize, u8) {
         self.pc += 1;
-        let mut cycles: u8 = 1;
-        (self.mem[self.pc] as usize, cycles)
+        (self.mem[self.pc] as usize, 1)
     }
 
     fn abs(&mut self) -> (usize, u8) {
         self.pc += 2;
-        (((self.mem[self.pc] as usize) << 8) | (self.mem[self.pc - 1] as usize), 3)
+        (
+            ((self.mem[self.pc] as usize) << 8) | (self.mem[self.pc - 1] as usize),
+            3,
+        )
     }
 
     fn absx_y(&mut self, offset: u8) -> (usize, u8) {
@@ -828,7 +802,8 @@ impl Cpu {
     fn indx(&mut self) -> (usize, u8) {
         self.pc += 1;
         let base = self.mem[self.pc].wrapping_add(self.X);
-        let addr = self.mem[base as usize] as usize | ((self.mem[(base.wrapping_add(1)) as usize] as usize) << 8);
+        let addr = self.mem[base as usize] as usize |
+            ((self.mem[(base.wrapping_add(1)) as usize] as usize) << 8);
         (addr, 5)
     }
 
@@ -836,24 +811,11 @@ impl Cpu {
         self.pc += 1;
         let mut cycles = 4;
         let mut base = self.mem[self.pc] as usize;
-        base = self.mem[base] as usize | ((self.mem[((base as u8).wrapping_add(1)) as usize] as usize) << 8);
+        base = self.mem[base] as usize |
+            ((self.mem[((base as u8).wrapping_add(1)) as usize] as usize) << 8);
         let before = base;
         base = (base as u16).wrapping_add(self.Y as u16) as usize;
         cycles += Cpu::crosses(before, base);
         (base, cycles)
-    }
-
-    //Flag checking
-
-    fn Z(&mut self, b: u8) {
-        self.Z = b == 0
-    }
-
-    fn N(&mut self, b: u8) {
-        self.N = (b & 0b1000_0000) > 0
-    }
-
-    fn crosses(before: usize, after: usize) -> u8 {
-        if ((before as u16) & 0xFF00) != ((after as u16) & 0xFF00) {1} else {0}
     }
 }
