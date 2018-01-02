@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+mod memory;
 mod cpu;
 
 //use std::env;
@@ -11,7 +12,8 @@ mod cpu;
 //use std::io::BufRead;
 
 fn main() {
-    let mut cpu = cpu::Cpu::new();
+    let mut mem = memory::Memory::new();
+    let mut cpu = cpu::Cpu::new(&mut mem);
 
     //let mut stdin = io::stdin();
 

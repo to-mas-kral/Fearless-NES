@@ -3,6 +3,9 @@
 use std::fs::File;
 use std::io::Read;
 
+use super::memory;
+
+//A little macro for checking and setting zero and negative flags
 macro_rules! set_z_n {
     ($var:expr, $self:ident) => (
         {
@@ -13,7 +16,7 @@ macro_rules! set_z_n {
     )
 }
 
-pub struct Cpu {
+pub struct Cpu<'m> {
     A: u8, //Accumulator
     X: u8, //X index
     Y: u8, //Y index
@@ -26,15 +29,15 @@ pub struct Cpu {
     Z: bool, //Zero flag
     C: bool, //Carry flag
     B: bool, //Break flag
-    D: bool, //BCD flag
+    D: bool, //BCD flag, this doesn't do anything on the NES CPU
 
-    pub halt: bool, //halt "flag"
+    pub halt: bool, //halt "flag" (this isn't actually part of the CPU)
 
-    mem: [u8; 0x10000],
+    mem: &'m mut memory::Memory, //reference to a memory map shared by other components
 }
 
-impl Cpu {
-    pub fn new() -> Cpu {
+impl<'m> Cpu<'m> {
+    pub fn new(memory: &mut memory::Memory) -> Cpu {
         let mut cpu = Cpu {
             A: 0,
             X: 0,
@@ -52,7 +55,7 @@ impl Cpu {
 
             halt: false,
 
-            mem: [0; 0x10000],
+            mem: memory,
         };
 
         cpu.load_to_memory(&mut File::open("nestest.nes").unwrap());
@@ -60,7 +63,7 @@ impl Cpu {
     }
 
     pub fn load_to_memory(&mut self, file: &mut File) {
-        self.mem = [0; 0x10000];
+        self.mem.clear();
         self.pc = 0x8000;
         let mut bytes = file.bytes();
 
@@ -78,7 +81,7 @@ impl Cpu {
         self.pc = 0xC000;
     }
 
-    pub fn print_debug_info(&mut self) {        
+    pub fn print_debug_info(&mut self) {
         let mut status: u8 = 1 << 5;
         status |= (if self.N { 1 } else { 0 }) << 7;
         status |= (if self.V { 1 } else { 0 }) << 6;
@@ -101,7 +104,9 @@ impl Cpu {
     }
 
     pub fn step(&mut self) {
-        if self.halt {return};
+        if self.halt {
+            return;
+        };
         let opcode = self.mem[self.pc];
         let (adr, mut cycles): (usize, u8) =
             match opcode {
@@ -132,10 +137,8 @@ impl Cpu {
                 0xEA | 0x48 | 0x08 | 0x68 | 0x28 | 0x2A | 0x6A | 0x40 | 0x60 | 0x38 | 0xF8 |
                 0x78 | 0xAA | 0xA8 | 0xBA | 0x8A | 0x9A | 0x98 | 0x1A | 0x3A | 0x5A | 0x7A |
                 0xDA | 0xFA | 0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 |
-                0xB2 | 0xD2 | 0xF2  => (70000, 0), //70000 signifies an operation, that doesn't use any address
-                _ => {
-                    panic!("Opcode: {:X} not implemented", opcode);
-                }
+                0xB2 | 0xD2 | 0xF2 => (70000, 0),
+                _ => panic!("Opcode: {:X} not implemented", opcode),
             };
 
         cycles += match opcode {
@@ -189,8 +192,8 @@ impl Cpu {
             0x8A => self.TXA(),
             0x9A => self.TXS(),
             0x98 => self.TYA(),
-            0xEA | 0x04 | 0x14 | 0x34 | 0x44 | 0x54 | 0x64 | 0x74 | 0x80 | 0x82 | 0x89 |
-            0xC2 | 0xD4 | 0xE2 | 0xF4 | 0x1A | 0x3A | 0x5A | 0x7A | 0xDA | 0xFA => 2,
+            0xEA | 0x04 | 0x14 | 0x34 | 0x44 | 0x54 | 0x64 | 0x74 | 0x80 | 0x82 | 0x89 | 0xC2 |
+            0xD4 | 0xE2 | 0xF4 | 0x1A | 0x3A | 0x5A | 0x7A | 0xDA | 0xFA => 2,
             0x0C | 0x1C | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC => 1,
             0x00 => self.BRK(),
             0x48 => self.PHA(),
@@ -206,11 +209,10 @@ impl Cpu {
             //AXS
             0xC7 | 0xD7 | 0xCF | 0xDF | 0xDB | 0xC3 | 0xD3 => self.DCP(adr),
             0xE7 | 0xF7 | 0xEF | 0xFF | 0xFB | 0xE3 | 0xF3 => self.ISC(adr),
-            0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 | 0xB2 | 0xD2 |
-            0xF2 => {
+            0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 | 0xB2 | 0xD2 | 0xF2 => {
                 self.KIL();
                 return;
-            },
+            }
             //LAR
             0xA7 | 0xB7 | 0xAF | 0xBF | 0xA3 | 0xB3 => self.LAX(adr),
             0x27 | 0x37 | 0x2F | 0x3F | 0x3B | 0x23 | 0x33 => self.RLA(adr),
@@ -221,10 +223,10 @@ impl Cpu {
             //SYA
             //XAA
             //XAS
-            _ => panic!("Opcode not implemented"),
+            _ => panic!("Opcode: {:X} not implemented", opcode),
         };
 
-        //0B, 4B, CB, 8B
+        //0B, 4B, CB, 8B - These should be implemented as some games use them
 
         self.pc += 1;
     }
