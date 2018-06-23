@@ -1,34 +1,38 @@
-#![allow(non_snake_case)]
+#![feature(test)]
+#![feature(nll)]
+
+//#[macro_use]
+//extern crate bitflags;
+
+mod cpu;
+use cpu::Tick;
 
 mod memory;
-mod cpu;
+//mod ines;
+//mod ppu;
 
-//use std::env;
-//use std::io;
-//use std::fs::File;
-//use std::io::Read;
+mod tests;
 
-//use std::io::BufReader;
-//use std::io::BufRead;
+use std::cell::RefCell;
+use std::fs::File;
+use std::rc::Rc;
 
 fn main() {
-    let mut mem = memory::Memory::new();
-    let mut cpu = cpu::Cpu::new(&mut mem);
+    let mem = Rc::new(RefCell::new(memory::Memory::new()));
+    mem.borrow_mut()
+        .load_mapper_0(&mut File::open("donkey kong.nes").unwrap());
+    let mut cpu = cpu::Cpu::new(mem.clone());
+    //let mut ppu = ppu::Ppu::new(mem.clone());
 
-    //let mut stdin = io::stdin();
+    //cpu.load_to_memory(&mut File::open("nestest.nes").unwrap());
 
-    //let f = File::open("nestest.log").unwrap();
-    //let file = BufReader::new(&f);
-    //let mut lines = file.lines();
+    //let header = ines::parse_header(&mut File::open("donkey kong.nes").unwrap());
 
-    let mut i: u64 = 1;
+    cpu.gen_reset();
 
     while !cpu.halt {
-        print!("{:X} ", i);
-        i += 1;
         cpu.print_debug_info();
-        cpu.step();
-        //println!("         {:?}", lines.next().unwrap().unwrap());
+        cpu.tick();
         //let mut s: String = String::new();
         //stdin.read_line(&mut s);
     }
