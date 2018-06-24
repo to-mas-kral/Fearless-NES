@@ -7,6 +7,7 @@ use std::ops::{Index, IndexMut};
 
 pub trait MemoryOps {
     fn read(&self, _index: usize) -> u8;
+    fn read_direct(&self, _index: usize) -> u8;
     fn read_zp(&self, _index: usize) -> u8;
     fn write(&self, _index: usize, value: u8);
 }
@@ -28,9 +29,9 @@ impl Memory {
         let _bytes: Result<Vec<u8>, _> = f.bytes().collect();
         let bytes = _bytes.expect("error while reading the file");
 
-        for i in 0..16384 {
+        for i in 0..32769 {
             self.mem[0x7FFF + i] = bytes[15 + i];
-            self.mem[0x7FFF + 0x4000 + i] = bytes[15 + i];
+            //self.mem[0x7FFF + 0x4000 + i] = bytes[15 + i];
         }
     }
 }
@@ -63,6 +64,10 @@ impl MemoryOps for Rc<RefCell<Memory>> {
             self.borrow_mut().mem[index],
             index
         ); */
+        self.borrow_mut().mem[index]
+    }
+
+    fn read_direct(&self, index: usize) -> u8 {
         self.borrow_mut().mem[index]
     }
 

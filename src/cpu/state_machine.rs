@@ -1,6 +1,7 @@
 use super::Tick;
 use memory::MemoryOps;
 impl Tick for super::Cpu {
+    #[allow(unused_variables)]
     fn tick(&mut self) {
         if self.halt {
             return;
@@ -93,7 +94,7 @@ impl Tick for super::Cpu {
             0xB => {
                 self.check_irq();
                 let val = read_ab!(self);
-                self.anc();
+                self.anc(val);
                 self.pc += 1;
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -282,7 +283,7 @@ impl Tick for super::Cpu {
             0x2B => {
                 self.check_irq();
                 let val = read_ab!(self);
-                self.anc();
+                self.anc(val);
                 self.pc += 1;
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -472,7 +473,7 @@ impl Tick for super::Cpu {
             0x4B => {
                 self.check_irq();
                 let val = read_ab!(self);
-                self.alr();
+                self.alr(val);
                 self.pc += 1;
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -661,7 +662,7 @@ impl Tick for super::Cpu {
             0x6B => {
                 self.check_irq();
                 let val = read_ab!(self);
-                self.arr();
+                self.arr(val);
                 self.pc += 1;
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -1239,7 +1240,7 @@ impl Tick for super::Cpu {
             0xCB => {
                 self.check_irq();
                 let val = read_ab!(self);
-                self.axs();
+                self.axs(val);
                 self.pc += 1;
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3790,7 +3791,7 @@ impl Tick for super::Cpu {
                 cache_irq!(self);
                 read_ab!(self);
                 if self.temp + self.y as usize >= 0x100 {
-                    self.ab.wrapping_add(0x100);
+                    self.ab = (self.ab as u16).wrapping_add(0x100) as usize;
                 }
                 self.state = 0x266;
             }
@@ -5127,7 +5128,7 @@ impl Tick for super::Cpu {
                 cache_irq!(self);
                 read_ab!(self);
                 if self.temp + self.y as usize >= 0x100 {
-                    self.ab.wrapping_add(0x100);
+                    self.ab = (self.ab as u16).wrapping_add(0x100) as usize;
                 }
                 self.state = 0x354;
             }

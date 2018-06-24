@@ -37,14 +37,14 @@ pub struct Cpu {
     pub halt: bool,
     pub state: u16,
 
-    pub ab: usize, //Address bus
-    pub temp: usize,
+    ab: usize, //Address bus
+    temp: usize,
     pub irq_signal: bool,
     cached_irq: bool,
     take_interrupt: bool,
     pending_reset: bool,
 
-    mem: Rc<RefCell<Memory>>, //reference to a memory map shared by other components
+    pub mem: Rc<RefCell<Memory>>, //reference to a memory map shared by other components
 }
 
 impl Cpu {
@@ -125,8 +125,9 @@ impl Cpu {
     }
 
     pub fn gen_reset(&mut self) {
-        self.pc =
-            ((u16::from(self.mem.read(0xFFFD)) << 8) | u16::from(self.mem.read(0xFFFC))) as usize;
+        self.pc = ((u16::from(self.mem.read_direct(0xFFFD)) << 8)
+            | u16::from(self.mem.read_direct(0xFFFC))) as usize;
+        self.ab = self.pc;
     }
 
     /*pub fn gen_nmi(&mut self) {
@@ -165,12 +166,15 @@ impl Cpu {
 
     #[inline]
     fn adc(&mut self, num: u8) {
+        let a = self.a;
+        let b = num;
         let carry =
             (u16::from(num) + u16::from(self.a) + (if self.c { 1 } else { 0 })) & (1 << 8) != 0;
-        let (num, v1): (i8, bool) = (num as i8).overflowing_add(if self.c { 1 } else { 0 });
-        let (num, v2): (i8, bool) = (num as i8).overflowing_add(self.a as i8);
+        let (num, _): (i8, _) = (num as i8).overflowing_add(if self.c { 1 } else { 0 });
+        let (num, _): (i8, _) = (num as i8).overflowing_add(self.a as i8);
         self.a = num as u8;
-        self.v = v1 || v2;
+        //self.v = v1 || v2;
+        self.v = (a ^ b) & (0x80) == 0 && (a ^ self.a) & 0x80 != 0;
         self.c = carry;
         set_z_n!(self.a, self);
     }
@@ -461,7 +465,6 @@ impl Cpu {
         };
     }
 
-    //TODO: complete these
     #[inline]
     fn anc(&mut self, num: u8) {
         self.and(num);
@@ -470,26 +473,63 @@ impl Cpu {
 
     #[inline]
     fn alr(&mut self, num: u8) {
-        self.and(num);
-        self.lsr(self.a)
+        self.a &= num;
+        self.c = if self.a & 1 != 0 { true } else { false };
+        self.a >>= 1;
+        set_z_n!(self.a, self);
     }
 
     #[inline]
-    fn axs(&mut self) {}
+    fn axs(&mut self, num: u8) {
+        self.x &= self.a;
+        self.c = self.x >= num;
+        self.x = self.x.wrapping_sub(num);
+        set_z_n!(self.x, self);
+    }
+
+    //TODO: complete these
     #[inline]
     fn xaa(&mut self) {}
     #[inline]
     fn ahx(&mut self) {}
     #[inline]
-    fn shx(&mut self) {}
+    fn shx(&mut self) {
+        let result = ((self.ab >> 8) as u8).wrapping_add(1) & self.x;
+        self.mem.write((usize::from(result) << 8) | (self.ab & 0xFF), self.x);
+    }
     #[inline]
-    fn shy(&mut self) {}
+    fn shy(&mut self) {
+        let result = ((self.ab >> 8) as u8).wrapping_add(1) & self.y;
+        self.mem.write((usize::from(result) << 8) | (self.ab & 0xFF), self.y);
+    }
     #[inline]
     fn las(&mut self) {}
     #[inline]
     fn tas(&mut self) {}
     #[inline]
-    fn arr(&mut self) {}
+    fn arr(&mut self, num: u8) {
+        self.and(num);
+        self.ror_a();
+
+        let bit5 = (self.a >> 5) & 1 == 1;
+        let bit6 = (self.a >> 6) & 1 == 1;
+
+        if bit5 {
+            if bit6 {
+                self.c = true;
+                self.v = false;
+            } else {
+                self.c = false;
+                self.v = true;
+            }
+        } else if bit6 {
+            self.c = true;
+            self.v = true;
+        } else {
+            self.c = false;
+            self.v = false;
+        }
+    }
 
     #[inline]
     fn push(&mut self, adr: usize, data: u8) {

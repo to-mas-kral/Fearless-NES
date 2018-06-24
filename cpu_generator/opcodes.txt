@@ -530,7 +530,7 @@ ALR
     immediate 0x4B
 
 AXS
-    self.axs();
+    self.axs(val);
 
     immediate 0xCB
 
@@ -566,6 +566,6 @@ TAS
     absolute_y_st 0x9B
 
 ARR
-    self.arr();
+    self.arr(val);
 
     immediate 0x6B

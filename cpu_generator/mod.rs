@@ -74,35 +74,31 @@ impl Generator {
     pub fn output_machine(&mut self, path: &PathBuf) {
         let mut file = File::create(path).unwrap();
 
-        file.write(b"use super::Tick;")
-            .expect("error writing to file");
-        file.write(b"use memory::MemoryOps;")
-            .expect("error writing to file");
-        file.write(b"impl Tick for super::Cpu {")
-            .expect("error writing to file");
-        file.write(b"fn tick(&mut self) {")
-            .expect("error writing to file");
-        file.write(b"if self.halt {return}")
-            .expect("error writing to file");
-        file.write(
-            b"macro_rules! cache_irq {($self:ident) => {self.cached_irq = self.irq_signal;};}",
-        ).expect("error writing to file");
-        file.write(b"macro_rules! read_ab {($self:ident) => {$self.mem.read($self.ab)};}")
-            .expect("error writing to file");
-        file.write(b"macro_rules! sp_to_ab {($self:ident) => {$self.ab = $self.sp | 0x100};}")
-            .expect("error writing to file");
-        file.write(b"match self.state {")
-            .expect("error writing to file");
+        let mut s = String::new();
+
+        s.push_str("use super::Tick;");
+        s.push_str("use memory::MemoryOps;");
+        s.push_str("impl Tick for super::Cpu {");
+        s.push_str("#[allow(unused_variables)]");
+        s.push_str("fn tick(&mut self) {");
+        s.push_str("if self.halt {return}");
+        s.push_str(
+            "macro_rules! cache_irq {($self:ident) => {self.cached_irq = self.irq_signal;};}",
+        );
+        s.push_str("macro_rules! read_ab {($self:ident) => {$self.mem.read($self.ab)};}");
+        s.push_str("macro_rules! sp_to_ab {($self:ident) => {$self.ab = $self.sp | 0x100};}");
+        s.push_str("match self.state {");
 
         for (key, val) in self.state_machine.iter() {
             let st = format!("0x{:X} => {{ {} }},", key.0, val);
-            file.write(&st.into_bytes()).expect("error writing to file");
+            s.push_str(st.as_str());
         }
 
-        file.write(b"_ => unreachable!(\"propably a Rust compiler error\"),")
-            .expect("error writing to file");
+        s.push_str("_ => unreachable!(\"propably a Rust compiler error\"),");
+        s.push_str("} } }");
 
-        file.write(b"} } }").expect("error writing to file");
+        file.write(s.as_bytes())
+            .expect("error writing to a file while generating the cpu");
     }
 
     pub fn generate_machine(&mut self, instructions: Vec<Instruction>) {
@@ -551,7 +547,7 @@ impl Generator {
         );
         self.add_middle("self.temp = self.mem.read_zp(self.ab) as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>;".to_string());
         self.add_middle("self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | ((self.temp + self.y as usize) & 0xFF); self.state = <>;".to_string());
-        self.add_middle("cache_irq!(self); read_ab!(self); if self.temp + self.y as usize >= 0x100 {self.ab.wrapping_add(0x100);} self.state = <>;".to_string());
+        self.add_middle("cache_irq!(self); read_ab!(self); if self.temp + self.y as usize >= 0x100 {self.ab = (self.ab as u16).wrapping_add(0x100) as usize;} self.state = <>;".to_string());
         self.add_exit(format!(
             "self.check_irq(); {} self.ab = self.pc; self.state = 0x100;",
             i_code
