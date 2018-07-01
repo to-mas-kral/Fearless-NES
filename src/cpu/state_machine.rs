@@ -1554,7 +1554,7 @@ impl Tick for super::Cpu {
             0x100 => {
                 cache_irq!(self);
                 let int = if self.take_interrupt { 0 } else { 1 };
-                self.state = int * read_ab!(self) as u16;
+                self.state = u16::from(int * read_ab!(self));
                 self.pc += int as usize;
                 self.ab = self.pc
             }
@@ -1649,7 +1649,7 @@ impl Tick for super::Cpu {
             }
             0x10E => {
                 cache_irq!(self);
-                self.ab = (((self.mem.read_zp(self.ab) as u16) << 8) | self.temp as u16) as usize;
+                self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | self.temp;
                 self.state = 0x10F;
             }
             0x10F => {
@@ -1778,7 +1778,7 @@ impl Tick for super::Cpu {
             }
             0x122 => {
                 cache_irq!(self);
-                self.ab = (((self.mem.read_zp(self.ab) as u16) << 8) | self.temp as u16) as usize;
+                self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | self.temp;
                 self.state = 0x123;
             }
             0x123 => {
@@ -2164,7 +2164,7 @@ impl Tick for super::Cpu {
             }
             0x15E => {
                 cache_irq!(self);
-                self.ab = (((self.mem.read_zp(self.ab) as u16) << 8) | self.temp as u16) as usize;
+                self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | self.temp;
                 self.state = 0x15F;
             }
             0x15F => {
@@ -2423,7 +2423,7 @@ impl Tick for super::Cpu {
             }
             0x188 => {
                 cache_irq!(self);
-                self.ab = (((self.mem.read_zp(self.ab) as u16) << 8) | self.temp as u16) as usize;
+                self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | self.temp;
                 self.state = 0x189;
             }
             0x189 => {
@@ -2553,12 +2553,12 @@ impl Tick for super::Cpu {
             }
             0x19F => {
                 self.check_irq();
-                self.pc = (((read_ab!(self) as u16) << 8) | self.temp as u16) as usize;
+                self.pc = ((read_ab!(self) as usize) << 8) | self.temp;
                 self.ab = self.pc;
                 self.state = 0x100
             }
             0x1A0 => {
-                self.ab = (((read_ab!(self) as u16) << 8) | self.temp as u16) as usize;
+                self.ab = ((read_ab!(self) as usize) << 8) | self.temp;
                 self.state = 0x1A1
             }
             0x1A1 => {
@@ -2569,7 +2569,7 @@ impl Tick for super::Cpu {
             }
             0x1A2 => {
                 self.check_irq();
-                self.pc = (((read_ab!(self) as u16) << 8) | self.temp as u16) as usize;
+                self.pc = ((read_ab!(self) as usize) << 8) | self.temp;
                 self.ab = self.pc;
                 self.state = 0x100
             }
@@ -2687,7 +2687,7 @@ impl Tick for super::Cpu {
             }
             0x1B4 => {
                 cache_irq!(self);
-                self.ab = (((self.mem.read_zp(self.ab) as u16) << 8) | self.temp as u16) as usize;
+                self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | self.temp;
                 self.state = 0x1B5;
             }
             0x1B5 => {
@@ -3252,7 +3252,7 @@ impl Tick for super::Cpu {
             }
             0x20B => {
                 cache_irq!(self);
-                self.ab = (((self.mem.read_zp(self.ab) as u16) << 8) | self.temp as u16) as usize;
+                self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | self.temp;
                 self.state = 0x20C;
             }
             0x20C => {
@@ -3650,7 +3650,7 @@ impl Tick for super::Cpu {
             }
             0x24D => {
                 cache_irq!(self);
-                self.ab = (((self.mem.read_zp(self.ab) as u16) << 8) | self.temp as u16) as usize;
+                self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | self.temp;
                 self.state = 0x24E;
             }
             0x24E => {
@@ -3929,7 +3929,7 @@ impl Tick for super::Cpu {
             }
             0x27B => {
                 cache_irq!(self);
-                self.ab = (((self.mem.read_zp(self.ab) as u16) << 8) | self.temp as u16) as usize;
+                self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | self.temp;
                 self.state = 0x27C;
             }
             0x27C => {
@@ -4012,7 +4012,7 @@ impl Tick for super::Cpu {
             }
             0x289 => {
                 cache_irq!(self);
-                self.ab = (((self.mem.read_zp(self.ab) as u16) << 8) | self.temp as u16) as usize;
+                self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | self.temp;
                 self.state = 0x28A;
             }
             0x28A => {
@@ -5227,7 +5227,7 @@ impl Tick for super::Cpu {
                 self.ab = self.pc;
                 self.state = 0x100;
             }
-            _ => unreachable!("propably a Rust compiler error"),
+            op => unreachable!("propably a Rust compiler error, opcode: 0x{:X}", op),
         }
     }
 }

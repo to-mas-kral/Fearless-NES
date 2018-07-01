@@ -1,9 +1,5 @@
 #![allow(non_snake_case)]
 
-use super::memory;
-use std::cell::RefCell;
-use std::rc::Rc;
-
 static PALETTE: [u8; 192] = [
     124, 124, 124, 0, 0, 252, 0, 0, 188, 68, 40, 188, 148, 0, 132, 168, 0, 32, 168, 16, 0, 136, 20,
     0, 80, 48, 0, 0, 120, 0, 0, 104, 0, 0, 88, 0, 0, 64, 88, 0, 0, 0, 0, 0, 0, 0, 0, 0, 188, 188,
@@ -49,9 +45,7 @@ bitflags! {
     }
 }
 
-
-
-struct Registers {
+pub struct Registers {
     ppuctrl: Ppuctrl,
     ppumask: Ppumask,
     ppustatus: Ppustatus,
@@ -59,47 +53,110 @@ struct Registers {
     oamdata: u8,
     ppuscroll: u8,
     scroll_latch: u8,
-    ppuadr: u8,
-    adr_latch: u8,
+    ppuaddr: u8,
+    addr_latch: u8,
     ppudata: u8,
     oamdma: u8,
+    write_toggle: bool,
 }
 
 impl Registers {
-    pub fn write_ctrl(&mut self, value: u8) {
-        self.ppuctrl.bits = value;
+    pub fn new() -> Registers {
+        //TODO: set startup state
+        Registers {
+            ppuctrl: Ppuctrl::from_bits(0).unwrap(),
+            ppumask: Ppumask::from_bits(0).unwrap(),
+            ppustatus: Ppustatus::from_bits(0).unwrap(),
+            oamaddr: 0,
+            oamdata: 0,
+            ppuscroll: 0,
+            scroll_latch: 0,
+            ppuaddr: 0,
+            addr_latch: 0,
+            ppudata: 0,
+            oamdma: 0,
+            write_toggle: true,
+        }
     }
 
-    pub fn write_mask(&mut self, value: u8) {
-        self.ppumask.bits = value;
+    #[inline]
+    pub fn write_ppuctrl(&mut self, val: u8) {
+        //TODO: ignore writes after reset (30000 cycles)
+        //TODO: bit 0 bus conflict
+        self.ppuctrl.bits = val;
     }
 
-    pub fn read_status(&mut self) -> u8 {
-        //TODO: clear D7 ???
+    #[inline]
+    pub fn write_ppumask(&mut self, val: u8) {
+        self.ppumask.bits = val;
+    }
+
+    #[inline]
+    pub fn read_ppustatus(&mut self) -> u8 {
         self.scroll_latch = 0;
-        self.adr_latch = 0;
+        self.addr_latch = 0;
+        self.ppustatus.bits &= 0xFF >> 1;
         self.ppustatus.bits
     }
 
-    pub fn write_oamaddr(&mut self, value: u8) {
-        self.oamaddr = value;
+    #[inline]
+    pub fn write_oamaddr(&mut self, val: u8) {
+        self.oamaddr = val;
     }
 
+    #[inline]
     pub fn read_oamdata(&mut self) -> u8 {
         self.oamdata
     }
 
-    pub fn write_oamdata(&mut self, value: u8) {
+    #[inline]
+    pub fn write_oamdata(&mut self, val: u8) {
         //TODO: ignore writes during rendering
-        self.oamdata = value;
-        self.oamaddr.wrapping_add(1);
+        //TODO: implement other trickery involved with this register
+        self.oamdata = val;
+        self.oamaddr = self.oamaddr.wrapping_add(1);
     }
 
-    pub fn write_scrool(&mut self, value: u8) {
-        
+    #[inline]
+    pub fn write_ppuscroll(&mut self, val: u8) {
+        if self.write_toggle {
+            self.scroll_latch = val;
+        } else {
+            self.ppuscroll = val;
+        }
+
+        self.write_toggle = !self.write_toggle;
+    }
+
+    #[inline]
+    pub fn write_ppuaddr(&mut self, val: u8) {
+        if self.write_toggle {
+            self.addr_latch = val;
+        } else {
+            self.ppuaddr = val;
+        }
+
+        self.write_toggle = !self.write_toggle;
+    }
+
+    #[inline]
+    pub fn read_ppudata(&mut self) -> u8 {
+        //TODO:
+        0
+    }
+
+    #[inline]
+    pub fn write_ppudata(&mut self, val: u8) {
+        //TODO:
+    }
+
+    #[inline]
+    pub fn write_oamdma(&mut self, val: u8) {
+        //TODO: wtf
     }
 }
 
+#[derive(Clone, Copy)]
 enum Render_state {
     pre_render,
     render,
@@ -118,8 +175,7 @@ struct Sprite {
 }
 
 pub struct Ppu {
-    pub mem: Rc<RefCell<memory::Memory>>,
-    pub ppuctrl: Ppuctrl,
+    pub regs: Registers,
 
     pub xpos: u16,
     pub scanline: u16,
@@ -127,10 +183,9 @@ pub struct Ppu {
 }
 
 impl Ppu {
-    pub fn new(mem: Rc<RefCell<memory::Memory>>) -> Ppu {
+    pub fn new() -> Ppu {
         Ppu {
-            mem,
-            regs: Registers,
+            regs: Registers::new(),
 
             xpos: 0,
             scanline: 0,

@@ -36,7 +36,7 @@ type Opcodes = Vec<Opcode>;
 type Opcode = (String, usize);
 
 #[derive(Debug, Clone)]
-pub struct Instruction {
+pub struct ParsedInstruction {
     code: String,
     opcodes: Opcodes,
 }
@@ -94,14 +94,14 @@ impl Generator {
             s.push_str(st.as_str());
         }
 
-        s.push_str("_ => unreachable!(\"propably a Rust compiler error\"),");
+        s.push_str("op => unreachable!(\"propably a Rust compiler error, opcode: 0x{:X}\", op),");
         s.push_str("} } }");
 
         file.write(s.as_bytes())
             .expect("error writing to a file while generating the cpu");
     }
 
-    pub fn generate_machine(&mut self, instructions: Vec<Instruction>) {
+    pub fn generate_machine(&mut self, instructions: Vec<ParsedInstruction>) {
         for i in instructions {
             for op in &i.opcodes {
                 match op.0.as_str() {
@@ -149,7 +149,7 @@ impl Generator {
             }
         }
 
-        let next = String::from("cache_irq!(self); let int = if self.take_interrupt {0} else {1}; self.state = int * read_ab!(self) as u16; self.pc += int as usize; self.ab = self.pc");
+        let next = String::from("cache_irq!(self); let int = if self.take_interrupt {0} else {1}; self.state = u16::from(int * read_ab!(self)); self.pc += int as usize; self.ab = self.pc");
         self.state_machine.insert((0x100, vec![0]), next);
     }
 
@@ -386,14 +386,16 @@ impl Generator {
                 .to_string(),
             op,
         );
-        self.add_middle("self.ab = (((read_ab!(self) as u16) << 8) | self.temp as u16) as usize; self.state = <>".to_string());
+        self.add_middle(
+            "self.ab = ((read_ab!(self) as usize) << 8) | self.temp; self.state = <>".to_string(),
+        );
         self.add_middle("cache_irq!(self); self.temp = read_ab!(self) as usize; self.ab = (self.ab & 0xFF00) | ((self.ab + 1) & 0xFF); self.state = <>".to_string());
-        self.add_exit("self.check_irq(); self.pc = (((read_ab!(self) as u16) << 8) | self.temp as u16) as usize; self.ab = self.pc; self.state = 0x100".to_string());
+        self.add_exit("self.check_irq(); self.pc = ((read_ab!(self) as usize) << 8) | self.temp; self.ab = self.pc; self.state = 0x100".to_string());
     }
 
     fn absolute_jmp(&mut self, op: usize) {
         self.add_entry("cache_irq!(self); self.temp = read_ab!(self) as usize; self.pc += 1; self.ab = self.pc; self.state = <>".to_string(), op);
-        self.add_exit("self.check_irq(); self.pc = (((read_ab!(self) as u16) << 8) | self.temp as u16) as usize; self.ab = self.pc; self.state = 0x100".to_string());
+        self.add_exit("self.check_irq(); self.pc = ((read_ab!(self) as usize) << 8) | self.temp; self.ab = self.pc; self.state = 0x100".to_string());
     }
 
     fn indirect_x(&mut self, i_code: &str, op: usize) {
@@ -403,7 +405,7 @@ impl Generator {
         );
         self.add_middle("self.mem.read_zp(self.ab); self.ab = (self.ab + self.x as usize) & 0xFF; self.state = <>".to_string());
         self.add_middle("self.temp = self.mem.read_zp(self.ab) as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>".to_string());
-        self.add_middle("cache_irq!(self); self.ab = (((self.mem.read_zp(self.ab) as u16) << 8) | self.temp as u16) as usize; self.state = <>;".to_string());
+        self.add_middle("cache_irq!(self); self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | self.temp; self.state = <>;".to_string());
         self.add_exit(format!(
             "self.check_irq(); let val = read_ab!(self); {} self.ab = self.pc; self.state = 0x100",
             i_code

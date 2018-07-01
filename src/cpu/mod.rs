@@ -170,10 +170,9 @@ impl Cpu {
         let b = num;
         let carry =
             (u16::from(num) + u16::from(self.a) + (if self.c { 1 } else { 0 })) & (1 << 8) != 0;
-        let (num, _): (i8, _) = (num as i8).overflowing_add(if self.c { 1 } else { 0 });
-        let (num, _): (i8, _) = (num as i8).overflowing_add(self.a as i8);
+        let num: i8 = (num as i8).wrapping_add(if self.c { 1 } else { 0 });
+        let num: i8 = (num as i8).wrapping_add(self.a as i8);
         self.a = num as u8;
-        //self.v = v1 || v2;
         self.v = (a ^ b) & (0x80) == 0 && (a ^ self.a) & 0x80 != 0;
         self.c = carry;
         set_z_n!(self.a, self);
@@ -474,7 +473,7 @@ impl Cpu {
     #[inline]
     fn alr(&mut self, num: u8) {
         self.a &= num;
-        self.c = if self.a & 1 != 0 { true } else { false };
+        self.c = self.a & 1 != 0;
         self.a >>= 1;
         set_z_n!(self.a, self);
     }
@@ -533,12 +532,12 @@ impl Cpu {
 
     #[inline]
     fn push(&mut self, adr: usize, data: u8) {
-        self.mem.write(adr, data);
+        self.mem.write_direct(adr, data);
     }
 
     #[inline]
     fn pop(&mut self, adr: usize) -> u8 {
-        self.mem.read(adr)
+        self.mem.read_direct(adr)
     }
 
     #[inline]

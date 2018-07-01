@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
-use super::Instruction;
+use super::ParsedInstruction;
 
 pub struct Parser<'s> {
     source: Peekable<Chars<'s>>,
@@ -14,7 +14,7 @@ impl<'s> Parser<'s> {
         }
     }
 
-    pub fn parse_file(&mut self) -> Vec<Instruction> {
+    pub fn parse_file(&mut self) -> Vec<ParsedInstruction> {
         let mut instructions = Vec::new();
         while let Some(_) = self.source.peek() {
             let inst = self.parse_instruction();
@@ -24,7 +24,7 @@ impl<'s> Parser<'s> {
         instructions
     }
 
-    fn parse_instruction(&mut self) -> Instruction {
+    fn parse_instruction(&mut self) -> ParsedInstruction {
         self.skip_newline();
 
         for _ in 1..=4 {
@@ -42,7 +42,7 @@ impl<'s> Parser<'s> {
 
         let opcodes = self.parse_opcodes();
 
-        Instruction { code, opcodes }
+        ParsedInstruction { code, opcodes }
     }
 
     fn parse_opcodes(&mut self) -> Vec<(String, usize)> {
