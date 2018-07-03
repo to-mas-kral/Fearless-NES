@@ -1,4 +1,9 @@
-#![allow(non_snake_case)]
+#![allow(unused_variables)]
+
+use std::cell::Cell;
+use std::rc::Rc;
+
+use super::InterruptBus;
 
 static PALETTE: [u8; 192] = [
     124, 124, 124, 0, 0, 252, 0, 0, 188, 68, 40, 188, 148, 0, 132, 168, 0, 32, 168, 16, 0, 136, 20,
@@ -45,25 +50,38 @@ bitflags! {
     }
 }
 
-pub struct Registers {
+pub struct Memory {
+    ram: [u8; 0x3FFF],
+    pub oam: [u8; 0x100],
+
+    vram_addr: usize,      //15 bits
+    temp_vram_addr: usize, //15 bits
+    x_fine_scroll: u8,     //3 bits
+
     ppuctrl: Ppuctrl,
     ppumask: Ppumask,
     ppustatus: Ppustatus,
-    oamaddr: u8,
+    pub oamaddr: u8,
     oamdata: u8,
     ppuscroll: u8,
     scroll_latch: u8,
-    ppuaddr: u8,
     addr_latch: u8,
     ppudata: u8,
     oamdma: u8,
     write_toggle: bool,
 }
 
-impl Registers {
-    pub fn new() -> Registers {
+impl Memory {
+    pub fn new() -> Memory {
         //TODO: set startup state
-        Registers {
+        Memory {
+            ram: [0; 0x3FFF],
+            oam: [0; 0x100],
+
+            vram_addr: 0,
+            temp_vram_addr: 0,
+            x_fine_scroll: 0,
+
             ppuctrl: Ppuctrl::from_bits(0).unwrap(),
             ppumask: Ppumask::from_bits(0).unwrap(),
             ppustatus: Ppustatus::from_bits(0).unwrap(),
@@ -71,12 +89,22 @@ impl Registers {
             oamdata: 0,
             ppuscroll: 0,
             scroll_latch: 0,
-            ppuaddr: 0,
             addr_latch: 0,
             ppudata: 0,
             oamdma: 0,
-            write_toggle: true,
+            write_toggle: false,
         }
+    }
+
+    #[inline]
+    pub fn write_ram(&mut self, val: u8) {
+        let addr = self.vram_addr & 0x4000;
+    }
+
+    #[inline]
+    pub fn read_ram(&mut self) -> u8 {
+        let addr = self.vram_addr & 0x4000;
+        0
     }
 
     #[inline]
@@ -119,7 +147,7 @@ impl Registers {
 
     #[inline]
     pub fn write_ppuscroll(&mut self, val: u8) {
-        if self.write_toggle {
+        if !self.write_toggle {
             self.scroll_latch = val;
         } else {
             self.ppuscroll = val;
@@ -130,10 +158,11 @@ impl Registers {
 
     #[inline]
     pub fn write_ppuaddr(&mut self, val: u8) {
-        if self.write_toggle {
-            self.addr_latch = val;
+        if !self.write_toggle {
+            self.temp_vram_addr = (self.temp_vram_addr & 0x80FF) | ((usize::from(val) & 0x3F) << 8)
         } else {
-            self.ppuaddr = val;
+            self.temp_vram_addr = (self.temp_vram_addr & 0xFF00) | usize::from(val);
+            self.vram_addr = self.temp_vram_addr;
         }
 
         self.write_toggle = !self.write_toggle;
@@ -141,13 +170,26 @@ impl Registers {
 
     #[inline]
     pub fn read_ppudata(&mut self) -> u8 {
-        //TODO:
-        0
+        let increment = if self.ppuctrl.bits & (1 << 2) == 0 {
+            1
+        } else {
+            32
+        };
+        let ret = self.read_ram();
+        //TODO: buffered reads ?
+        self.vram_addr = self.vram_addr.wrapping_add(increment);
+        ret
     }
 
     #[inline]
     pub fn write_ppudata(&mut self, val: u8) {
-        //TODO:
+        self.write_ram(val);
+        let increment = if self.ppuctrl.bits & (1 << 2) == 0 {
+            1
+        } else {
+            32
+        };
+        self.vram_addr = self.vram_addr.wrapping_add(increment);
     }
 
     #[inline]
@@ -175,7 +217,9 @@ struct Sprite {
 }
 
 pub struct Ppu {
-    pub regs: Registers,
+    pub mem: Memory,
+
+    interrupt_bus: Rc<Cell<InterruptBus>>,
 
     pub xpos: u16,
     pub scanline: u16,
@@ -183,9 +227,11 @@ pub struct Ppu {
 }
 
 impl Ppu {
-    pub fn new() -> Ppu {
+    pub fn new(interrupt_bus: Rc<Cell<InterruptBus>>) -> Ppu {
         Ppu {
-            regs: Registers::new(),
+            mem: Memory::new(),
+
+            interrupt_bus,
 
             xpos: 0,
             scanline: 0,

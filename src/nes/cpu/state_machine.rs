@@ -1,5 +1,5 @@
 use super::Tick;
-use memory::MemoryOps;
+use nes::memory::MemoryOps;
 impl Tick for super::Cpu {
     #[allow(unused_variables)]
     fn tick(&mut self) {
@@ -8,7 +8,7 @@ impl Tick for super::Cpu {
         }
         macro_rules! cache_irq {
             ($self: ident) => {
-                self.cached_irq = self.irq_signal;
+                self.cached_irq = self.interrupt_bus.get().irq_signal;
             };
         }
         macro_rules! read_ab {

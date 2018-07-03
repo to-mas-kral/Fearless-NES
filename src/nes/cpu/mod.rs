@@ -1,9 +1,11 @@
+use std::cell::Cell;
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::Read;
 use std::rc::Rc;
 
 use super::memory::*;
+use super::InterruptBus;
 
 mod state_machine;
 
@@ -39,16 +41,18 @@ pub struct Cpu {
 
     ab: usize, //Address bus
     temp: usize,
-    pub irq_signal: bool,
+
     cached_irq: bool,
     take_interrupt: bool,
+    interrupt_bus: Rc<Cell<InterruptBus>>,
+
     pending_reset: bool,
 
     pub mem: Rc<RefCell<Memory>>, //reference to a memory map shared by other components
 }
 
 impl Cpu {
-    pub fn new(mem: Rc<RefCell<Memory>>) -> Cpu {
+    pub fn new(mem: Rc<RefCell<Memory>>, interrupt_bus: Rc<Cell<InterruptBus>>) -> Cpu {
         Cpu {
             a: 0,
             x: 0,
@@ -69,9 +73,9 @@ impl Cpu {
             ab: 0,
             temp: 0,
 
-            irq_signal: false,
             cached_irq: false,
             take_interrupt: false,
+            interrupt_bus,
 
             pending_reset: false,
 
@@ -130,24 +134,6 @@ impl Cpu {
         self.ab = self.pc;
     }
 
-    /*pub fn gen_nmi(&mut self) {
-        let pc = self.pc as u8;
-        self.push(pc);
-        self.push_status(false);
-        self.pc =
-            ((u16::from(self.mem.read(0xFFFB)) << 8) | u16::from(self.mem.read(0xFFFA))) as usize;
-    }
-
-    pub fn gen_irq(&mut self) {
-        if !self.i {
-            let pc = self.pc as u8;
-            self.push(pc);
-            self.push_status(false);
-            self.pc = ((u16::from(self.mem.read(0xFFFF)) << 8) | u16::from(self.mem.read(0xFFFE)))
-                as usize;
-        }
-    } */
-
     //TODO: what is pending_IRQ ?
     #[inline]
     fn check_irq(&mut self) {
@@ -158,10 +144,16 @@ impl Cpu {
 
     #[inline]
     fn interrupt_address(&mut self) -> usize {
-        /* IRQ = FFFE
-        NMI - FFFA
-        RES - FFFC */
-        0xFFFE
+        //TODO: verify this procedure
+        let ints = self.interrupt_bus.get();
+        if ints.nmi_signal {
+            self.cached_irq = false;
+            0xFFFA
+        } else if ints.reset_signal {
+            0xFFFC
+        } else {
+            0xFFFE
+        }
     }
 
     #[inline]
@@ -494,12 +486,14 @@ impl Cpu {
     #[inline]
     fn shx(&mut self) {
         let result = ((self.ab >> 8) as u8).wrapping_add(1) & self.x;
-        self.mem.write((usize::from(result) << 8) | (self.ab & 0xFF), self.x);
+        self.mem
+            .write((usize::from(result) << 8) | (self.ab & 0xFF), self.x);
     }
     #[inline]
     fn shy(&mut self) {
         let result = ((self.ab >> 8) as u8).wrapping_add(1) & self.y;
-        self.mem.write((usize::from(result) << 8) | (self.ab & 0xFF), self.y);
+        self.mem
+            .write((usize::from(result) << 8) | (self.ab & 0xFF), self.y);
     }
     #[inline]
     fn las(&mut self) {}
@@ -532,12 +526,12 @@ impl Cpu {
 
     #[inline]
     fn push(&mut self, adr: usize, data: u8) {
-        self.mem.write_direct(adr, data);
+        self.mem.write_zp(adr, data);
     }
 
     #[inline]
     fn pop(&mut self, adr: usize) -> u8 {
-        self.mem.read_direct(adr)
+        self.mem.read_zp(adr)
     }
 
     #[inline]

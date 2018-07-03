@@ -12,7 +12,7 @@ mod parser;
 
 pub fn generate_cpu() {
     let out_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let out_path = Path::new(&out_dir).join("src/cpu/state_machine.rs");
+    let out_path = Path::new(&out_dir).join("src/nes/cpu/state_machine.rs");
 
     let source_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let opcode_path = Path::new(&source_dir).join("cpu_generator/opcodes.txt");
@@ -77,13 +77,13 @@ impl Generator {
         let mut s = String::new();
 
         s.push_str("use super::Tick;");
-        s.push_str("use memory::MemoryOps;");
+        s.push_str("use nes::memory::MemoryOps;");
         s.push_str("impl Tick for super::Cpu {");
         s.push_str("#[allow(unused_variables)]");
         s.push_str("fn tick(&mut self) {");
         s.push_str("if self.halt {return}");
         s.push_str(
-            "macro_rules! cache_irq {($self:ident) => {self.cached_irq = self.irq_signal;};}",
+            "macro_rules! cache_irq {($self:ident) => {self.cached_irq = self.interrupt_bus.get().irq_signal;};}",
         );
         s.push_str("macro_rules! read_ab {($self:ident) => {$self.mem.read($self.ab)};}");
         s.push_str("macro_rules! sp_to_ab {($self:ident) => {$self.ab = $self.sp | 0x100};}");
