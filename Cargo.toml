@@ -8,4 +8,4 @@ build = "build.rs"
 rustfmt = "*"
 
 [dependencies]
-bitflags = "1.0.1"
+#sdl2 = "0.31"

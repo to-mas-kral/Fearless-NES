@@ -1,12 +1,10 @@
 #![feature(test)]
 #![feature(nll)]
 
-#[macro_use]
-extern crate bitflags;
-
 mod tests;
 mod nes;
 
 fn main() {
-    nes::run();
+    let mut nes = nes::Nes::<nes::mapper::Nrom>::new();
+    nes.run();
 }

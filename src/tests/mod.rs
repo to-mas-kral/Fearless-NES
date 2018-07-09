@@ -2,15 +2,14 @@
 extern crate test;
 
 use std::cell::RefCell;
-use std::cell::Cell;
-use std::rc::Rc;
 use std::env;
 use std::fs::File;
 use std::path::Path;
+use std::rc::Rc;
 
 use self::test::Bencher;
 #[cfg(test)]
-use super::nes::{cpu, memory, ppu, InterruptBus};
+use super::nes::{cpu, mapper, memory, ppu, InterruptBus};
 use nes::cpu::Tick;
 
 use std::io::BufRead;
@@ -23,9 +22,13 @@ fn nestest_bencher(b: &mut Bencher) {
     let nestest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let nestest_path = Path::new(&nestest_dir).join("src/tests/nestest/nestest.nes");
 
-    let int_bus_ref = Rc::new(Cell::new(InterruptBus::new()));
-    let ppu_ref = Rc::new(RefCell::new(ppu::Ppu::new(int_bus_ref.clone())));
-    let mem = Rc::new(RefCell::new(memory::Memory::new(ppu_ref)));
+    let int_bus_ref = Rc::new(RefCell::new(InterruptBus::new()));
+    let mapper = Rc::new(RefCell::new(mapper::Nrom::new()));
+    let ppu_ref = Rc::new(RefCell::new(ppu::Ppu::new(
+        int_bus_ref.clone(),
+        mapper.clone(),
+    )));
+    let mem = Rc::new(RefCell::new(memory::Memory::new(ppu_ref, mapper.clone())));
     let mut cpu = cpu::Cpu::new(mem.clone(), int_bus_ref);
     cpu.load_to_memory(&mut File::open(nestest_path).unwrap());
 
@@ -39,9 +42,13 @@ fn blargg_bencher(b: &mut Bencher) {
     let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let bench_path = Path::new(&base_dir).join("src/tests/blargg_instr/rom_singles/07-abs_xy.nes");
 
-    let int_bus_ref = Rc::new(Cell::new(InterruptBus::new()));
-    let ppu_ref = Rc::new(RefCell::new(ppu::Ppu::new(int_bus_ref.clone())));
-    let mem = Rc::new(RefCell::new(memory::Memory::new(ppu_ref)));
+    let int_bus_ref = Rc::new(RefCell::new(InterruptBus::new()));
+    let mapper = Rc::new(RefCell::new(mapper::Nrom::new()));
+    let ppu_ref = Rc::new(RefCell::new(ppu::Ppu::new(
+        int_bus_ref.clone(),
+        mapper.clone(),
+    )));
+    let mem = Rc::new(RefCell::new(memory::Memory::new(ppu_ref, mapper.clone())));
     let mut cpu = cpu::Cpu::new(mem.clone(), int_bus_ref);
     mem.borrow_mut()
         .load_mapper_0(&mut File::open(bench_path).unwrap());
@@ -58,9 +65,13 @@ fn nestest() {
     let nestest_log_path = Path::new(&nestest_dir).join("src/tests/nestest/nestest_formatted.log");
     let nestest_path = Path::new(&nestest_dir).join("src/tests/nestest/nestest.nes");
 
-    let int_bus_ref = Rc::new(Cell::new(InterruptBus::new()));
-    let ppu_ref = Rc::new(RefCell::new(ppu::Ppu::new(int_bus_ref.clone())));
-    let mem = Rc::new(RefCell::new(memory::Memory::new(ppu_ref)));
+    let int_bus_ref = Rc::new(RefCell::new(InterruptBus::new()));
+    let mapper = Rc::new(RefCell::new(mapper::Nrom::new()));
+    let ppu_ref = Rc::new(RefCell::new(ppu::Ppu::new(
+        int_bus_ref.clone(),
+        mapper.clone(),
+    )));
+    let mem = Rc::new(RefCell::new(memory::Memory::new(ppu_ref, mapper.clone())));
     let mut cpu = cpu::Cpu::new(mem.clone(), int_bus_ref);
     cpu.load_to_memory(&mut File::open(nestest_path).unwrap());
 
@@ -88,9 +99,13 @@ macro_rules! blargg_instr_test {
                 .join("src/tests/blargg_instr/rom_singles/")
                 .join($path);
 
-            let int_bus_ref = Rc::new(Cell::new(InterruptBus::new()));
-            let ppu_ref = Rc::new(RefCell::new(ppu::Ppu::new(int_bus_ref.clone())));
-            let mem = Rc::new(RefCell::new(memory::Memory::new(ppu_ref)));
+            let int_bus_ref = Rc::new(RefCell::new(InterruptBus::new()));
+            let mapper = Rc::new(RefCell::new(mapper::Nrom::new()));
+            let ppu_ref = Rc::new(RefCell::new(ppu::Ppu::new(
+                int_bus_ref.clone(),
+                mapper.clone(),
+            )));
+            let mem = Rc::new(RefCell::new(memory::Memory::new(ppu_ref, mapper.clone())));
             let mut cpu = cpu::Cpu::new(mem.clone(), int_bus_ref);
             mem.borrow_mut()
                 .load_mapper_0(&mut File::open(test_path).unwrap());

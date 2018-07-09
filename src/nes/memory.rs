@@ -1,3 +1,4 @@
+use super::mapper::Mapper;
 use super::ppu::Ppu;
 
 use std::cell::RefCell;
@@ -15,18 +16,26 @@ pub trait MemoryOps {
     fn write(&self, _index: usize, value: u8);
 }
 
-pub struct Memory {
+pub struct Memory<M>
+where
+    M: Mapper,
+{
     cpu_ram: [u8; 0x800],
     cartridge_space: [u8; 0xBFE0],
-    ppu: Rc<RefCell<Ppu>>,
+    mapper: Rc<RefCell<M>>,
+    ppu: Rc<RefCell<Ppu<M>>>,
     pub dma_cycles: u16,
 }
 
-impl Memory {
-    pub fn new(ppu: Rc<RefCell<Ppu>>) -> Memory {
+impl<M> Memory<M>
+where
+    M: Mapper,
+{
+    pub fn new(ppu: Rc<RefCell<Ppu<M>>>, mapper: Rc<RefCell<M>>) -> Memory<M> {
         Memory {
             cpu_ram: [0; 0x800],
             cartridge_space: [0; 0xBFE0],
+            mapper,
             ppu,
             dma_cycles: 0,
         }
@@ -41,25 +50,36 @@ impl Memory {
         let _bytes: Result<Vec<u8>, _> = f.bytes().collect();
         let bytes = _bytes.expect("error while reading the file");
 
-        for i in 0..16384 {
+        for i in 0..0x4000 {
             self.cartridge_space[i] = bytes[15 + i];
             self.cartridge_space[0x4000 + i] = bytes[15 + i];
+        }
+
+        for i in 0..0x2000 {
+            self.mapper.borrow_mut().write_chr(i, bytes[0x4001 + i]);
         }
     }
 
     pub fn load_mapper_0(&mut self, f: &mut File) {
         let _bytes: Result<Vec<u8>, _> = f.bytes().collect();
         let bytes = _bytes.expect("error while reading the file");
-        self.cartridge_space[0x3FDF..(0x3FDF + 0x8001)].clone_from_slice(&bytes[15..(0x8001 + 15)])
+        self.cartridge_space[0x3FDF..(0x3FDF + 0x8001)].clone_from_slice(&bytes[15..(0x8001 + 15)]);
+        for i in (0x8001 + 15)..(0x8001 + 0x2000 + 15) {
+            self.mapper
+                .borrow_mut()
+                .write_chr(i - (0x8001 + 15), bytes[i])
+        }
     }
 }
 
-impl MemoryOps for Rc<RefCell<Memory>> {
+impl<M> MemoryOps for Rc<RefCell<Memory<M>>>
+where
+    M: Mapper,
+{
     #[inline]
     fn read(&self, index: usize) -> u8 {
         /* println!(
-            ":::: reading 0x{:X} from 0x{:X}",
-            self.borrow_mut().mem[index],
+            ":::: reading from 0x{:X}",
             index
         ); */
 
@@ -149,11 +169,6 @@ impl MemoryOps for Rc<RefCell<Memory>> {
 
     #[inline]
     fn read_zp(&self, index: usize) -> u8 {
-        /* println!(
-            ":::: reading 0x{:X} from 0x{:X}",
-            self.borrow_mut().mem[index],
-            index
-        ); */
         self.borrow_mut().cpu_ram[index]
     }
 

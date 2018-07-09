@@ -1,9 +1,9 @@
-use std::cell::Cell;
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::Read;
 use std::rc::Rc;
 
+use super::mapper::Mapper;
 use super::memory::*;
 use super::InterruptBus;
 
@@ -11,6 +11,13 @@ mod state_machine;
 
 pub trait Tick {
     fn tick(&mut self);
+}
+
+enum InterruptType {
+    Nmi,
+    Irq,
+    Reset,
+    None,
 }
 
 //A little macro for checking and setting zero and negative flags
@@ -22,7 +29,10 @@ macro_rules! set_z_n {
     }};
 }
 
-pub struct Cpu {
+pub struct Cpu<M>
+where
+    M: Mapper,
+{
     a: u8,     //Accumulator
     x: u8,     //X index
     y: u8,     //Y index
@@ -44,15 +54,19 @@ pub struct Cpu {
 
     cached_irq: bool,
     take_interrupt: bool,
-    interrupt_bus: Rc<Cell<InterruptBus>>,
+    interrupt_type: InterruptType,
+    interrupt_bus: Rc<RefCell<InterruptBus>>,
 
     pending_reset: bool,
 
-    pub mem: Rc<RefCell<Memory>>, //reference to a memory map shared by other components
+    pub mem: Rc<RefCell<Memory<M>>>, //reference to a memory map shared by other components
 }
 
-impl Cpu {
-    pub fn new(mem: Rc<RefCell<Memory>>, interrupt_bus: Rc<Cell<InterruptBus>>) -> Cpu {
+impl<M> Cpu<M>
+where
+    M: Mapper,
+{
+    pub fn new(mem: Rc<RefCell<Memory<M>>>, interrupt_bus: Rc<RefCell<InterruptBus>>) -> Cpu<M> {
         Cpu {
             a: 0,
             x: 0,
@@ -75,6 +89,7 @@ impl Cpu {
 
             cached_irq: false,
             take_interrupt: false,
+            interrupt_type: InterruptType::None,
             interrupt_bus,
 
             pending_reset: false,
@@ -136,23 +151,37 @@ impl Cpu {
 
     //TODO: what is pending_IRQ ?
     #[inline]
-    fn check_irq(&mut self) {
+    fn check_interrupts(&mut self) {
         if !self.i && self.cached_irq {
             self.take_interrupt = true;
+            self.interrupt_type = InterruptType::Irq;
+        }
+
+        if self.interrupt_bus.borrow().nmi_signal {
+            self.take_interrupt = true;
+            self.interrupt_type = InterruptType::Nmi;
+            self.interrupt_bus.borrow_mut().nmi_signal = false;
+        }
+
+        if self.interrupt_bus.borrow().reset_signal {
+            //FIXME: make this cycle-accurate
+            self.gen_reset();
         }
     }
 
     #[inline]
     fn interrupt_address(&mut self) -> usize {
         //TODO: verify this procedure
-        let ints = self.interrupt_bus.get();
-        if ints.nmi_signal {
-            self.cached_irq = false;
-            0xFFFA
-        } else if ints.reset_signal {
-            0xFFFC
-        } else {
-            0xFFFE
+
+        if self.interrupt_bus.borrow().nmi_signal {
+            return 0xFFFA;
+        }
+
+        match self.interrupt_type {
+            InterruptType::Irq => 0xFFFE,
+            InterruptType::Nmi => 0xFFFA,
+            InterruptType::Reset => 0xFFFC,
+            InterruptType::None => 0,
         }
     }
 

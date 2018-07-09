@@ -1,6 +1,10 @@
 use super::Tick;
 use nes::memory::MemoryOps;
-impl Tick for super::Cpu {
+use nes::mapper::Mapper;
+impl<M> Tick for super::Cpu<M>
+where
+    M: Mapper,
+{
     #[allow(unused_variables)]
     fn tick(&mut self) {
         if self.halt {
@@ -8,7 +12,7 @@ impl Tick for super::Cpu {
         }
         macro_rules! cache_irq {
             ($self: ident) => {
-                self.cached_irq = self.interrupt_bus.get().irq_signal;
+                self.cached_irq = self.interrupt_bus.borrow().irq_signal;
             };
         }
         macro_rules! read_ab {
@@ -36,7 +40,7 @@ impl Tick for super::Cpu {
                 self.state = 0x209
             }
             0x2 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.halt = true;
                 self.pc += 1;
@@ -78,7 +82,7 @@ impl Tick for super::Cpu {
                 self.state = 0x213;
             }
             0x9 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ora(val);
                 self.pc += 1;
@@ -86,13 +90,13 @@ impl Tick for super::Cpu {
                 self.state = 0x100;
             }
             0xA => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.asl_a();
                 self.state = 0x100;
             }
             0xB => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.anc(val);
                 self.pc += 1;
@@ -124,7 +128,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2D4;
             }
             0x10 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.temp = read_ab!(self) as usize;
                 self.pc += 1;
                 self.ab = self.pc;
@@ -136,7 +140,7 @@ impl Tick for super::Cpu {
                 self.state = 0x20D;
             }
             0x12 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.halt = true;
                 self.pc += 1;
@@ -169,7 +173,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2D0;
             }
             0x18 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.c = false;
                 self.state = 0x100;
@@ -181,7 +185,7 @@ impl Tick for super::Cpu {
                 self.state = 0x206;
             }
             0x1A => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.state = 0x100;
             }
@@ -227,7 +231,7 @@ impl Tick for super::Cpu {
                 self.state = 0x120
             }
             0x22 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.halt = true;
                 self.pc += 1;
@@ -267,7 +271,7 @@ impl Tick for super::Cpu {
                 self.state = 0x216;
             }
             0x29 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.and(val);
                 self.pc += 1;
@@ -275,13 +279,13 @@ impl Tick for super::Cpu {
                 self.state = 0x100;
             }
             0x2A => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.rol_a();
                 self.state = 0x100;
             }
             0x2B => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.anc(val);
                 self.pc += 1;
@@ -313,7 +317,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2F5;
             }
             0x30 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.temp = read_ab!(self) as usize;
                 self.pc += 1;
                 self.ab = self.pc;
@@ -325,7 +329,7 @@ impl Tick for super::Cpu {
                 self.state = 0x124;
             }
             0x32 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.halt = true;
                 self.pc += 1;
@@ -358,7 +362,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2F1;
             }
             0x38 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.c = true;
                 self.state = 0x100;
@@ -370,7 +374,7 @@ impl Tick for super::Cpu {
                 self.state = 0x11D;
             }
             0x3A => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.state = 0x100;
             }
@@ -415,7 +419,7 @@ impl Tick for super::Cpu {
                 self.state = 0x186
             }
             0x42 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.halt = true;
                 self.pc += 1;
@@ -457,7 +461,7 @@ impl Tick for super::Cpu {
                 self.state = 0x212;
             }
             0x49 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.eor(val);
                 self.pc += 1;
@@ -465,13 +469,13 @@ impl Tick for super::Cpu {
                 self.state = 0x100;
             }
             0x4A => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.lsr_a();
                 self.state = 0x100;
             }
             0x4B => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.alr(val);
                 self.pc += 1;
@@ -504,7 +508,7 @@ impl Tick for super::Cpu {
                 self.state = 0x316;
             }
             0x50 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.temp = read_ab!(self) as usize;
                 self.pc += 1;
                 self.ab = self.pc;
@@ -516,7 +520,7 @@ impl Tick for super::Cpu {
                 self.state = 0x18A;
             }
             0x52 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.halt = true;
                 self.pc += 1;
@@ -549,7 +553,7 @@ impl Tick for super::Cpu {
                 self.state = 0x312;
             }
             0x58 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.i = false;
                 self.state = 0x100;
@@ -561,7 +565,7 @@ impl Tick for super::Cpu {
                 self.state = 0x183;
             }
             0x5A => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.state = 0x100;
             }
@@ -606,7 +610,7 @@ impl Tick for super::Cpu {
                 self.state = 0x10C
             }
             0x62 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.halt = true;
                 self.pc += 1;
@@ -646,7 +650,7 @@ impl Tick for super::Cpu {
                 self.state = 0x214;
             }
             0x69 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.adc(val);
                 self.pc += 1;
@@ -654,13 +658,13 @@ impl Tick for super::Cpu {
                 self.state = 0x100;
             }
             0x6A => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.ror_a();
                 self.state = 0x100;
             }
             0x6B => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.arr(val);
                 self.pc += 1;
@@ -692,7 +696,7 @@ impl Tick for super::Cpu {
                 self.state = 0x337;
             }
             0x70 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.temp = read_ab!(self) as usize;
                 self.pc += 1;
                 self.ab = self.pc;
@@ -704,7 +708,7 @@ impl Tick for super::Cpu {
                 self.state = 0x110;
             }
             0x72 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.halt = true;
                 self.pc += 1;
@@ -737,7 +741,7 @@ impl Tick for super::Cpu {
                 self.state = 0x333;
             }
             0x78 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.i = true;
                 self.state = 0x100;
@@ -749,7 +753,7 @@ impl Tick for super::Cpu {
                 self.state = 0x109;
             }
             0x7A => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.state = 0x100;
             }
@@ -784,7 +788,7 @@ impl Tick for super::Cpu {
                 self.state = 0x33B;
             }
             0x80 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.pc += 1;
                 self.ab = self.pc;
@@ -796,7 +800,7 @@ impl Tick for super::Cpu {
                 self.state = 0x25F;
             }
             0x82 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.pc += 1;
                 self.ab = self.pc;
@@ -832,26 +836,26 @@ impl Tick for super::Cpu {
                 self.state = 0x282;
             }
             0x88 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.dey();
                 self.state = 0x100;
             }
             0x89 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.pc += 1;
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x8A => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.txa();
                 self.state = 0x100;
             }
             0x8B => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.xaa();
                 self.pc += 1;
@@ -883,7 +887,7 @@ impl Tick for super::Cpu {
                 self.state = 0x285;
             }
             0x90 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.temp = read_ab!(self) as usize;
                 self.pc += 1;
                 self.ab = self.pc;
@@ -895,7 +899,7 @@ impl Tick for super::Cpu {
                 self.state = 0x263;
             }
             0x92 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.halt = true;
                 self.pc += 1;
@@ -928,7 +932,7 @@ impl Tick for super::Cpu {
                 self.state = 0x283;
             }
             0x98 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.tya();
                 self.state = 0x100;
@@ -940,7 +944,7 @@ impl Tick for super::Cpu {
                 self.state = 0x25C;
             }
             0x9A => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.txs();
                 self.state = 0x100;
@@ -976,7 +980,7 @@ impl Tick for super::Cpu {
                 self.state = 0x355;
             }
             0xA0 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ldy(val);
                 self.pc += 1;
@@ -989,7 +993,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1B2
             }
             0xA2 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ldx(val);
                 self.pc += 1;
@@ -1026,13 +1030,13 @@ impl Tick for super::Cpu {
                 self.state = 0x273;
             }
             0xA8 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.tay();
                 self.state = 0x100;
             }
             0xA9 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lda(val);
                 self.pc += 1;
@@ -1040,13 +1044,13 @@ impl Tick for super::Cpu {
                 self.state = 0x100;
             }
             0xAA => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.tax();
                 self.state = 0x100;
             }
             0xAB => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lax(val);
                 self.pc += 1;
@@ -1078,7 +1082,7 @@ impl Tick for super::Cpu {
                 self.state = 0x271;
             }
             0xB0 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.temp = read_ab!(self) as usize;
                 self.pc += 1;
                 self.ab = self.pc;
@@ -1090,7 +1094,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1B6;
             }
             0xB2 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.halt = true;
                 self.pc += 1;
@@ -1123,7 +1127,7 @@ impl Tick for super::Cpu {
                 self.state = 0x274;
             }
             0xB8 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.v = false;
                 self.state = 0x100;
@@ -1135,7 +1139,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1AF;
             }
             0xBA => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.tsx();
                 self.state = 0x100;
@@ -1171,7 +1175,7 @@ impl Tick for super::Cpu {
                 self.state = 0x276;
             }
             0xC0 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.cpy(val);
                 self.pc += 1;
@@ -1184,7 +1188,7 @@ impl Tick for super::Cpu {
                 self.state = 0x15C
             }
             0xC2 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.pc += 1;
                 self.ab = self.pc;
@@ -1218,13 +1222,13 @@ impl Tick for super::Cpu {
                 self.state = 0x297;
             }
             0xC8 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.iny();
                 self.state = 0x100;
             }
             0xC9 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.cmp(val);
                 self.pc += 1;
@@ -1232,13 +1236,13 @@ impl Tick for super::Cpu {
                 self.state = 0x100;
             }
             0xCA => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.dex();
                 self.state = 0x100;
             }
             0xCB => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.axs(val);
                 self.pc += 1;
@@ -1270,7 +1274,7 @@ impl Tick for super::Cpu {
                 self.state = 0x29E;
             }
             0xD0 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.temp = read_ab!(self) as usize;
                 self.pc += 1;
                 self.ab = self.pc;
@@ -1282,7 +1286,7 @@ impl Tick for super::Cpu {
                 self.state = 0x160;
             }
             0xD2 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.halt = true;
                 self.pc += 1;
@@ -1315,7 +1319,7 @@ impl Tick for super::Cpu {
                 self.state = 0x29A;
             }
             0xD8 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.d = false;
                 self.state = 0x100;
@@ -1327,7 +1331,7 @@ impl Tick for super::Cpu {
                 self.state = 0x159;
             }
             0xDA => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.state = 0x100;
             }
@@ -1362,7 +1366,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2A2;
             }
             0xE0 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.cpx(val);
                 self.pc += 1;
@@ -1375,7 +1379,7 @@ impl Tick for super::Cpu {
                 self.state = 0x24B
             }
             0xE2 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.pc += 1;
                 self.ab = self.pc;
@@ -1409,13 +1413,13 @@ impl Tick for super::Cpu {
                 self.state = 0x2AC;
             }
             0xE8 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.inx();
                 self.state = 0x100;
             }
             0xE9 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.sbc(val);
                 self.pc += 1;
@@ -1423,12 +1427,12 @@ impl Tick for super::Cpu {
                 self.state = 0x100;
             }
             0xEA => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.state = 0x100;
             }
             0xEB => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.sbc(val);
                 self.pc += 1;
@@ -1460,7 +1464,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2B3;
             }
             0xF0 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.temp = read_ab!(self) as usize;
                 self.pc += 1;
                 self.ab = self.pc;
@@ -1472,7 +1476,7 @@ impl Tick for super::Cpu {
                 self.state = 0x24F;
             }
             0xF2 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.halt = true;
                 self.pc += 1;
@@ -1505,7 +1509,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2AF;
             }
             0xF8 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.d = true;
                 self.state = 0x100;
@@ -1517,7 +1521,7 @@ impl Tick for super::Cpu {
                 self.state = 0x248;
             }
             0xFA => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.state = 0x100;
             }
@@ -1559,7 +1563,7 @@ impl Tick for super::Cpu {
                 self.ab = self.pc
             }
             0x101 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.adc(val);
                 self.ab = self.pc;
@@ -1572,7 +1576,7 @@ impl Tick for super::Cpu {
                 self.state = 0x103;
             }
             0x103 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.adc(val);
                 self.ab = self.pc;
@@ -1585,7 +1589,7 @@ impl Tick for super::Cpu {
                 self.state = 0x105
             }
             0x105 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.adc(val);
                 self.ab = self.pc;
@@ -1608,7 +1612,7 @@ impl Tick for super::Cpu {
                 self.state = 0x108
             }
             0x108 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.adc(val);
                 self.ab = self.pc;
@@ -1631,7 +1635,7 @@ impl Tick for super::Cpu {
                 self.state = 0x10B
             }
             0x10B => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.adc(val);
                 self.ab = self.pc;
@@ -1653,7 +1657,7 @@ impl Tick for super::Cpu {
                 self.state = 0x10F;
             }
             0x10F => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.adc(val);
                 self.ab = self.pc;
@@ -1681,14 +1685,14 @@ impl Tick for super::Cpu {
                 self.state = 0x113;
             }
             0x113 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.adc(val);
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x115 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.and(val);
                 self.ab = self.pc;
@@ -1701,7 +1705,7 @@ impl Tick for super::Cpu {
                 self.state = 0x117;
             }
             0x117 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.and(val);
                 self.ab = self.pc;
@@ -1714,7 +1718,7 @@ impl Tick for super::Cpu {
                 self.state = 0x119
             }
             0x119 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.and(val);
                 self.ab = self.pc;
@@ -1737,7 +1741,7 @@ impl Tick for super::Cpu {
                 self.state = 0x11C
             }
             0x11C => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.and(val);
                 self.ab = self.pc;
@@ -1760,7 +1764,7 @@ impl Tick for super::Cpu {
                 self.state = 0x11F
             }
             0x11F => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.and(val);
                 self.ab = self.pc;
@@ -1782,7 +1786,7 @@ impl Tick for super::Cpu {
                 self.state = 0x123;
             }
             0x123 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.and(val);
                 self.ab = self.pc;
@@ -1810,7 +1814,7 @@ impl Tick for super::Cpu {
                 self.state = 0x127;
             }
             0x127 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.and(val);
                 self.ab = self.pc;
@@ -1828,7 +1832,7 @@ impl Tick for super::Cpu {
                 self.state = 0x12B;
             }
             0x12B => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -1850,7 +1854,7 @@ impl Tick for super::Cpu {
                 self.state = 0x12F;
             }
             0x12F => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -1872,7 +1876,7 @@ impl Tick for super::Cpu {
                 self.state = 0x133;
             }
             0x133 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -1901,7 +1905,7 @@ impl Tick for super::Cpu {
                 self.state = 0x138;
             }
             0x138 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -1914,7 +1918,7 @@ impl Tick for super::Cpu {
                 self.state = if self.temp > 0 { 0x13A } else { 0x100 };
             }
             0x13A => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
@@ -1928,7 +1932,7 @@ impl Tick for super::Cpu {
                 self.state = if self.temp > 0 { 0x13C } else { 0x100 };
             }
             0x13C => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
@@ -1942,14 +1946,14 @@ impl Tick for super::Cpu {
                 self.state = if self.temp > 0 { 0x13E } else { 0x100 };
             }
             0x13E => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
                 self.state = 0x100
             }
             0x13F => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.bit(val);
                 self.ab = self.pc;
@@ -1962,7 +1966,7 @@ impl Tick for super::Cpu {
                 self.state = 0x141
             }
             0x141 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.bit(val);
                 self.ab = self.pc;
@@ -1976,7 +1980,7 @@ impl Tick for super::Cpu {
                 self.state = if self.temp > 0 { 0x143 } else { 0x100 };
             }
             0x143 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
@@ -1990,7 +1994,7 @@ impl Tick for super::Cpu {
                 self.state = if self.temp > 0 { 0x145 } else { 0x100 };
             }
             0x145 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
@@ -2004,7 +2008,7 @@ impl Tick for super::Cpu {
                 self.state = if self.temp > 0 { 0x147 } else { 0x100 };
             }
             0x147 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
@@ -2053,7 +2057,7 @@ impl Tick for super::Cpu {
                 self.state = if self.temp > 0 { 0x14E } else { 0x100 };
             }
             0x14E => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
@@ -2067,14 +2071,14 @@ impl Tick for super::Cpu {
                 self.state = if self.temp > 0 { 0x150 } else { 0x100 };
             }
             0x150 => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
                 self.state = 0x100
             }
             0x151 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.cmp(val);
                 self.ab = self.pc;
@@ -2087,7 +2091,7 @@ impl Tick for super::Cpu {
                 self.state = 0x153;
             }
             0x153 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.cmp(val);
                 self.ab = self.pc;
@@ -2100,7 +2104,7 @@ impl Tick for super::Cpu {
                 self.state = 0x155
             }
             0x155 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.cmp(val);
                 self.ab = self.pc;
@@ -2123,7 +2127,7 @@ impl Tick for super::Cpu {
                 self.state = 0x158
             }
             0x158 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.cmp(val);
                 self.ab = self.pc;
@@ -2146,7 +2150,7 @@ impl Tick for super::Cpu {
                 self.state = 0x15B
             }
             0x15B => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.cmp(val);
                 self.ab = self.pc;
@@ -2168,7 +2172,7 @@ impl Tick for super::Cpu {
                 self.state = 0x15F;
             }
             0x15F => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.cmp(val);
                 self.ab = self.pc;
@@ -2196,14 +2200,14 @@ impl Tick for super::Cpu {
                 self.state = 0x163;
             }
             0x163 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.cmp(val);
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x165 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.cpx(val);
                 self.ab = self.pc;
@@ -2216,14 +2220,14 @@ impl Tick for super::Cpu {
                 self.state = 0x167
             }
             0x167 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.cpx(val);
                 self.ab = self.pc;
                 self.state = 0x100
             }
             0x168 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.cpy(val);
                 self.ab = self.pc;
@@ -2236,7 +2240,7 @@ impl Tick for super::Cpu {
                 self.state = 0x16A
             }
             0x16A => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.cpy(val);
                 self.ab = self.pc;
@@ -2254,7 +2258,7 @@ impl Tick for super::Cpu {
                 self.state = 0x16D;
             }
             0x16D => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -2276,7 +2280,7 @@ impl Tick for super::Cpu {
                 self.state = 0x171;
             }
             0x171 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -2298,7 +2302,7 @@ impl Tick for super::Cpu {
                 self.state = 0x175;
             }
             0x175 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -2327,13 +2331,13 @@ impl Tick for super::Cpu {
                 self.state = 0x17A;
             }
             0x17A => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x17B => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.eor(val);
                 self.ab = self.pc;
@@ -2346,7 +2350,7 @@ impl Tick for super::Cpu {
                 self.state = 0x17D;
             }
             0x17D => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.eor(val);
                 self.ab = self.pc;
@@ -2359,7 +2363,7 @@ impl Tick for super::Cpu {
                 self.state = 0x17F
             }
             0x17F => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.eor(val);
                 self.ab = self.pc;
@@ -2382,7 +2386,7 @@ impl Tick for super::Cpu {
                 self.state = 0x182
             }
             0x182 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.eor(val);
                 self.ab = self.pc;
@@ -2405,7 +2409,7 @@ impl Tick for super::Cpu {
                 self.state = 0x185
             }
             0x185 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.eor(val);
                 self.ab = self.pc;
@@ -2427,7 +2431,7 @@ impl Tick for super::Cpu {
                 self.state = 0x189;
             }
             0x189 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.eor(val);
                 self.ab = self.pc;
@@ -2455,7 +2459,7 @@ impl Tick for super::Cpu {
                 self.state = 0x18D;
             }
             0x18D => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.eor(val);
                 self.ab = self.pc;
@@ -2473,7 +2477,7 @@ impl Tick for super::Cpu {
                 self.state = 0x191;
             }
             0x191 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -2495,7 +2499,7 @@ impl Tick for super::Cpu {
                 self.state = 0x195;
             }
             0x195 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -2517,7 +2521,7 @@ impl Tick for super::Cpu {
                 self.state = 0x199;
             }
             0x199 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -2546,13 +2550,13 @@ impl Tick for super::Cpu {
                 self.state = 0x19E;
             }
             0x19E => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x19F => {
-                self.check_irq();
+                self.check_interrupts();
                 self.pc = ((read_ab!(self) as usize) << 8) | self.temp;
                 self.ab = self.pc;
                 self.state = 0x100
@@ -2568,7 +2572,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1A2
             }
             0x1A2 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.pc = ((read_ab!(self) as usize) << 8) | self.temp;
                 self.ab = self.pc;
                 self.state = 0x100
@@ -2591,13 +2595,13 @@ impl Tick for super::Cpu {
                 self.state = 0x1A6;
             }
             0x1A6 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.pc = ((read_ab!(self) as usize) << 8) | self.temp;
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x1A7 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lda(val);
                 self.ab = self.pc;
@@ -2610,7 +2614,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1A9;
             }
             0x1A9 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lda(val);
                 self.ab = self.pc;
@@ -2623,7 +2627,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1AB
             }
             0x1AB => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lda(val);
                 self.ab = self.pc;
@@ -2646,7 +2650,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1AE
             }
             0x1AE => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lda(val);
                 self.ab = self.pc;
@@ -2669,7 +2673,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1B1
             }
             0x1B1 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lda(val);
                 self.ab = self.pc;
@@ -2691,7 +2695,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1B5;
             }
             0x1B5 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lda(val);
                 self.ab = self.pc;
@@ -2719,14 +2723,14 @@ impl Tick for super::Cpu {
                 self.state = 0x1B9;
             }
             0x1B9 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lda(val);
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x1BB => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ldx(val);
                 self.ab = self.pc;
@@ -2739,7 +2743,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1BD;
             }
             0x1BD => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ldx(val);
                 self.ab = self.pc;
@@ -2752,7 +2756,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1BF
             }
             0x1BF => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ldx(val);
                 self.ab = self.pc;
@@ -2775,14 +2779,14 @@ impl Tick for super::Cpu {
                 self.state = 0x1C2
             }
             0x1C2 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ldx(val);
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x1C3 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ldy(val);
                 self.ab = self.pc;
@@ -2795,7 +2799,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1C5;
             }
             0x1C5 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ldy(val);
                 self.ab = self.pc;
@@ -2808,7 +2812,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1C7
             }
             0x1C7 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ldy(val);
                 self.ab = self.pc;
@@ -2831,7 +2835,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1CA
             }
             0x1CA => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ldy(val);
                 self.ab = self.pc;
@@ -2849,7 +2853,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1CD;
             }
             0x1CD => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -2871,7 +2875,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1D1;
             }
             0x1D1 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -2893,7 +2897,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1D5;
             }
             0x1D5 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -2922,25 +2926,25 @@ impl Tick for super::Cpu {
                 self.state = 0x1DA;
             }
             0x1DA => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x1DB => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x1DC => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x1DD => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -2952,7 +2956,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1DF
             }
             0x1DF => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100
@@ -2974,7 +2978,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1E2
             }
             0x1E2 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -2996,7 +3000,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1E5
             }
             0x1E5 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3018,7 +3022,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1E8
             }
             0x1E8 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3040,7 +3044,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1EB
             }
             0x1EB => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3062,7 +3066,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1EE
             }
             0x1EE => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3084,7 +3088,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1F1
             }
             0x1F1 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3096,7 +3100,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1F3;
             }
             0x1F3 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3108,7 +3112,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1F5;
             }
             0x1F5 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3120,7 +3124,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1F7;
             }
             0x1F7 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3132,7 +3136,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1F9;
             }
             0x1F9 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3144,7 +3148,7 @@ impl Tick for super::Cpu {
                 self.state = 0x1FB;
             }
             0x1FB => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3156,13 +3160,13 @@ impl Tick for super::Cpu {
                 self.state = 0x1FD;
             }
             0x1FD => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x1FE => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ora(val);
                 self.ab = self.pc;
@@ -3175,7 +3179,7 @@ impl Tick for super::Cpu {
                 self.state = 0x200;
             }
             0x200 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ora(val);
                 self.ab = self.pc;
@@ -3188,7 +3192,7 @@ impl Tick for super::Cpu {
                 self.state = 0x202
             }
             0x202 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ora(val);
                 self.ab = self.pc;
@@ -3211,7 +3215,7 @@ impl Tick for super::Cpu {
                 self.state = 0x205
             }
             0x205 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ora(val);
                 self.ab = self.pc;
@@ -3234,7 +3238,7 @@ impl Tick for super::Cpu {
                 self.state = 0x208
             }
             0x208 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ora(val);
                 self.ab = self.pc;
@@ -3256,7 +3260,7 @@ impl Tick for super::Cpu {
                 self.state = 0x20C;
             }
             0x20C => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ora(val);
                 self.ab = self.pc;
@@ -3284,20 +3288,20 @@ impl Tick for super::Cpu {
                 self.state = 0x210;
             }
             0x210 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.ora(val);
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x212 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.push(self.ab, self.a);
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x213 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.push_status(true);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3310,7 +3314,7 @@ impl Tick for super::Cpu {
                 self.state = 0x215;
             }
             0x215 => {
-                self.check_irq();
+                self.check_interrupts();
                 let a = self.pop(self.ab);
                 self.lda(a);
                 self.ab = self.pc;
@@ -3324,7 +3328,7 @@ impl Tick for super::Cpu {
                 self.state = 0x217;
             }
             0x217 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.pull_status();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3341,7 +3345,7 @@ impl Tick for super::Cpu {
                 self.state = 0x21A;
             }
             0x21A => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3363,7 +3367,7 @@ impl Tick for super::Cpu {
                 self.state = 0x21E;
             }
             0x21E => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3385,7 +3389,7 @@ impl Tick for super::Cpu {
                 self.state = 0x222;
             }
             0x222 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3414,7 +3418,7 @@ impl Tick for super::Cpu {
                 self.state = 0x227;
             }
             0x227 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3431,7 +3435,7 @@ impl Tick for super::Cpu {
                 self.state = 0x22A;
             }
             0x22A => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3453,7 +3457,7 @@ impl Tick for super::Cpu {
                 self.state = 0x22E;
             }
             0x22E => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3475,7 +3479,7 @@ impl Tick for super::Cpu {
                 self.state = 0x232;
             }
             0x232 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3504,7 +3508,7 @@ impl Tick for super::Cpu {
                 self.state = 0x237;
             }
             0x237 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3529,7 +3533,7 @@ impl Tick for super::Cpu {
                 self.state = 0x23B;
             }
             0x23B => {
-                self.check_irq();
+                self.check_interrupts();
                 self.pc = ((read_ab!(self) as usize) << 8) | self.temp;
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3553,14 +3557,14 @@ impl Tick for super::Cpu {
                 self.state = 0x23F;
             }
             0x23F => {
-                self.check_irq();
+                self.check_interrupts();
                 read_ab!(self);
                 self.pc += 1;
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x240 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.sbc(val);
                 self.ab = self.pc;
@@ -3573,7 +3577,7 @@ impl Tick for super::Cpu {
                 self.state = 0x242;
             }
             0x242 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.sbc(val);
                 self.ab = self.pc;
@@ -3586,7 +3590,7 @@ impl Tick for super::Cpu {
                 self.state = 0x244
             }
             0x244 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.sbc(val);
                 self.ab = self.pc;
@@ -3609,7 +3613,7 @@ impl Tick for super::Cpu {
                 self.state = 0x247
             }
             0x247 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.sbc(val);
                 self.ab = self.pc;
@@ -3632,7 +3636,7 @@ impl Tick for super::Cpu {
                 self.state = 0x24A
             }
             0x24A => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.sbc(val);
                 self.ab = self.pc;
@@ -3654,7 +3658,7 @@ impl Tick for super::Cpu {
                 self.state = 0x24E;
             }
             0x24E => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.sbc(val);
                 self.ab = self.pc;
@@ -3682,14 +3686,14 @@ impl Tick for super::Cpu {
                 self.state = 0x252;
             }
             0x252 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.sbc(val);
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x254 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.sta();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3701,7 +3705,7 @@ impl Tick for super::Cpu {
                 self.state = 0x256;
             }
             0x256 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.sta();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3713,7 +3717,7 @@ impl Tick for super::Cpu {
                 self.state = 0x258
             }
             0x258 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.sta();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3732,7 +3736,7 @@ impl Tick for super::Cpu {
                 self.state = 0x25B;
             }
             0x25B => {
-                self.check_irq();
+                self.check_interrupts();
                 self.sta();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3751,7 +3755,7 @@ impl Tick for super::Cpu {
                 self.state = 0x25E;
             }
             0x25E => {
-                self.check_irq();
+                self.check_interrupts();
                 self.sta();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3772,7 +3776,7 @@ impl Tick for super::Cpu {
                 self.state = 0x262;
             }
             0x262 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.sta();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3796,13 +3800,13 @@ impl Tick for super::Cpu {
                 self.state = 0x266;
             }
             0x266 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.sta();
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x267 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.stx();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3814,7 +3818,7 @@ impl Tick for super::Cpu {
                 self.state = 0x269;
             }
             0x269 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.stx();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3826,13 +3830,13 @@ impl Tick for super::Cpu {
                 self.state = 0x26B
             }
             0x26B => {
-                self.check_irq();
+                self.check_interrupts();
                 self.stx();
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x26C => {
-                self.check_irq();
+                self.check_interrupts();
                 self.sty();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3844,7 +3848,7 @@ impl Tick for super::Cpu {
                 self.state = 0x26E;
             }
             0x26E => {
-                self.check_irq();
+                self.check_interrupts();
                 self.sty();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3856,7 +3860,7 @@ impl Tick for super::Cpu {
                 self.state = 0x270
             }
             0x270 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.sty();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -3868,14 +3872,14 @@ impl Tick for super::Cpu {
                 self.state = 0x272
             }
             0x272 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lax(val);
                 self.ab = self.pc;
                 self.state = 0x100
             }
             0x273 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lax(val);
                 self.ab = self.pc;
@@ -3888,7 +3892,7 @@ impl Tick for super::Cpu {
                 self.state = 0x275;
             }
             0x275 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lax(val);
                 self.ab = self.pc;
@@ -3911,7 +3915,7 @@ impl Tick for super::Cpu {
                 self.state = 0x278
             }
             0x278 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lax(val);
                 self.ab = self.pc;
@@ -3933,7 +3937,7 @@ impl Tick for super::Cpu {
                 self.state = 0x27C;
             }
             0x27C => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lax(val);
                 self.ab = self.pc;
@@ -3961,14 +3965,14 @@ impl Tick for super::Cpu {
                 self.state = 0x280;
             }
             0x280 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.lax(val);
                 self.ab = self.pc;
                 self.state = 0x100;
             }
             0x282 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.aax();
                 self.ab = self.pc;
@@ -3981,7 +3985,7 @@ impl Tick for super::Cpu {
                 self.state = 0x284;
             }
             0x284 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.aax();
                 self.ab = self.pc;
@@ -3994,7 +3998,7 @@ impl Tick for super::Cpu {
                 self.state = 0x286
             }
             0x286 => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.aax();
                 self.ab = self.pc;
@@ -4016,7 +4020,7 @@ impl Tick for super::Cpu {
                 self.state = 0x28A;
             }
             0x28A => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.aax();
                 self.ab = self.pc;
@@ -4048,7 +4052,7 @@ impl Tick for super::Cpu {
                 self.state = 0x290;
             }
             0x290 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4081,7 +4085,7 @@ impl Tick for super::Cpu {
                 self.state = 0x296;
             }
             0x296 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4098,7 +4102,7 @@ impl Tick for super::Cpu {
                 self.state = 0x299;
             }
             0x299 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4120,7 +4124,7 @@ impl Tick for super::Cpu {
                 self.state = 0x29D;
             }
             0x29D => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4142,7 +4146,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2A1;
             }
             0x2A1 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4171,7 +4175,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2A6;
             }
             0x2A6 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4199,7 +4203,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2AB;
             }
             0x2AB => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4216,7 +4220,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2AE;
             }
             0x2AE => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4238,7 +4242,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2B2;
             }
             0x2B2 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4260,7 +4264,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2B6;
             }
             0x2B6 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4289,7 +4293,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2BB;
             }
             0x2BB => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4317,7 +4321,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2C0;
             }
             0x2C0 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4348,7 +4352,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2C6;
             }
             0x2C6 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4381,7 +4385,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2CC;
             }
             0x2CC => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4398,7 +4402,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2CF;
             }
             0x2CF => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4420,7 +4424,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2D3;
             }
             0x2D3 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4442,7 +4446,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2D7;
             }
             0x2D7 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4471,7 +4475,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2DC;
             }
             0x2DC => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4499,7 +4503,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2E1;
             }
             0x2E1 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4530,7 +4534,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2E7;
             }
             0x2E7 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4563,7 +4567,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2ED;
             }
             0x2ED => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4580,7 +4584,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2F0;
             }
             0x2F0 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4602,7 +4606,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2F4;
             }
             0x2F4 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4624,7 +4628,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2F8;
             }
             0x2F8 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4653,7 +4657,7 @@ impl Tick for super::Cpu {
                 self.state = 0x2FD;
             }
             0x2FD => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4681,7 +4685,7 @@ impl Tick for super::Cpu {
                 self.state = 0x302;
             }
             0x302 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4712,7 +4716,7 @@ impl Tick for super::Cpu {
                 self.state = 0x308;
             }
             0x308 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4745,7 +4749,7 @@ impl Tick for super::Cpu {
                 self.state = 0x30E;
             }
             0x30E => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4762,7 +4766,7 @@ impl Tick for super::Cpu {
                 self.state = 0x311;
             }
             0x311 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4784,7 +4788,7 @@ impl Tick for super::Cpu {
                 self.state = 0x315;
             }
             0x315 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4806,7 +4810,7 @@ impl Tick for super::Cpu {
                 self.state = 0x319;
             }
             0x319 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4835,7 +4839,7 @@ impl Tick for super::Cpu {
                 self.state = 0x31E;
             }
             0x31E => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4863,7 +4867,7 @@ impl Tick for super::Cpu {
                 self.state = 0x323;
             }
             0x323 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4894,7 +4898,7 @@ impl Tick for super::Cpu {
                 self.state = 0x329;
             }
             0x329 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4927,7 +4931,7 @@ impl Tick for super::Cpu {
                 self.state = 0x32F;
             }
             0x32F => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4944,7 +4948,7 @@ impl Tick for super::Cpu {
                 self.state = 0x332;
             }
             0x332 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4966,7 +4970,7 @@ impl Tick for super::Cpu {
                 self.state = 0x336;
             }
             0x336 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -4988,7 +4992,7 @@ impl Tick for super::Cpu {
                 self.state = 0x33A;
             }
             0x33A => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -5017,7 +5021,7 @@ impl Tick for super::Cpu {
                 self.state = 0x33F;
             }
             0x33F => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -5045,7 +5049,7 @@ impl Tick for super::Cpu {
                 self.state = 0x344;
             }
             0x344 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -5076,7 +5080,7 @@ impl Tick for super::Cpu {
                 self.state = 0x34A;
             }
             0x34A => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -5109,7 +5113,7 @@ impl Tick for super::Cpu {
                 self.state = 0x350;
             }
             0x350 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.mem.write(self.ab, self.temp as u8);
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -5133,7 +5137,7 @@ impl Tick for super::Cpu {
                 self.state = 0x354;
             }
             0x354 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.ahx();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -5152,7 +5156,7 @@ impl Tick for super::Cpu {
                 self.state = 0x357;
             }
             0x357 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.ahx();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -5171,7 +5175,7 @@ impl Tick for super::Cpu {
                 self.state = 0x35A;
             }
             0x35A => {
-                self.check_irq();
+                self.check_interrupts();
                 self.shx();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -5190,7 +5194,7 @@ impl Tick for super::Cpu {
                 self.state = 0x35D;
             }
             0x35D => {
-                self.check_irq();
+                self.check_interrupts();
                 self.shy();
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -5202,7 +5206,7 @@ impl Tick for super::Cpu {
                 self.state = 0x35F
             }
             0x35F => {
-                self.check_irq();
+                self.check_interrupts();
                 let val = read_ab!(self);
                 self.las();
                 self.ab = self.pc;
@@ -5222,7 +5226,7 @@ impl Tick for super::Cpu {
                 self.state = 0x362;
             }
             0x362 => {
-                self.check_irq();
+                self.check_interrupts();
                 self.tas();
                 self.ab = self.pc;
                 self.state = 0x100;
