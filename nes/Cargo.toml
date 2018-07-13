@@ -1,0 +1,11 @@
+[package]
+name = "fearless_nes"
+version = "0.1.0"
+authors = ["TomasKralCZ <tomas@kral.hk>"]
+build = "build.rs"
+
+[build.dependencies]
+rustfmt = "*"
+
+[features]
+debug_log = []

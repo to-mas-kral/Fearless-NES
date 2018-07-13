@@ -1,11 +1,10 @@
-[package]
-name = "fearless-nes"
-version = "0.1.0"
-authors = ["TomasKralCZ <tomas@kral.hk>"]
-build = "build.rs"
+[workspace]
 
-[build.dependencies]
-rustfmt = "*"
 
-[dependencies]
-#sdl2 = "0.31"
+members = [
+    "frontend-wasm",
+    "nes",
+]
+
+[features]
+debug_log = ["nes/debug_log"]
