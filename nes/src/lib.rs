@@ -11,7 +11,7 @@ macro_rules! debug_log {
 
 use std::path::Path;
 
-mod nes;
+pub mod nes;
 mod tests;
 
 pub fn run() {

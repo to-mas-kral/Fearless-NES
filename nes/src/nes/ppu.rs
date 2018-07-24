@@ -5,9 +5,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::mapper::Mapper;
+use super::Frame;
 use super::InterruptBus;
 
-static PALETTE: [(u8, u8, u8); 64] = [
+static PALETTE_2: [(u8, u8, u8); 64] = [
     (0x80, 0x80, 0x80),
     (0x00, 0x3D, 0xA6),
     (0x00, 0x12, 0xB0),
@@ -74,7 +75,117 @@ static PALETTE: [(u8, u8, u8); 64] = [
     (0x11, 0x11, 0x11),
 ];
 
-pub struct PpuMemory {
+static PALETTE: [(u8, u8, u8); 64] = [
+    (0x7C, 0x7C, 0x7C),
+    (0x00, 0x00, 0xFC),
+    (0x00, 0x00, 0xBC),
+    (0x44, 0x28, 0xBC),
+    (0x94, 0x00, 0x84),
+    (0xA8, 0x00, 0x20),
+    (0xA8, 0x10, 0x00),
+    (0x88, 0x14, 0x00),
+    (0x50, 0x30, 0x00),
+    (0x00, 0x78, 0x00),
+    (0x00, 0x68, 0x00),
+    (0x00, 0x58, 0x00),
+    (0x00, 0x40, 0x58),
+    (0x00, 0x00, 0x00),
+    (0x00, 0x00, 0x00),
+    (0x00, 0x00, 0x00),
+    (0xBC, 0xBC, 0xBC),
+    (0x00, 0x78, 0xF8),
+    (0x00, 0x58, 0xF8),
+    (0x68, 0x44, 0xFC),
+    (0xD8, 0x00, 0xCC),
+    (0xE4, 0x00, 0x58),
+    (0xF8, 0x38, 0x00),
+    (0xE4, 0x5C, 0x10),
+    (0xAC, 0x7C, 0x00),
+    (0x00, 0xB8, 0x00),
+    (0x00, 0xA8, 0x00),
+    (0x00, 0xA8, 0x44),
+    (0x00, 0x88, 0x88),
+    (0x00, 0x00, 0x00),
+    (0x00, 0x00, 0x00),
+    (0x00, 0x00, 0x00),
+    (0xF8, 0xF8, 0xF8),
+    (0x3C, 0xBC, 0xFC),
+    (0x68, 0x88, 0xFC),
+    (0x98, 0x78, 0xF8),
+    (0xF8, 0x78, 0xF8),
+    (0xF8, 0x58, 0x98),
+    (0xF8, 0x78, 0x58),
+    (0xFC, 0xA0, 0x44),
+    (0xF8, 0xB8, 0x00),
+    (0xB8, 0xF8, 0x18),
+    (0x58, 0xD8, 0x54),
+    (0x58, 0xF8, 0x98),
+    (0x00, 0xE8, 0xD8),
+    (0x78, 0x78, 0x78),
+    (0x00, 0x00, 0x00),
+    (0x00, 0x00, 0x00),
+    (0xFC, 0xFC, 0xFC),
+    (0xA4, 0xE4, 0xFC),
+    (0xB8, 0xB8, 0xF8),
+    (0xD8, 0xB8, 0xF8),
+    (0xF8, 0xB8, 0xF8),
+    (0xF8, 0xA4, 0xC0),
+    (0xF0, 0xD0, 0xB0),
+    (0xFC, 0xE0, 0xA8),
+    (0xF8, 0xD8, 0x78),
+    (0xD8, 0xF8, 0x78),
+    (0xB8, 0xF8, 0xB8),
+    (0xB8, 0xF8, 0xD8),
+    (0x00, 0xFC, 0xFC),
+    (0xF8, 0xD8, 0xF8),
+    (0x00, 0x00, 0x00),
+    (0x00, 0x00, 0x00),
+];
+
+pub enum SpriteSize {
+    _8x8,
+    _8x16,
+}
+
+struct Sprite {
+    addr: u8, //Index in OAM (object attribute memory)
+    x: u8,
+    y: u8,
+    tile: u8,
+    attr: u8,
+    data_l: u8, //Tile data (low)
+    data_h: u8, //Tile data (high)
+}
+
+#[derive(Clone, Copy)]
+enum RenderState {
+    PreRender,
+    Render,
+    PostRender,
+    VBlank,
+}
+
+pub struct Ppu {
+    pub output_buffer: [u8; 256 * 240],
+    pub frame: Rc<RefCell<Frame>>,
+
+    interrupt_bus: Rc<RefCell<InterruptBus>>,
+    nmi_reset: bool,
+
+    pub xpos: u16,
+    pub scanline: u16,
+    pub odd_frame: bool,
+
+    nametable_byte: u8,
+    attr_table_byte: u8,
+    next_attr_table_byte: u8,
+    offset_y: usize,
+    tile_addr: usize,
+    tile_lb: u8,
+    tile_hb: u8,
+    shift_low: u16,
+    shift_high: u16,
+
     pub ram: [u8; 0x1000],
     pub oam: [u8; 0x100],
     pub palettes: [u8; 0x20],
@@ -92,16 +203,41 @@ pub struct PpuMemory {
     write_toggle: bool,
 }
 
-impl PpuMemory {
-    pub fn new(mapper: Rc<RefCell<Box<Mapper>>>) -> PpuMemory {
-        //TODO: set startup state
-        let palettes = [
-            0x09, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x0D, 0x08, 0x10, 0x08, 0x24, 0x00, 0x00,
+impl Ppu {
+    pub fn new(
+        interrupt_bus: Rc<RefCell<InterruptBus>>,
+        mapper: Rc<RefCell<Box<Mapper>>>,
+        frame: Rc<RefCell<Frame>>,
+    ) -> Ppu {
+        /* let palettes = [
+            0x0F, 0x1, 0x30, 0x01, 0x00, 0x02, 0x02, 0x0D, 0x08, 0x10, 0x08, 0x24, 0x00, 0x00,
             0x04, 0x2C, 0x09, 0x01, 0x34, 0x03, 0x00, 0x04, 0x00, 0x14, 0x08, 0x3A, 0x00, 0x02,
             0x00, 0x20, 0x2C, 0x08,
-        ];
+        ]; */
 
-        PpuMemory {
+        let palettes = [0; 0x20];
+
+        Ppu {
+            output_buffer: [0; 256 * 240],
+            frame,
+
+            interrupt_bus,
+            nmi_reset: false,
+
+            xpos: 0,
+            scanline: 0,
+            odd_frame: false,
+
+            nametable_byte: 0,
+            attr_table_byte: 0,
+            next_attr_table_byte: 0,
+            offset_y: 0,
+            tile_addr: 0,
+            tile_lb: 0,
+            tile_hb: 0,
+            shift_low: 0,
+            shift_high: 0,
+
             ram: [0; 0x1000],
             oam: [0; 0x100],
             palettes,
@@ -122,26 +258,71 @@ impl PpuMemory {
 
     #[inline]
     pub fn write(&mut self, addr: usize, val: u8) {
-        let addr = addr % 0x4000;
+        let addr = addr & 0x3FFF;
         match addr {
             0..=0x1FFF => self.mapper.borrow_mut().write_chr(addr, val),
             0x2000..=0x2FFF => self.ram[addr - 0x2000] = val, //TODO: nametable mirrorring in mapper
             0x3000..=0x3EFF => self.ram[addr - 0x3000] = val,
-            0x3F00..=0x3FFF => self.palettes[addr & 0x1F] = val,
-            _ => panic!("internal error in PPU memory mapping"),
+            0x3F00..=0x3FFF => self.palette_write(addr, val),
+            _ => unreachable!(),
         }
     }
 
     #[inline]
     pub fn read(&mut self, addr: usize) -> u8 {
-        let addr = addr % 0x4000;
+        let addr = addr & 0x3FFFF;
         match addr {
             0..=0x1FFF => self.mapper.borrow_mut().read_chr(addr),
             0x2000..=0x2FFF => self.ram[addr - 0x2000], //TODO: nametable mirrorring in mapper
             0x3000..=0x3EFF => self.ram[addr - 0x3000],
-            0x3F00..=0x3FFF => self.palettes[addr & 0x1F],
-            _ => panic!("internal error in PPU memory mapping"),
+            0x3F00..=0x3FFF => self.palette_read(addr),
+            _ => unreachable!(),
         }
+    }
+
+    #[inline]
+    fn palette_write(&mut self, mut addr: usize, mut val: u8) {
+        addr &= 0x1f;
+        val &= 0x3f;
+
+        match addr {
+            0x0 | 0x10 => {
+                self.palettes[0] = val;
+                self.palettes[0x10] = val;
+            }
+            0x4 | 0x14 => {
+                self.palettes[0x4] = val;
+                self.palettes[0x14] = val;
+            }
+            0x8 | 0x18 => {
+                self.palettes[0x8] = val;
+                self.palettes[0x18] = val;
+            }
+            0xC | 0x1C => {
+                self.palettes[0xC] = val;
+                self.palettes[0x1C] = val;
+            }
+            _ => self.palettes[addr] = val,
+        }
+    }
+
+    #[inline]
+    fn palette_read(&mut self, mut addr: usize) -> u8 {
+        addr &= 0x1F;
+        if addr == 0x10 || addr == 0x14 || addr == 0x18 || addr == 0x1C {
+            addr &= !0x10;
+        }
+
+        /*  println!("addr in palettes: 0x{:X}", addr);
+        println!("Palettes contents: {:?}", self.palettes); */
+
+        let mut index = self.palettes[addr];
+
+        if self.greyscale() {
+            index &= 0x30;
+        }
+
+        index
     }
 
     #[inline]
@@ -149,6 +330,8 @@ impl PpuMemory {
         //TODO: ignore writes after reset (30000 cycles)
         //TODO: bit 0 bus conflict
         self.ppuctrl = val;
+        self.temp_vram_addr &= !0xC00;
+        self.temp_vram_addr |= ((val as usize) & 3) << 10;
     }
 
     #[inline]
@@ -158,8 +341,7 @@ impl PpuMemory {
 
     #[inline]
     pub fn read_ppustatus(&mut self) -> u8 {
-        //TODO: clear the latch; is this the way ?
-        self.temp_vram_addr = 0;
+        self.write_toggle = false;
         self.ppustatus &= 0xFF >> 1;
         self.ppustatus
     }
@@ -173,6 +355,7 @@ impl PpuMemory {
     pub fn read_oamdata(&mut self) -> u8 {
         self.oam[self.oamaddr as usize]
         //TODO: increment in some cases
+        //TODO: implement other trickery
     }
 
     #[inline]
@@ -185,12 +368,13 @@ impl PpuMemory {
 
     #[inline]
     pub fn write_ppuscroll(&mut self, val: u8) {
-        if !self.write_toggle {
-            self.temp_vram_addr = (self.temp_vram_addr & 0xFFE0) | (usize::from(val) >> 3);
-            self.x_fine_scroll = val & 0x7;
+        if self.write_toggle {
+            self.temp_vram_addr = (self.temp_vram_addr & !0x73E0)
+                | ((val as usize & 0xF8) << 2)
+                | ((val as usize & 0x7) << 12);
         } else {
-            self.temp_vram_addr = (self.temp_vram_addr & 0x8FFF) | ((usize::from(val) & 0x7) << 12);
-            self.temp_vram_addr = (self.temp_vram_addr & 0xFC1F) | ((usize::from(val) & 0xF8) << 2);
+            self.x_fine_scroll = val & 7;
+            self.temp_vram_addr = (self.temp_vram_addr & !0x1F) | (val as usize >> 3);
         }
 
         self.write_toggle = !self.write_toggle;
@@ -198,11 +382,12 @@ impl PpuMemory {
 
     #[inline]
     pub fn write_ppuaddr(&mut self, val: u8) {
-        if !self.write_toggle {
-            self.temp_vram_addr = (self.temp_vram_addr & 0x80FF) | ((usize::from(val) & 0x3F) << 8)
-        } else {
-            self.temp_vram_addr = (self.temp_vram_addr & 0xFF00) | usize::from(val);
+        if self.write_toggle {
+            self.temp_vram_addr = (self.temp_vram_addr & !0xFF) | val as usize;
+            //TODO: 2-3 cycle delay to the update
             self.vram_addr = self.temp_vram_addr;
+        } else {
+            self.temp_vram_addr = (self.temp_vram_addr & !0xFF00) | ((val as usize & 0x3F) << 8);
         }
 
         self.write_toggle = !self.write_toggle;
@@ -213,7 +398,14 @@ impl PpuMemory {
         let increment = self.addr_increment();
         let ret = self.read(self.vram_addr);
         //TODO: buffered reads ?
-        self.vram_addr = self.vram_addr.wrapping_add(increment);
+        if self.scanline < 240 {
+            self.coarse_x_increment();
+            self.y_increment();
+        } else {
+            //TODO: trigger some memory read
+            self.vram_addr = self.vram_addr.wrapping_add(increment);
+        }
+
         ret
     }
 
@@ -221,7 +413,14 @@ impl PpuMemory {
     pub fn write_ppudata(&mut self, val: u8) {
         self.write(self.vram_addr, val);
         let increment = self.addr_increment();
-        self.vram_addr = self.vram_addr.wrapping_add(increment);
+
+        if self.scanline < 240 {
+            self.coarse_x_increment();
+            self.y_increment();
+        } else {
+            //TODO: trigger some memory read
+            self.vram_addr = self.vram_addr.wrapping_add(increment);
+        }
     }
 
     //Ppuctrl
@@ -365,6 +564,8 @@ impl PpuMemory {
         self.ppustatus & (1 << 7) != 0
     }
 
+    //FIXME: cache register status when writing so these don't need to be recomputed
+
     //Helpers
 
     #[inline]
@@ -379,89 +580,13 @@ impl PpuMemory {
     pub fn nametable_addr(&self) -> usize {
         0x2000 | (self.vram_addr & 0xFFF)
     }
-}
-
-pub enum SpriteSize {
-    _8x8,
-    _8x16,
-}
-
-struct Sprite {
-    addr: u8, //Index in OAM (object attribute memory)
-    x: u8,
-    y: u8,
-    tile: u8,
-    attr: u8,
-    data_l: u8, //Tile data (low)
-    data_h: u8, //Tile data (high)
-}
-
-#[derive(Clone, Copy)]
-enum RenderState {
-    PreRender,
-    Render,
-    PostRender,
-    VBlank,
-}
-
-pub struct Ppu {
-    pub output_buffer: [u16; 256 * 240],
-
-    pub mem: PpuMemory,
-
-    interrupt_bus: Rc<RefCell<InterruptBus>>,
-    nmi_reset: bool,
-
-    pub xpos: u16,
-    pub scanline: u16,
-    pub odd_frame: bool,
-
-    nametable_byte: u8,
-    attr_table_byte: u8,
-    offset_y: usize,
-    tile_addr: usize,
-    tile_lb: u8,
-    tile_hb: u8,
-    shift_low: u16,
-    shift_high: u16,
-}
-
-impl Ppu {
-    pub fn new(interrupt_bus: Rc<RefCell<InterruptBus>>, mapper: Rc<RefCell<Box<Mapper>>>) -> Ppu {
-        Ppu {
-            output_buffer: [0; 256 * 240],
-
-            mem: PpuMemory::new(mapper),
-
-            interrupt_bus,
-            nmi_reset: false,
-
-            xpos: 0,
-            scanline: 0,
-            odd_frame: false,
-
-            nametable_byte: 0,
-            attr_table_byte: 0,
-            offset_y: 0,
-            tile_addr: 0,
-            tile_lb: 0,
-            tile_hb: 0,
-            shift_low: 0,
-            shift_high: 0,
-        }
-    }
-
-    //pub fn reset(&mut self) {}
 
     pub fn tick(&mut self) {
         let state = match self.scanline {
             0...239 => RenderState::Render,
             240 => RenderState::PostRender,
             241...260 => RenderState::VBlank,
-            261 => {
-                self.output_buffer = [0; 256 * 240];
-                RenderState::PreRender
-            }
+            261 => RenderState::PreRender,
             _ => panic!("Invalid render state"),
         };
 
@@ -485,7 +610,6 @@ impl Ppu {
 
     #[inline]
     fn scanline_cycle(&mut self, state: RenderState) {
-        //TODO: check for self.mem.rendering_enabled()
         //TODO: verify tile register shifts
         match state {
             RenderState::PreRender => {
@@ -493,7 +617,7 @@ impl Ppu {
                     1..=256 => {
                         if self.xpos == 1 {
                             //TODO: Sprite 0 overflow
-                            self.mem.ppustatus &= !(1 << 7);
+                            self.ppustatus &= !(1 << 7);
                         }
                         self.fetch_bg();
                         if self.xpos == 256 {
@@ -512,6 +636,13 @@ impl Ppu {
                         //TODO: unused NT fetches ?
                     }
                     340 => {
+                        for (index, color_index) in self.output_buffer.iter().enumerate() {
+                            (*self.frame).borrow_mut().output_buffer[index] =
+                                PALETTE[*color_index as usize];
+                        }
+
+                        self.output_buffer = [0; 256 * 240];
+
                         //The skipped tick is implemented by jumping directly from (339, 261)
                         //to (0, 0), meaning the last tick of the last NT fetch takes place at (0, 0)
                         //on odd frames replacing the idle tick
@@ -560,7 +691,7 @@ impl Ppu {
 
     //nametable address = 0x2000 | (v & 0x0FFF)
     //attribute address = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
-    //tile address low  = (nametable address << 4) | (v >> 12) | (nametable base address (bits 0 a 1 of ppuctrl))
+    //tile address low  = (nametable address << 4) | (v >> 12) | background patter table address
     //tile address high = tile address low + 8
 
     //The low 12 bits of the attribute address are composed in the following way:
@@ -573,15 +704,22 @@ impl Ppu {
 
     #[inline]
     fn fetch_bg(&mut self) {
-        if self.mem.rendering_enabled() {
+        if self.rendering_enabled() {
             match self.xpos % 8 {
                 0 => self.coarse_x_increment(),
                 1 => {
+                    println!("---- fetching data for a new tile ----");
                     self.shift_low |= u16::from(self.tile_lb) << 8;
                     self.shift_high |= u16::from(self.tile_hb) << 8;
+                    self.attr_table_byte = self.next_attr_table_byte;
 
-                    self.nametable_byte = self.mem.read(self.mem.nametable_addr());
-                    self.offset_y = self.mem.vram_addr >> 12;
+                    println!("shift_high {:b}", self.shift_high);
+                    println!("shift_low {:b}", self.shift_low);
+
+                    self.nametable_byte = self.read(self.nametable_addr());
+                    println!("VRAM addr = 0x{:X}", self.vram_addr);
+                    println!("Nametable byte = 0x{:X}", self.nametable_byte);
+                    self.offset_y = self.vram_addr >> 12;
                     //TODO: offest_y ???
                 }
                 3 => {
@@ -596,22 +734,22 @@ impl Ppu {
                     //by 0, 2, 4, or 6 bits depending on bit 4 of the X and Y pixel position.
                     //Roughly: if (v & 0x40) attrbyte >>= 4; if (v & 0x02) attrbyte >>= 2.
 
-                    let shift = ((self.mem.vram_addr >> 4) & 0x04) | (self.mem.vram_addr & 0x02);
-                    self.attr_table_byte =
-                        ((self.mem.read(self.mem.attr_table_addr()) >> shift) & 0x03) << 2;
+                    let shift = ((self.vram_addr >> 4) & 0x04) | (self.vram_addr & 0x02);
+                    self.next_attr_table_byte =
+                        ((self.read(self.attr_table_addr()) >> shift) & 0x03) << 2;
                 }
                 //TODO: is it needed to recalculate the address ?
                 5 => {
                     self.tile_addr = (usize::from(self.nametable_byte) << 4)
-                        | (self.mem.vram_addr >> 12)
-                        | self.mem.name_table_base_addr();
-                    self.tile_lb = self.mem.read(self.tile_addr); //At this point, the high 8 bits should be 0
+                        | (self.vram_addr >> 12)
+                        | self.bg_pattern_table_addr();
+                    println!("Tile addr low = 0x{:X}", self.tile_addr);
+                    self.tile_lb = self.read(self.tile_addr);
+                    println!("Tile lb = {:b}", self.tile_lb);
                 }
                 7 => {
-                    self.tile_addr = (usize::from(self.nametable_byte) << 4)
-                        | (self.mem.vram_addr >> 12)
-                        | self.mem.name_table_base_addr();
-                    self.tile_hb = self.mem.read(self.tile_addr + 8);
+                    self.tile_hb = self.read(self.tile_addr + 8);
+                    println!("Tile hb = {:b}", self.tile_hb);
                 }
                 _ => (),
             }
@@ -631,14 +769,14 @@ impl Ppu {
         match self.scanline {
             241 => {
                 if self.xpos == 1 {
-                    self.mem.ppustatus |= 1 << 7;
-                    if self.mem.nmi_on_vblank() {
+                    self.ppustatus |= 1 << 7;
+                    if self.nmi_on_vblank() {
                         self.interrupt_bus.borrow_mut().nmi_signal = true;
                     }
                 }
             }
             _ => {
-                if !self.mem.nmi_on_vblank() {
+                if !self.nmi_on_vblank() {
                     self.nmi_reset = true;
                 } else if self.nmi_reset {
                     self.nmi_reset = false;
@@ -652,21 +790,23 @@ impl Ppu {
 
     #[inline]
     fn y_increment(&mut self) {
-        if (self.mem.vram_addr & 0x7000) != 0x7000 {
-            self.mem.vram_addr += 0x1000;
-        } else {
-            self.mem.vram_addr &= !0x7000;
-            let mut y = (self.mem.vram_addr & 0x03E0) >> 5;
-            if y == 29 {
-                y = 0;
-                self.mem.vram_addr ^= 0x0800;
-            } else if y == 31 {
-                y = 0;
+        if self.rendering_enabled() {
+            if (self.vram_addr & 0x7000) != 0x7000 {
+                self.vram_addr += 0x1000;
             } else {
-                y += 1;
-            }
+                self.vram_addr &= !0x7000;
+                let mut y = (self.vram_addr & 0x03E0) >> 5;
+                if y == 29 {
+                    y = 0;
+                    self.vram_addr ^= 0x0800;
+                } else if y == 31 {
+                    y = 0;
+                } else {
+                    y += 1;
+                }
 
-            self.mem.vram_addr = (self.mem.vram_addr & !0x03E0) | (y << 5);
+                self.vram_addr = (self.vram_addr & !0x03E0) | (y << 5);
+            }
         }
     }
 
@@ -674,22 +814,25 @@ impl Ppu {
 
     #[inline]
     fn coarse_x_increment(&mut self) {
-        if (self.mem.vram_addr & 0x001F) == 31 {
-            self.mem.vram_addr &= !0x001F;
-            self.mem.vram_addr ^= 0x0400
-        } else {
-            self.mem.vram_addr += 1;
+        if self.rendering_enabled() {
+            if (self.vram_addr & 0x001F) == 31 {
+                self.vram_addr &= !0x001F;
+                self.vram_addr ^= 0x0400
+            } else {
+                self.vram_addr += 1;
+            }
         }
     }
 
     //At dot 257 of each scanline
     //If rendering is enabled, the PPU copies all bits related to horizontal position from t to v:
     //v: ....F.. ...EDCBA = t: ....F.. ...EDCBA
-    //TODO: rename this method
     #[inline]
     fn t_to_v(&mut self) {
-        let mask = 0b11111 | (1 << 10);
-        self.mem.vram_addr &= self.mem.temp_vram_addr & mask;
+        if self.rendering_enabled() {
+            let mask = 0b11111 | (1 << 10);
+            self.vram_addr &= self.temp_vram_addr & mask;
+        }
     }
 
     //During dots 280 to 304 of the pre-render scanline (end of vblank)
@@ -697,11 +840,12 @@ impl Ppu {
     //bits are copied from t to v at dot 257, the PPU will repeatedly copy the
     //vertical bits from t to v from dots 280 to 304, completing the full initialization of v from t:
     //v: IHGF.ED CBA..... = t: IHGF.ED CBA.....
-    //TODO: rename this method
     #[inline]
     fn v_from_t(&mut self) {
-        let mask = 0b11__1101_1111 << 5;
-        self.mem.vram_addr &= self.mem.temp_vram_addr & mask;
+        if self.rendering_enabled() {
+            let mask = 0b11_1101_1111 << 5;
+            self.vram_addr &= self.temp_vram_addr & mask;
+        }
     }
 
     #[inline]
@@ -711,10 +855,47 @@ impl Ppu {
     }
 
     #[inline]
-    fn draw_pixel(&mut self) {}
+    fn draw_pixel(&mut self) {
+        let addr = (usize::from(self.scanline) << 8) + usize::from(self.xpos - 1);
+        let colour_index = self.priority_mux();
+        self.output_buffer[addr] = self.palette_read(colour_index);
 
-    /* #[inline]
-    fn pixel_color(&mut self) -> usize {
+        let col = PALETTE[self.palette_read(colour_index) as usize];
+        /* println!("RGB color index = 0x{:X}", self.palette_read(colour_index));
+        println!("RGB color chosen: #{:X}{:X}{:X}", col.0, col.1, col.2); */
+    }
 
-    } */
+    #[inline]
+    fn priority_mux(&mut self) -> usize {
+        if !self.rendering_enabled() && (self.vram_addr & 0x3F00) == 0x3F00 {
+            return self.vram_addr & 0x1F;
+        }
+
+        let mut color_index = 0;
+        if self.show_bg() {
+            color_index = self.bg_color();
+        }
+
+        //TODO: sprites
+
+        color_index
+    }
+
+    #[inline]
+    fn bg_color(&mut self) -> usize {
+        let tile_h_bit = ((self.shift_high & 0xFF)/*>>  (7 - self.x_fine_scroll) */) & 2;
+        let tile_l_bit = ((self.shift_low & 0xFF)/*>>  (7 - self.x_fine_scroll) */) & 1;
+
+        /* println!("Tile low displaying = {:b}", self.shift_low & 0xFF);
+        println!("Tile high displaying = {:b}", self.shift_high & 0xFF);
+        println!("Attribute table byte = {:b}", self.attr_table_byte);
+        println!(
+            "produced color index: {:b}",
+            (/* self.attr_table_byte  |*/tile_h_bit as u8 | tile_l_bit as u8) as usize
+        ); */
+
+        //TODO: attr_table_byte seems to be calculated wrongly
+
+        (/* self.attr_table_byte | */tile_h_bit as u8 | tile_l_bit as u8) as usize
+    }
 }

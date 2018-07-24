@@ -1,0 +1,11 @@
+[package]
+name = "frontend-sdl"
+version = "0.1.0"
+authors = ["TomasKralCZ <tomas@kral.hk>"]
+
+[dependencies]
+fearless_nes = { path = "../nes" }
+sdl2 = "0.31.0"
+
+[features]
+debug_log = ["fearless_nes/debug_log"]
