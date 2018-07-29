@@ -19,7 +19,7 @@ fn main() {
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
-        .window("rust-sdl2 demo", 256, 240)
+        .window("rust-sdl2 demo", 256 * 4, 240 * 4)
         .position_centered()
         .build()
         .unwrap();
@@ -27,7 +27,7 @@ fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
     let sdl_texture_creator = canvas.texture_creator();
     let mut sdl_texture = sdl_texture_creator
-        .create_texture_streaming(PixelFormatEnum::RGB24, 256, 240)
+        .create_texture_streaming(PixelFormatEnum::RGB24, 256 * 4, 240 * 4)
         .unwrap();
 
     let mut event_pump = sdl_context.event_pump().unwrap();
@@ -38,6 +38,7 @@ fn main() {
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/palette/palette.nes",
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/nestest/nestest.nes",
         //"/home/tomas/Documents/Programovani/fearless-nes/SMB.nes",
+        //"/home/tomas/Documents/Programovani/fearless-nes/donkey kong.nes",
     )).unwrap();
     let framebuffer = nes.get_framebuffer();
 
@@ -61,18 +62,18 @@ fn main() {
             }
         }
 
-        
-        nes.run_one_frame();
+        //nes.run_one_frame();
 
-         buffer_to_texture(framebuffer.clone(), &mut sdl_texture);
+        buffer_to_texture(framebuffer.clone(), &mut sdl_texture);
 
         canvas.clear();
+        canvas.set_scale(4f32, 4f32).unwrap();
         canvas
-            .copy(&sdl_texture, None, Some(Rect::new(0, -8, 256, 240)))
+            .copy(&sdl_texture, None, Some(Rect::new(0, 0, 256 * 4, 240 * 4)))
             .unwrap();
         canvas.present();
 
-        ::std::thread::sleep(Duration::new(0, 1_000_000_u32));
+        //::std::thread::sleep(Duration::new(0, 1_000_000_000u32));
     }
 }
 

@@ -26,10 +26,10 @@ impl Nes {
         let mut file = File::open(rom_path)?;
         let header = ines::parse_header(&mut file)?;
 
-        let mapper = Rc::new(RefCell::new(mapper::get_mapper(header.mapper())));
+        let mapper = Rc::new(RefCell::new(mapper::get_mapper(header)));
 
         let mut file = File::open(rom_path)?;
-        mapper.borrow_mut().load_cartridge(header, &mut file)?;
+        mapper.borrow_mut().load_cartridge(&mut file)?;
 
         let frame = Rc::new(RefCell::new(Frame::new()));
 
@@ -140,6 +140,7 @@ impl InterruptBus {
 pub enum NesError {
     IoError(io::Error),
     NesConstantMissing,
+    PalRom,
     InvalidFile,
 }
 

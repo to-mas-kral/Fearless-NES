@@ -50,54 +50,69 @@ use super::NesError;
 //+++++++-- Reserved, set to zero
 
 //TODO: have some Cartridge struct that holds the data henceforth
+//TODO: support iNES 2.0
 
 #[derive(Debug)]
 pub struct InesHeader {
     pub prg_rom_size: u8,
-    pub chr_rom_size: u8,
-    pub flags_6: u8,
-    pub flags_7: u8,
     pub prg_ram_size: u8,
-    pub flags_9: u8,
-}
-
-impl InesHeader {
-    pub fn mapper(&self) -> u32 {
-        ((self.flags_6 >> 4) | (self.flags_7 & 0b1111_0000)) as u32
-    }
-
-    pub fn mirroring(&self) -> u8 {
-        self.flags_6 & 0b0000_0001
-    }
+    pub chr_rom_size: u8,
+    pub mirroring: Mirroring,
+    pub has_prg_ram: bool,
+    pub has_trainer: bool,
+    pub mapper: u32,
 }
 
 static NES_CONSTANT: [u8; 4] = [0x4E, 0x45, 0x53, 0x1A];
 
 pub fn parse_header(f: &mut File) -> Result<InesHeader, NesError> {
     let _bytes: Result<Vec<u8>, _> = f.bytes().collect();
-    let bytes = _bytes?;
-    if bytes.len() < 16 {
+    let header = _bytes?;
+    if header.len() < 16 {
         return Err(NesError::InvalidFile);
     }
 
     for i in 0..3 {
-        if bytes[i] != NES_CONSTANT[i] {
+        if header[i] != NES_CONSTANT[i] {
             return Err(NesError::NesConstantMissing);
         }
     }
 
     for i in 10..15 {
-        if bytes[i] != 0 {
+        if header[i] != 0 {
             //TODO: handle iNES 2.0
         }
     }
 
+    let mirroring = if header[6] & (1 << 3) != 0 {
+        Mirroring::FourScreen
+    } else if header[6] & 1 != 0 {
+        Mirroring::Vertical
+    } else {
+        Mirroring::Horizontal
+    };
+
+    let has_prg_ram = header[6] & 2 != 0;
+    let has_trainer = header[6] & (1 << 2) != 0;
+
+    let mapper = ((header[6] >> 4) | (header[7] & 0xF0)) as u32;
+
     Ok(InesHeader {
-        prg_rom_size: bytes[4],
-        chr_rom_size: bytes[5],
-        flags_6: bytes[6],
-        flags_7: bytes[7],
-        prg_ram_size: bytes[8],
-        flags_9: bytes[9],
+        prg_rom_size: header[4],
+        chr_rom_size: header[5],
+        prg_ram_size: header[8],
+        mirroring,
+        has_prg_ram,
+        has_trainer,
+        mapper,
     })
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Mirroring {
+    Horizontal,
+    Vertical,
+    SingleScreen,
+    FourScreen,
+    Obscure,
 }
