@@ -19,6 +19,7 @@ pub struct Nes {
     ppu: Rc<RefCell<ppu::Ppu>>,
     int_bus: Rc<RefCell<InterruptBus>>,
     cycle_counter: u64,
+    cpu_cycle_count: u64,
 }
 
 impl Nes {
@@ -46,6 +47,9 @@ impl Nes {
 
         let mut cpu = cpu::Cpu::new(mem.clone(), int_bus.clone());
         cpu.gen_reset();
+        for _ in 0..18 {
+            ppu.borrow_mut().tick();
+        }
 
         Ok(Nes {
             frame,
@@ -54,6 +58,7 @@ impl Nes {
             ppu,
             int_bus,
             cycle_counter: 3,
+            cpu_cycle_count: 0,
         })
     }
 
@@ -76,13 +81,15 @@ impl Nes {
     }
 
     pub fn run_one_frame(&mut self) {
-        for _ in 0..=29780 {
+        while !self.frame.borrow().frame_ready {
             self.cpu.tick();
+            self.cpu_cycle_count += 1;
             for _ in 0..3 {
                 self.ppu.borrow_mut().tick();
             }
+            println!("cycle count: {}", self.cpu_cycle_count);
         }
-        self.ppu.borrow_mut().tick();
+        self.frame.borrow_mut().frame_ready = false;
     }
 
     pub fn run_one_cpu_cycle(&mut self) {
@@ -105,12 +112,14 @@ impl Nes {
 #[derive(Clone)]
 pub struct Frame {
     pub output_buffer: [(u8, u8, u8); 256 * 240],
+    pub frame_ready: bool,
 }
 
 impl Frame {
     pub fn new() -> Frame {
         Frame {
             output_buffer: [(0, 0, 0); 256 * 240],
+            frame_ready: false,
         }
     }
 

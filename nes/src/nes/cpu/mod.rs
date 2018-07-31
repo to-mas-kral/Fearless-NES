@@ -102,28 +102,37 @@ impl Cpu {
     }
 
     pub fn gen_reset(&mut self) {
-        self.pc = ((u16::from(self.mem.read_direct(0xFFFD)) << 8)
-            | u16::from(self.mem.read_direct(0xFFFC))) as usize;
-        self.ab = self.pc;
+        self.state = 0;
+        self.take_interrupt = true;
+        self.pending_reset = true;
+        self.interrupt_type = InterruptType::Reset;
+
+        for _ in 0..6 {
+            self.tick();
+        }
+
+        self.pending_reset = false;
     }
 
-    //TODO: what is pending_IRQ ?
     #[inline]
     fn check_interrupts(&mut self) {
         if !self.i && self.cached_irq {
             self.take_interrupt = true;
             self.interrupt_type = InterruptType::Irq;
+            self.interrupt_bus.borrow_mut().irq_signal = false;
         }
 
         if self.interrupt_bus.borrow().nmi_signal {
             self.take_interrupt = true;
             self.interrupt_type = InterruptType::Nmi;
+            self.interrupt_bus.borrow_mut().nmi_signal = false;
         }
-        self.interrupt_bus.borrow_mut().nmi_signal = false;
 
         if self.interrupt_bus.borrow().reset_signal {
-            //FIXME: make this cycle-accurate
-            self.gen_reset();
+            self.take_interrupt = true;
+            self.pending_reset = true;
+            self.interrupt_type = InterruptType::Reset;
+            self.interrupt_bus.borrow_mut().reset_signal = false;
         }
     }
 
@@ -136,10 +145,9 @@ impl Cpu {
         }
 
         match self.interrupt_type {
-            InterruptType::Irq => 0xFFFE,
+            InterruptType::Irq | InterruptType::None => 0xFFFE,
             InterruptType::Nmi => 0xFFFA,
             InterruptType::Reset => 0xFFFC,
-            InterruptType::None => 0xFFFE, //BRK
         }
     }
 

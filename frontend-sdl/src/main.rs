@@ -93,6 +93,5 @@ fn buffer_to_texture(frame: Rc<RefCell<Frame>>, texture: &mut Texture) {
                     buffer[texture_address + 2] = pixel_colour.2;
                 }
             }
-        })
-        .unwrap();
+        }).unwrap();
 }

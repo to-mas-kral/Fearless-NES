@@ -95,7 +95,7 @@ pub fn parse_header(f: &mut File) -> Result<InesHeader, NesError> {
     let has_prg_ram = header[6] & 2 != 0;
     let has_trainer = header[6] & (1 << 2) != 0;
 
-    let mapper = ((header[6] >> 4) | (header[7] & 0xF0)) as u32;
+    let mapper = u32::from((header[6] >> 4) | (header[7] & 0xF0));
 
     Ok(InesHeader {
         prg_rom_size: header[4],

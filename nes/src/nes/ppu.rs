@@ -127,6 +127,8 @@ pub struct Ppu {
     ppustatus: u8,
     pub oamaddr: u8,
     write_toggle: bool,
+    latch: u8,
+    read_buffer: u8,
 
     nt_base_addr: usize,
     addr_increment: usize,
@@ -152,7 +154,11 @@ impl Ppu {
         mapper: Rc<RefCell<Box<Mapper>>>,
         frame: Rc<RefCell<Frame>>,
     ) -> Ppu {
-        let palettes = [0; 0x20];
+        let palettes = [
+            0x09, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x0D, 0x08, 0x10, 0x08, 0x24, 0x00, 0x00,
+            0x04, 0x2C, 0x09, 0x01, 0x34, 0x03, 0x00, 0x04, 0x00, 0x14, 0x08, 0x3A, 0x00, 0x02,
+            0x00, 0x20, 0x2C, 0x08,
+        ];
 
         Ppu {
             output_buffer: [0; 256 * 240],
@@ -186,6 +192,8 @@ impl Ppu {
             ppustatus: 0,
             oamaddr: 0,
             write_toggle: false,
+            latch: 0,
+            read_buffer: 0,
 
             nt_base_addr: 0x2000,
             addr_increment: 1,
@@ -207,7 +215,7 @@ impl Ppu {
     }
 
     #[inline]
-    pub fn write(&mut self, mut addr: usize, val: u8) {
+    fn write(&mut self, mut addr: usize, val: u8) {
         addr &= 0x3FFF;
         match addr {
             0..=0x1FFF => self.mapper.borrow_mut().write_chr(addr, val),
@@ -219,7 +227,7 @@ impl Ppu {
     }
 
     #[inline]
-    pub fn read(&mut self, mut addr: usize) -> u8 {
+    fn read(&mut self, mut addr: usize) -> u8 {
         addr &= 0x3FFF;
         match addr {
             0..=0x1FFF => self.mapper.borrow_mut().read_chr(addr),
@@ -272,6 +280,35 @@ impl Ppu {
         index
     }
 
+    //TODO: latch decay ?
+    #[inline]
+    pub fn read_reg(&mut self, addr: usize) -> u8 {
+        match addr & 7 {
+            0 | 1 | 3 | 5 | 6 => (),
+            2 => self.read_ppustatus(),
+            4 => self.read_oamdata(),
+            7 => self.read_ppudata(),
+            _ => unreachable!(),
+        };
+
+        self.latch
+    }
+
+    #[inline]
+    pub fn write_reg(&mut self, addr: usize, val: u8) {
+        self.latch = val;
+        match addr & 7 {
+            0 => self.write_ppuctrl(),
+            1 => self.write_ppumask(),
+            3 => self.write_oamaddr(),
+            4 => self.write_oamdata(),
+            5 => self.write_ppuscroll(),
+            6 => self.write_ppuaddr(),
+            7 => self.write_ppudata(),
+            _ => unreachable!(),
+        }
+    }
+
     //Ppuctrl
     //    N -- 00000011 -- Name table address (0 = 0x2000; 1 = 0x2400; 2 = 0x2800; 3 = 0x2C00)
     //    I -- 00000100 -- PPU address increment (0: add 1, going across; 1: add 32, going down)
@@ -281,9 +318,10 @@ impl Ppu {
     //    P -- 01000000 -- PPU master/slave select (0: read backdrop from EXT pins; 1: output color on EXT pins)
     //    V -- 10000000 -- Execute NMI on vblank
     #[inline]
-    pub fn write_ppuctrl(&mut self, val: u8) {
+    fn write_ppuctrl(&mut self) {
         //TODO: ignore writes after reset (30000 cycles)
         //TODO: bit 0 bus conflict
+        let val = self.latch;
         self.temp_vram_addr &= !0xC00;
         self.temp_vram_addr |= ((val as usize) & 3) << 10;
 
@@ -315,7 +353,8 @@ impl Ppu {
     //    G -- 01000000 -- Emphasize green
     //    B -- 10000000 -- Emphasize blue
     #[inline]
-    pub fn write_ppumask(&mut self, val: u8) {
+    fn write_ppumask(&mut self) {
+        let val = self.latch;
         self.greyscale = val & 1 != 0;
         self.bg_leftmost_8 = val & (1 << 1) != 0;
         self.sp_leftmost_8 = val & (1 << 2) != 0;
@@ -332,38 +371,39 @@ impl Ppu {
     //    S -- 01000000 -- Sprite 0 hit
     //    V -- 10000000 -- Vertical blank has started (0: not in vblank; 1: in vblank)
     #[inline]
-    pub fn read_ppustatus(&mut self) -> u8 {
+    fn read_ppustatus(&mut self) {
         self.write_toggle = false;
         self.ppustatus &= 0xFF >> 1;
-        self.ppustatus
+        self.latch = self.ppustatus
     }
 
     #[inline]
-    pub fn write_oamaddr(&mut self, val: u8) {
-        self.oamaddr = val;
+    fn write_oamaddr(&mut self) {
+        self.oamaddr = self.latch;
     }
 
     #[inline]
-    pub fn read_oamdata(&mut self) -> u8 {
-        self.oam[self.oamaddr as usize]
+    fn read_oamdata(&mut self) {
+        self.latch = self.oam[self.oamaddr as usize];
         //TODO: increment in some cases
         //TODO: implement other trickery
     }
 
     #[inline]
-    pub fn write_oamdata(&mut self, val: u8) {
+    fn write_oamdata(&mut self) {
         //TODO: ignore writes during rendering
         //TODO: implement other trickery involved with this register
-        self.oam[self.oamaddr as usize] = val;
+        self.oam[self.oamaddr as usize] = self.latch;
         self.oamaddr = self.oamaddr.wrapping_add(1);
     }
 
     #[inline]
-    pub fn write_ppuscroll(&mut self, val: u8) {
+    fn write_ppuscroll(&mut self) {
+        let val = self.latch;
         if self.write_toggle {
             self.temp_vram_addr = (self.temp_vram_addr & !0x73E0)
                 | ((val as usize & 0xF8) << 2)
-                | ((val as usize & 0x7) << 12);
+                | ((val as usize & 7) << 12);
         } else {
             self.temp_vram_addr = (self.temp_vram_addr & !0x1F) | (val as usize >> 3);
             self.x_fine_scroll = val & 7;
@@ -373,10 +413,11 @@ impl Ppu {
     }
 
     #[inline]
-    pub fn write_ppuaddr(&mut self, val: u8) {
+    fn write_ppuaddr(&mut self) {
+        let val = self.latch;
         if self.write_toggle {
             self.temp_vram_addr = (self.temp_vram_addr & !0xFF) | val as usize;
-            //TODO: 2-3 cycle delay to the update
+            //TODO: add 2-3 cycle delay to the update
             self.vram_addr = self.temp_vram_addr;
         } else {
             self.temp_vram_addr = (self.temp_vram_addr & !0xFF00) | ((val as usize & 0x3F) << 8);
@@ -386,37 +427,47 @@ impl Ppu {
     }
 
     #[inline]
-    pub fn read_ppudata(&mut self) -> u8 {
-        let increment = self.addr_increment;
-        let ret = self.read(self.vram_addr);
+    fn read_ppudata(&mut self) {
+        self.latch = self.read_buffer;
+        self.read_buffer = self.read(self.vram_addr);
+
+        if (self.vram_addr & 0x3FFF) >= 0x3F00 {
+            self.latch = self.read(self.vram_addr);
+            self.read_buffer = self
+                .mapper
+                .borrow_mut()
+                .read_nametable(self.vram_addr - 0x3000);
+        }
+
         //TODO: buffered reads ?
-        if self.scanline < 240 {
+        if self.rendering_enabled && self.scanline < 240 {
             self.coarse_x_increment();
             self.y_increment();
         } else {
             //TODO: trigger some memory read
-            self.vram_addr = self.vram_addr.wrapping_add(increment);
+            self.vram_addr += self.addr_increment;
         }
-
-        ret
     }
 
     #[inline]
-    pub fn write_ppudata(&mut self, val: u8) {
-        self.write(self.vram_addr, val);
-        let increment = self.addr_increment;
+    fn write_ppudata(&mut self) {
+        println!(
+            "Writing thru ppudata 0x{:X} to 0x{:X}",
+            self.latch, self.vram_addr
+        );
+        self.write(self.vram_addr, self.latch);
 
-        if self.scanline < 240 {
+        if self.rendering_enabled && self.scanline < 240 {
             self.coarse_x_increment();
             self.y_increment();
         } else {
             //TODO: trigger some memory read
-            self.vram_addr = self.vram_addr.wrapping_add(increment);
+            self.vram_addr += self.addr_increment;
         }
     }
 
     #[inline]
-    pub fn attr_table_addr(&self) -> usize {
+    fn attr_table_addr(&self) -> usize {
         0x23C0
             | (self.vram_addr & 0xC00)
             | ((self.vram_addr >> 4) & 0x38)
@@ -424,7 +475,7 @@ impl Ppu {
     }
 
     #[inline]
-    pub fn nametable_addr(&self) -> usize {
+    fn nametable_addr(&self) -> usize {
         0x2000 | (self.vram_addr & 0xFFF)
     }
 
@@ -434,8 +485,11 @@ impl Ppu {
             240 => RenderState::PostRender,
             241...260 => RenderState::VBlank,
             261 => RenderState::PreRender,
-            _ => panic!("Invalid render state"),
+            _ => unreachable!("Invalid render state"),
         };
+
+        println!("at scanline {} cycle {}", self.scanline, self.xpos);
+        println!("vram address: 0x{:X}", self.vram_addr);
 
         self.scanline_tick(state);
 
@@ -446,7 +500,6 @@ impl Ppu {
 
             if self.scanline > 261 {
                 self.scanline = 0;
-                self.odd_frame ^= true;
             }
         }
     }
@@ -485,6 +538,12 @@ impl Ppu {
                         self.fetch_bg();
                     }
                     339 => {
+                        (*self.frame).borrow_mut().frame_ready = true;
+                        for (index, color_index) in self.output_buffer.iter().enumerate() {
+                            (*self.frame).borrow_mut().output_buffer[index] =
+                                PALETTE[*color_index as usize];
+                        }
+
                         self.read(self.nametable_addr());
 
                         //The skipped tick is implemented by jumping directly from (339, 261)
@@ -494,6 +553,8 @@ impl Ppu {
                             self.scanline = 0;
                             self.xpos = 0;
                         }
+
+                        self.odd_frame = !self.odd_frame;
                     }
                     _ => (),
                 }
@@ -514,11 +575,6 @@ impl Ppu {
                 257 => {
                     self.t_to_v();
                     self.shift_tile_registers();
-
-                    for (index, color_index) in self.output_buffer.iter().enumerate() {
-                        (*self.frame).borrow_mut().output_buffer[index] =
-                            PALETTE[*color_index as usize];
-                    }
                 }
                 321 => {
                     self.fetch_bg();
@@ -575,12 +631,13 @@ impl Ppu {
                     self.attr_table_byte = self.next_attr_table_byte;
 
                     self.nametable_byte = self.read(self.nametable_addr());
+                    self.nametable_byte = 0x40;
 
-                    println!("---- fetching data for a new tile ----");
+                    /* println!("---- fetching data for a new tile ----");
                     println!("shift_high {:b}", self.shift_high);
                     println!("shift_low {:b}", self.shift_low);
                     println!("VRAM addr = 0x{:X}", self.vram_addr);
-                    println!("Nametable byte = 0x{:X}", self.nametable_byte);
+                    println!("Nametable byte = 0x{:X}", self.nametable_byte); */
                 }
 
                 //The 2-bit 1-of-4 selector" is used to shift the attribute byte right
@@ -657,7 +714,7 @@ impl Ppu {
                     y += 1;
                 }
 
-                self.vram_addr = (self.vram_addr & !0x03E0) | (y << 5);
+                self.vram_addr = (self.vram_addr & !0x3E0) | (y << 5);
             }
         }
     }
@@ -666,13 +723,11 @@ impl Ppu {
 
     #[inline]
     fn coarse_x_increment(&mut self) {
-        if self.rendering_enabled {
-            if (self.vram_addr & 0x1F) == 31 {
-                self.vram_addr &= !0x1F;
-                self.vram_addr ^= 0x400
-            } else {
-                self.vram_addr += 1;
-            }
+        if (self.vram_addr & 0x1F) == 31 {
+            self.vram_addr &= !0x1F;
+            self.vram_addr ^= 0x400
+        } else {
+            self.vram_addr += 1;
         }
     }
 
@@ -682,8 +737,7 @@ impl Ppu {
     #[inline]
     fn t_to_v(&mut self) {
         if self.rendering_enabled {
-            let mask = 0b11111 | (1 << 10);
-            self.vram_addr = (self.vram_addr & !mask) | (self.temp_vram_addr & mask);
+            self.vram_addr = (self.vram_addr & !0x41F) | (self.temp_vram_addr & 0x41F);
         }
     }
 
@@ -695,8 +749,7 @@ impl Ppu {
     #[inline]
     fn v_from_t(&mut self) {
         if self.rendering_enabled {
-            let mask = 0b11_1101_1111 << 5;
-            self.vram_addr = (self.vram_addr & !mask) | (self.temp_vram_addr & mask);
+            self.vram_addr = (self.vram_addr & !0x7BE0) | (self.temp_vram_addr & 0x7BE0);
         }
     }
 
@@ -731,8 +784,8 @@ impl Ppu {
 
     #[inline]
     fn bg_color(&mut self) -> usize {
-        let tile_h_bit = ((self.shift_high << (self.x_fine_scroll as u16)) & 0x8000) >> 14;
-        let tile_l_bit = ((self.shift_low << (self.x_fine_scroll as u16)) & 0x8000) >> 15;
-        (self.attr_table_byte as u16 | tile_h_bit | tile_l_bit) as usize
+        let tile_h_bit = ((self.shift_high << u16::from(self.x_fine_scroll)) & 0x8000) >> 14;
+        let tile_l_bit = ((self.shift_low << u16::from(self.x_fine_scroll)) & 0x8000) >> 15;
+        (u16::from(self.attr_table_byte) | tile_h_bit | tile_l_bit) as usize
     }
 }

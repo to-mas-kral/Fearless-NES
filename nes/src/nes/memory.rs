@@ -37,16 +37,7 @@ impl MemoryOps for Rc<RefCell<Memory>> {
     fn read(&self, index: usize) -> u8 {
         let result = match index {
             0..=0x1FFF => self.borrow_mut().cpu_ram[index & 0x7FF],
-            0x2000..=0x3FFF => {
-                match index & 0x7 {
-                    //FIXME: fetch from PPU bus
-                    0 | 0x1 | 0x3 | 0x5 | 0x6 => (0),
-                    0x2 => self.borrow_mut().ppu.borrow_mut().read_ppustatus(),
-                    0x4 => self.borrow_mut().ppu.borrow_mut().read_oamdata(),
-                    0x7 => self.borrow_mut().ppu.borrow_mut().read_ppudata(),
-                    _ => panic!(MAPPING_ERROR_MSG),
-                }
-            }
+            0x2000..=0x3FFF => self.borrow_mut().ppu.borrow_mut().read_reg(index),
             0x4000..=0x4017 => {
                 //TODO: APU and stuff
                 0
@@ -71,24 +62,14 @@ impl MemoryOps for Rc<RefCell<Memory>> {
 
         match index {
             0..=0x1FFF => self.borrow_mut().cpu_ram[index & 0x7FF] = value,
-            0x2000..=0x3FFF => match index & 0x7 {
-                0 => self.borrow_mut().ppu.borrow_mut().write_ppuctrl(value),
-                0x1 => self.borrow_mut().ppu.borrow_mut().write_ppumask(value),
-                0x2 => (),
-                0x3 => self.borrow_mut().ppu.borrow_mut().write_oamaddr(value),
-                0x4 => self.borrow_mut().ppu.borrow_mut().write_oamdata(value),
-                0x5 => self.borrow_mut().ppu.borrow_mut().write_ppuscroll(value),
-                0x6 => self.borrow_mut().ppu.borrow_mut().write_ppuaddr(value),
-                0x7 => self.borrow_mut().ppu.borrow_mut().write_ppudata(value),
-                _ => panic!(MAPPING_ERROR_MSG),
-            },
+            0x2000..=0x3FFF => self.borrow_mut().ppu.borrow_mut().write_reg(index, value),
             0x4000..=0x4017 => {
                 //TODO: APU and stuff
                 match index {
                     0x4014 => {
                         //TODO: add 1 cycle on odd cpu cycle
                         //TODO: make this cycle accurate
-                        //TODO: implement DMA in the sttáte machine
+                        //TODO: implement DMA in the state machine
                         self.borrow_mut().dma_cycles = 513;
                         for i in 0..256 {
                             let oamaddr = self.borrow_mut().ppu.borrow_mut().oamaddr as usize;
