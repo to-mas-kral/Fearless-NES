@@ -1,6 +1,7 @@
 pub mod cpu;
 use self::cpu::Tick;
 
+pub mod controller;
 pub mod ines;
 pub mod mapper;
 pub mod memory;
@@ -16,6 +17,7 @@ pub struct Nes {
     pub frame: Rc<RefCell<Frame>>,
     pub cpu: cpu::Cpu,
     pub mem: Rc<RefCell<memory::Memory>>,
+    pub controller: Rc<RefCell<controller::Controller>>,
     ppu: Rc<RefCell<ppu::Ppu>>,
     int_bus: Rc<RefCell<InterruptBus>>,
     cycle_counter: u64,
@@ -40,12 +42,17 @@ impl Nes {
             mapper.clone(),
             frame.clone(),
         )));
+
+        let controller = Rc::new(RefCell::new(controller::Controller::new()));
+
         let mem = Rc::new(RefCell::new(memory::Memory::new(
             ppu.clone(),
             mapper.clone(),
+            controller.clone(),
         )));
 
         let mut cpu = cpu::Cpu::new(mem.clone(), int_bus.clone());
+
         cpu.gen_reset();
         for _ in 0..18 {
             ppu.borrow_mut().tick();
@@ -55,11 +62,56 @@ impl Nes {
             frame,
             cpu,
             mem,
+            controller,
             ppu,
             int_bus,
             cycle_counter: 3,
             cpu_cycle_count: 0,
         })
+    }
+
+    pub fn new_nestest(rom_path: &Path) -> Result<Nes, NesError> {
+        let mut file = File::open(rom_path)?;
+        let header = ines::parse_header(&mut file)?;
+
+        let mapper = Rc::new(RefCell::new(mapper::get_mapper(header)));
+
+        let mut file = File::open(rom_path)?;
+        mapper.borrow_mut().load_cartridge(&mut file)?;
+
+        let frame = Rc::new(RefCell::new(Frame::new()));
+
+        let int_bus = Rc::new(RefCell::new(InterruptBus::new()));
+        let ppu = Rc::new(RefCell::new(ppu::Ppu::new(
+            int_bus.clone(),
+            mapper.clone(),
+            frame.clone(),
+        )));
+
+        let controller = Rc::new(RefCell::new(controller::Controller::new()));
+
+        let mem = Rc::new(RefCell::new(memory::Memory::new(
+            ppu.clone(),
+            mapper.clone(),
+            controller.clone(),
+        )));
+
+        let cpu = cpu::Cpu::new(mem.clone(), int_bus.clone());
+
+        Ok(Nes {
+            frame,
+            cpu,
+            mem,
+            controller,
+            ppu,
+            int_bus,
+            cycle_counter: 3,
+            cpu_cycle_count: 0,
+        })
+    }
+
+    pub fn set_controller_state(&mut self, keycode: controller::Keycode, state: bool) {
+        self.controller.borrow_mut().set_button(keycode, state);
     }
 
     pub fn get_framebuffer(&self) -> Rc<RefCell<Frame>> {
@@ -87,7 +139,6 @@ impl Nes {
             for _ in 0..3 {
                 self.ppu.borrow_mut().tick();
             }
-            println!("cycle count: {}", self.cpu_cycle_count);
         }
         self.frame.borrow_mut().frame_ready = false;
     }

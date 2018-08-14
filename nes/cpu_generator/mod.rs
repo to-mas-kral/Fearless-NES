@@ -151,8 +151,8 @@ impl Generator {
             }
         }
 
-        let next = String::from("cache_irq!(self); let int = if self.take_interrupt {0} else {1}; self.state = u16::from(int * read_ab!(self)); self.pc += int as usize; self.ab = self.pc");
-        self.state_machine.insert((0x100, vec![0]), next);
+        let fetch_next = String::from("cache_irq!(self); let int = if self.take_interrupt {0} else {1}; self.state = u16::from(int * read_ab!(self)); self.pc += int as usize; self.ab = self.pc");
+        self.state_machine.insert((0x100, vec![0]), fetch_next);
     }
 
     fn add_single(&mut self, s: String, op: usize) {
@@ -345,8 +345,11 @@ impl Generator {
 
     fn relative(&mut self, i_code: &str, op: usize) {
         self.add_entry(format!("self.check_interrupts(); self.temp = read_ab!(self) as usize; self.pc += 1; self.ab = self.pc; self.state = if {} {{<>}} else {{0x100}}", i_code), op);
-        self.add_middle("cache_irq!(self); read_ab!(self); self.take_branch(); self.ab = self.pc; self.state = if self.temp > 0 {<>} else {0x100};".to_string());
-        self.add_exit("self.check_interrupts(); read_ab!(self); self.pc += ((self.temp << 8) as u8) as usize; self.ab = self.pc; self.state = 0x100".to_string());
+        self.add_middle("cache_irq!(self); read_ab!(self); self.take_branch(); self.ab = self.pc; self.state = if self.temp != 0 {<>} else {0x100};".to_string());
+        self.add_exit(
+            "self.check_interrupts(); read_ab!(self); self.ab = self.pc; self.state = 0x100"
+                .to_string(),
+        );
     }
 
     fn absolute(&mut self, i_code: &str, op: usize) {

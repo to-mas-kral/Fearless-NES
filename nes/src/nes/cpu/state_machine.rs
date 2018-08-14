@@ -1913,12 +1913,11 @@ impl Tick for super::Cpu {
                 read_ab!(self);
                 self.take_branch();
                 self.ab = self.pc;
-                self.state = if self.temp > 0 { 0x13A } else { 0x100 };
+                self.state = if self.temp != 0 { 0x13A } else { 0x100 };
             }
             0x13A => {
                 self.check_interrupts();
                 read_ab!(self);
-                self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
                 self.state = 0x100
             }
@@ -1927,12 +1926,11 @@ impl Tick for super::Cpu {
                 read_ab!(self);
                 self.take_branch();
                 self.ab = self.pc;
-                self.state = if self.temp > 0 { 0x13C } else { 0x100 };
+                self.state = if self.temp != 0 { 0x13C } else { 0x100 };
             }
             0x13C => {
                 self.check_interrupts();
                 read_ab!(self);
-                self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
                 self.state = 0x100
             }
@@ -1941,12 +1939,11 @@ impl Tick for super::Cpu {
                 read_ab!(self);
                 self.take_branch();
                 self.ab = self.pc;
-                self.state = if self.temp > 0 { 0x13E } else { 0x100 };
+                self.state = if self.temp != 0 { 0x13E } else { 0x100 };
             }
             0x13E => {
                 self.check_interrupts();
                 read_ab!(self);
-                self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
                 self.state = 0x100
             }
@@ -1975,12 +1972,11 @@ impl Tick for super::Cpu {
                 read_ab!(self);
                 self.take_branch();
                 self.ab = self.pc;
-                self.state = if self.temp > 0 { 0x143 } else { 0x100 };
+                self.state = if self.temp != 0 { 0x143 } else { 0x100 };
             }
             0x143 => {
                 self.check_interrupts();
                 read_ab!(self);
-                self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
                 self.state = 0x100
             }
@@ -1989,12 +1985,11 @@ impl Tick for super::Cpu {
                 read_ab!(self);
                 self.take_branch();
                 self.ab = self.pc;
-                self.state = if self.temp > 0 { 0x145 } else { 0x100 };
+                self.state = if self.temp != 0 { 0x145 } else { 0x100 };
             }
             0x145 => {
                 self.check_interrupts();
                 read_ab!(self);
-                self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
                 self.state = 0x100
             }
@@ -2003,12 +1998,11 @@ impl Tick for super::Cpu {
                 read_ab!(self);
                 self.take_branch();
                 self.ab = self.pc;
-                self.state = if self.temp > 0 { 0x147 } else { 0x100 };
+                self.state = if self.temp != 0 { 0x147 } else { 0x100 };
             }
             0x147 => {
                 self.check_interrupts();
                 read_ab!(self);
-                self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
                 self.state = 0x100
             }
@@ -2053,12 +2047,11 @@ impl Tick for super::Cpu {
                 read_ab!(self);
                 self.take_branch();
                 self.ab = self.pc;
-                self.state = if self.temp > 0 { 0x14E } else { 0x100 };
+                self.state = if self.temp != 0 { 0x14E } else { 0x100 };
             }
             0x14E => {
                 self.check_interrupts();
                 read_ab!(self);
-                self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
                 self.state = 0x100
             }
@@ -2067,12 +2060,11 @@ impl Tick for super::Cpu {
                 read_ab!(self);
                 self.take_branch();
                 self.ab = self.pc;
-                self.state = if self.temp > 0 { 0x150 } else { 0x100 };
+                self.state = if self.temp != 0 { 0x150 } else { 0x100 };
             }
             0x150 => {
                 self.check_interrupts();
                 read_ab!(self);
-                self.pc += ((self.temp << 8) as u8) as usize;
                 self.ab = self.pc;
                 self.state = 0x100
             }

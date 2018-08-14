@@ -1,6 +1,8 @@
 extern crate fearless_nes;
 extern crate sdl2;
 
+use fearless_nes::nes::controller;
+
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -34,7 +36,11 @@ fn main() {
 
     //TODO: unwraps
     let mut nes = fearless_nes::nes::Nes::new(Path::new(
-        "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/blargg_instr/rom_singles/01-basics.nes",
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/blargg_instr/rom_singles/01-basics.nes",
+        "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/branch_timing_tests/1.Branch_Basics.nes",
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu_timing_test.nes",
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/branch_timing_tests/2.Backward_Branch.nes",
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/blargg_instr/rom_singles/10-branches.nes",
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/palette/palette.nes",
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/nestest/nestest.nes",
         //"/home/tomas/Documents/Programovani/fearless-nes/SMB.nes",
@@ -51,18 +57,78 @@ fn main() {
                     ..
                 } => break 'running,
                 Event::KeyDown {
-                    keycode: Some(Keycode::L),
-                    ..
-                } => nes.run_one_ppu_cycle(),
-                Event::KeyDown {
                     keycode: Some(Keycode::F),
                     ..
                 } => nes.run_one_frame(),
+                Event::KeyDown {
+                    keycode: Some(Keycode::A),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::A, true),
+                Event::KeyDown {
+                    keycode: Some(Keycode::S),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::S, true),
+                Event::KeyDown {
+                    keycode: Some(Keycode::Y),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Z, true),
+                Event::KeyDown {
+                    keycode: Some(Keycode::X),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::X, true),
+                Event::KeyDown {
+                    keycode: Some(Keycode::Up),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Up, true),
+                Event::KeyDown {
+                    keycode: Some(Keycode::Down),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Down, true),
+                Event::KeyDown {
+                    keycode: Some(Keycode::Left),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Left, true),
+                Event::KeyDown {
+                    keycode: Some(Keycode::Right),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Right, true),
+                Event::KeyUp {
+                    keycode: Some(Keycode::A),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::A, false),
+                Event::KeyUp {
+                    keycode: Some(Keycode::S),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::S, false),
+                Event::KeyUp {
+                    keycode: Some(Keycode::Y),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Z, false),
+                Event::KeyUp {
+                    keycode: Some(Keycode::X),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::X, false),
+                Event::KeyUp {
+                    keycode: Some(Keycode::Up),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Up, false),
+                Event::KeyUp {
+                    keycode: Some(Keycode::Down),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Down, false),
+                Event::KeyUp {
+                    keycode: Some(Keycode::Left),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Left, false),
+                Event::KeyUp {
+                    keycode: Some(Keycode::Right),
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Right, false),
                 _ => {}
             }
         }
 
-        //nes.run_one_frame();
+        nes.run_one_frame();
 
         buffer_to_texture(framebuffer.clone(), &mut sdl_texture);
 

@@ -1,3 +1,4 @@
+use super::controller::Controller;
 use super::mapper::Mapper;
 use super::ppu::Ppu;
 
@@ -18,15 +19,21 @@ pub struct Memory {
     cpu_ram: [u8; 0x800],
     mapper: Rc<RefCell<Box<Mapper>>>,
     ppu: Rc<RefCell<Ppu>>,
+    controller: Rc<RefCell<Controller>>,
     pub dma_cycles: u16,
 }
 
 impl Memory {
-    pub fn new(ppu: Rc<RefCell<Ppu>>, mapper: Rc<RefCell<Box<Mapper>>>) -> Memory {
+    pub fn new(
+        ppu: Rc<RefCell<Ppu>>,
+        mapper: Rc<RefCell<Box<Mapper>>>,
+        controller: Rc<RefCell<Controller>>,
+    ) -> Memory {
         Memory {
             cpu_ram: [0; 0x800],
             mapper,
             ppu,
+            controller,
             dma_cycles: 0,
         }
     }
@@ -38,10 +45,11 @@ impl MemoryOps for Rc<RefCell<Memory>> {
         let result = match index {
             0..=0x1FFF => self.borrow_mut().cpu_ram[index & 0x7FF],
             0x2000..=0x3FFF => self.borrow_mut().ppu.borrow_mut().read_reg(index),
-            0x4000..=0x4017 => {
+            0x4000..=0x4015 => {
                 //TODO: APU and stuff
                 0
             }
+            0x4016 | 0x4017 => self.borrow_mut().controller.borrow_mut().read(),
             0x4018..=0x401F => 0,
             0x4020..=0xFFFF => self
                 .borrow_mut()
@@ -63,7 +71,7 @@ impl MemoryOps for Rc<RefCell<Memory>> {
         match index {
             0..=0x1FFF => self.borrow_mut().cpu_ram[index & 0x7FF] = value,
             0x2000..=0x3FFF => self.borrow_mut().ppu.borrow_mut().write_reg(index, value),
-            0x4000..=0x4017 => {
+            0x4000..=0x4015 => {
                 //TODO: APU and stuff
                 match index {
                     0x4014 => {
@@ -80,6 +88,8 @@ impl MemoryOps for Rc<RefCell<Memory>> {
                     _ => (),
                 }
             }
+            0x4016 => self.borrow_mut().controller.borrow_mut().write(value),
+            0x4017 => (), //TODO: APU frame counters
             0x4018..=0x401F => (),
             0x4020..=0xFFFF => {
                 self.borrow_mut()

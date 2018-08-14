@@ -9,6 +9,7 @@ Fearless-NES is a work-in-progress Nintendo enterntainment system emulator writt
 ```sh
 $ git clone git@github.com:TomasKralCZ/fearless-NES.git
 $ cd fearless-NES
+$ rustup default nightly
 $ cargo run --release -p -frontend-sdl
 ```
 

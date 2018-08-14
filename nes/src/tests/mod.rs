@@ -53,20 +53,43 @@ fn nestest() {
     let file = BufReader::new(&f);
     let mut lines = file.lines();
 
-    let mut nes = Nes::new(&nestest_path).expect("error when creating test NES instance");
+    let mut nes = Nes::new_nestest(&nestest_path).expect("error when creating test NES instance");
 
     nes.cpu.pc = 0xC000;
     nes.cpu.ab = nes.cpu.pc;
-    nes.cpu.state = 0x100;
 
     for _ in 0..8991 {
         assert_eq!(nes.cpu.debug_info(), lines.next().unwrap().unwrap());
         nes.cpu.tick();
-        while nes.cpu.state != 0x100 {
+        while nes.cpu.state != 0x100 && nes.cpu.state != 0x101 {
             nes.cpu.tick();
         }
     }
 }
+/* 
+#[test]
+fn timing() {
+    let nestest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let nestest_log_path = Path::new(&nestest_dir).join("src/tests/nestest/nestest_formatted.log");
+    let nestest_path = Path::new(&nestest_dir).join("src/tests/nestest/nestest.nes");
+
+    let f = File::open(&nestest_log_path).unwrap();
+    let file = BufReader::new(&f);
+    let mut lines = file.lines();
+
+    let mut nes = Nes::new_nestest(&nestest_path).expect("error when creating test NES instance");
+
+    nes.cpu.pc = 0xC000;
+    nes.cpu.ab = nes.cpu.pc;
+
+    for _ in 0..8991 {
+        assert_eq!(nes.cpu.debug_info(), lines.next().unwrap().unwrap());
+        nes.cpu.tick();
+        while nes.cpu.state != 0x100 && nes.cpu.state != 0x101 {
+            nes.cpu.tick();
+        }
+    }
+} */
 
 macro_rules! blargg_instr_test {
     ($test_name:ident, $path:expr, $pass_text:expr) => {
@@ -83,7 +106,7 @@ macro_rules! blargg_instr_test {
 
             loop {
                 nes.cpu.tick();
-                while nes.cpu.state != 0x100 {
+                while nes.cpu.state != 0x100 && nes.cpu.state != 0x101 {
                     nes.cpu.tick();
                 }
 

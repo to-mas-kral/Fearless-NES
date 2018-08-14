@@ -373,8 +373,8 @@ impl Ppu {
     #[inline]
     fn read_ppustatus(&mut self) {
         self.write_toggle = false;
+        self.latch = self.ppustatus;
         self.ppustatus &= 0xFF >> 1;
-        self.latch = self.ppustatus
     }
 
     #[inline]
@@ -451,10 +451,10 @@ impl Ppu {
 
     #[inline]
     fn write_ppudata(&mut self) {
-        println!(
+        /* println!(
             "Writing thru ppudata 0x{:X} to 0x{:X}",
             self.latch, self.vram_addr
-        );
+        ); */
         self.write(self.vram_addr, self.latch);
 
         if self.rendering_enabled && self.scanline < 240 {
@@ -488,8 +488,8 @@ impl Ppu {
             _ => unreachable!("Invalid render state"),
         };
 
-        println!("at scanline {} cycle {}", self.scanline, self.xpos);
-        println!("vram address: 0x{:X}", self.vram_addr);
+        debug_log!("at scanline {} cycle {}", (self.scanline), (self.xpos));
+        debug_log!("vram address: 0x{:X}", (self.vram_addr));
 
         self.scanline_tick(state);
 
@@ -631,13 +631,12 @@ impl Ppu {
                     self.attr_table_byte = self.next_attr_table_byte;
 
                     self.nametable_byte = self.read(self.nametable_addr());
-                    self.nametable_byte = 0x40;
 
-                    /* println!("---- fetching data for a new tile ----");
-                    println!("shift_high {:b}", self.shift_high);
-                    println!("shift_low {:b}", self.shift_low);
-                    println!("VRAM addr = 0x{:X}", self.vram_addr);
-                    println!("Nametable byte = 0x{:X}", self.nametable_byte); */
+                    debug_log!("---- fetching data for a new tile ----",);
+                    debug_log!("shift_high {:b}", (self.shift_high));
+                    debug_log!("shift_low {:b}", (self.shift_low));
+                    debug_log!("VRAM addr = 0x{:X}", (self.vram_addr));
+                    debug_log!("Nametable byte = 0x{:X}", (self.nametable_byte));
                 }
 
                 //The 2-bit 1-of-4 selector" is used to shift the attribute byte right
@@ -687,10 +686,24 @@ impl Ppu {
             _ => {
                 if !self.nmi_on_vblank {
                     self.nmi_reset = true;
-                } else if self.nmi_reset {
+                } else if self.nmi_reset && self.nmi_on_vblank {
                     self.nmi_reset = false;
                     self.interrupt_bus.borrow_mut().nmi_signal = true;
                 }
+            }
+        }
+
+        if self.scanline == 241 && self.xpos == 1 {
+            self.ppustatus |= 1 << 7;
+            if self.nmi_on_vblank {
+                self.interrupt_bus.borrow_mut().nmi_signal = true;
+            }
+        } else {
+            if !self.nmi_on_vblank {
+                self.nmi_reset = true;
+            } else if self.nmi_reset && self.nmi_on_vblank {
+                self.nmi_reset = false;
+                self.interrupt_bus.borrow_mut().nmi_signal = true;
             }
         }
     }

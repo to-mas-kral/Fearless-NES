@@ -22,7 +22,7 @@ pub struct Cpu {
     x: u8,         //X index
     y: u8,         //Y index
     pub pc: usize, //Program counter (16 bits)
-    sp: usize,     //Stack pointer (8 bits)
+    pub sp: usize, //Stack pointer (8 bits)
 
     n: bool, //Negative flag
     v: bool, //Overflow flag
@@ -93,6 +93,27 @@ impl Cpu {
             "{:X} {:X} A:{:X} X:{:X} Y:{:X} P:{:X} SP:{:X}",
             self.pc,
             self.mem.read(self.pc),
+            self.a,
+            self.x,
+            self.y,
+            status,
+            self.sp,
+        )
+    }
+
+    pub fn debug_timing(&mut self) -> String {
+        let mut status: u8 = 0;
+        status |= (if self.n { 1 } else { 0 }) << 7;
+        status |= (if self.v { 1 } else { 0 }) << 6;
+        status |= (if self.d { 1 } else { 0 }) << 3;
+        status |= (if self.i { 1 } else { 0 }) << 2;
+        status |= (if self.z { 1 } else { 0 }) << 1;
+        status |= if self.c { 1 } else { 0 };
+
+        format!(
+            "{:X} ${:X} A:{:X} X:{:X} Y:{:X} P:{:X} SP:{:X}",
+            self.pc - 1,
+            self.state,
             self.a,
             self.x,
             self.y,
@@ -444,11 +465,14 @@ impl Cpu {
     #[inline]
     fn take_branch(&mut self) {
         let diff = self.temp as i8 as isize;
+        let pc_before = self.pc;
         if diff > 0 {
             self.pc += diff as usize
         } else {
             self.pc -= diff.abs() as usize
         };
+        let crosses = (pc_before & 0xFF00) != (self.pc & 0xFF00);
+        self.temp = if crosses { 1 } else { 0 };
     }
 
     #[inline]
@@ -475,48 +499,46 @@ impl Cpu {
 
     //TODO: complete these
     #[inline]
-    fn xaa(&mut self) {}
+    fn xaa(&mut self) {
+        unimplemented!();
+    }
+
     #[inline]
-    fn ahx(&mut self) {}
+    fn ahx(&mut self) {
+        unimplemented!();
+    }
+
     #[inline]
     fn shx(&mut self) {
         let result = ((self.ab >> 8) as u8).wrapping_add(1) & self.x;
         self.mem
             .write((usize::from(result) << 8) | (self.ab & 0xFF), self.x);
     }
+
     #[inline]
     fn shy(&mut self) {
         let result = ((self.ab >> 8) as u8).wrapping_add(1) & self.y;
         self.mem
             .write((usize::from(result) << 8) | (self.ab & 0xFF), self.y);
     }
+
     #[inline]
-    fn las(&mut self) {}
+    fn las(&mut self) {
+        unimplemented!();
+    }
+
     #[inline]
-    fn tas(&mut self) {}
+    fn tas(&mut self) {
+        unimplemented!();
+    }
+
     #[inline]
     fn arr(&mut self, num: u8) {
         self.and(num);
         self.ror_a();
 
-        let bit5 = (self.a >> 5) & 1 == 1;
-        let bit6 = (self.a >> 6) & 1 == 1;
-
-        if bit5 {
-            if bit6 {
-                self.c = true;
-                self.v = false;
-            } else {
-                self.c = false;
-                self.v = true;
-            }
-        } else if bit6 {
-            self.c = true;
-            self.v = true;
-        } else {
-            self.c = false;
-            self.v = false;
-        }
+        self.c = (self.a >> 6) & 1 == 1;
+        self.v = self.c != ((self.a >> 5) & 1 == 1);
     }
 
     #[inline]
@@ -556,6 +578,6 @@ impl Cpu {
     #[inline]
     fn set_z_n(&mut self, num: u8) {
         self.z = num == 0;
-        self.n = (num & 0b1000_0000) > 0;
+        self.n = (num & 0b1000_0000) != 0;
     }
 }

@@ -99,12 +99,17 @@ impl Mapper for Nrom {
                 self.prg[0x3FDF..=(0x4000 + 0x3FDF)].clone_from_slice(&bytes[15..=(0x4000 + 15)]);
                 self.prg[(0x4000 + 0x3FDF)..=(0x8000 + 0x3FDF)]
                     .clone_from_slice(&bytes[15..=(0x4000 + 15)]);
-                self.chr.clone_from_slice(&bytes[0x4000 + 15..0x6000 + 15]);
+                if self.header.chr_rom_size != 0 {
+                    self.chr
+                        .clone_from_slice(&bytes[(0x4001 + 15)..(0x6001 + 15)]);
+                }
             }
             2 => {
                 self.prg[0x3FDF..=0xBFDF].clone_from_slice(&bytes[(15)..=(0x8000 + 15)]);
-                self.chr
-                    .clone_from_slice(&bytes[(0x8001 + 15)..(0x8001 + 0x2000 + 15)]);
+                if self.header.chr_rom_size != 0 {
+                    self.chr
+                        .clone_from_slice(&bytes[(0x8001 + 15)..(0x8001 + 0x2000 + 15)]);
+                }
             }
             _ => unreachable!(),
         }
