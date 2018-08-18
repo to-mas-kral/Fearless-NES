@@ -13,5 +13,5 @@ $ rustup default nightly
 $ cargo run --release -p -frontend-sdl
 ```
 
-# TODO
-- [x] cycle - accurate CPU
+# Roadmap
+- [x] cycle-accurate CPU

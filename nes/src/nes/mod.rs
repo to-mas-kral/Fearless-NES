@@ -1,6 +1,7 @@
 pub mod cpu;
 use self::cpu::Tick;
 
+pub mod apu;
 pub mod controller;
 pub mod ines;
 pub mod mapper;
@@ -16,9 +17,7 @@ use std::rc::Rc;
 pub struct Nes {
     pub frame: Rc<RefCell<Frame>>,
     pub cpu: cpu::Cpu,
-    pub mem: Rc<RefCell<memory::Memory>>,
     pub controller: Rc<RefCell<controller::Controller>>,
-    ppu: Rc<RefCell<ppu::Ppu>>,
     int_bus: Rc<RefCell<InterruptBus>>,
     cycle_counter: u64,
     cpu_cycle_count: u64,
@@ -37,73 +36,25 @@ impl Nes {
         let frame = Rc::new(RefCell::new(Frame::new()));
 
         let int_bus = Rc::new(RefCell::new(InterruptBus::new()));
-        let ppu = Rc::new(RefCell::new(ppu::Ppu::new(
-            int_bus.clone(),
-            mapper.clone(),
-            frame.clone(),
-        )));
+        let ppu = ppu::Ppu::new(int_bus.clone(), mapper.clone(), frame.clone());
+
+        let apu = apu::Apu::new(int_bus.clone());
 
         let controller = Rc::new(RefCell::new(controller::Controller::new()));
 
-        let mem = Rc::new(RefCell::new(memory::Memory::new(
-            ppu.clone(),
-            mapper.clone(),
-            controller.clone(),
-        )));
+        let mem = memory::Memory::new(apu, controller.clone(), mapper.clone(), ppu);
 
-        let mut cpu = cpu::Cpu::new(mem.clone(), int_bus.clone());
+        let mut cpu = cpu::Cpu::new(mem, int_bus.clone());
 
         cpu.gen_reset();
         for _ in 0..18 {
-            ppu.borrow_mut().tick();
+            cpu.mem.ppu.tick();
         }
 
         Ok(Nes {
             frame,
             cpu,
-            mem,
             controller,
-            ppu,
-            int_bus,
-            cycle_counter: 3,
-            cpu_cycle_count: 0,
-        })
-    }
-
-    pub fn new_nestest(rom_path: &Path) -> Result<Nes, NesError> {
-        let mut file = File::open(rom_path)?;
-        let header = ines::parse_header(&mut file)?;
-
-        let mapper = Rc::new(RefCell::new(mapper::get_mapper(header)));
-
-        let mut file = File::open(rom_path)?;
-        mapper.borrow_mut().load_cartridge(&mut file)?;
-
-        let frame = Rc::new(RefCell::new(Frame::new()));
-
-        let int_bus = Rc::new(RefCell::new(InterruptBus::new()));
-        let ppu = Rc::new(RefCell::new(ppu::Ppu::new(
-            int_bus.clone(),
-            mapper.clone(),
-            frame.clone(),
-        )));
-
-        let controller = Rc::new(RefCell::new(controller::Controller::new()));
-
-        let mem = Rc::new(RefCell::new(memory::Memory::new(
-            ppu.clone(),
-            mapper.clone(),
-            controller.clone(),
-        )));
-
-        let cpu = cpu::Cpu::new(mem.clone(), int_bus.clone());
-
-        Ok(Nes {
-            frame,
-            cpu,
-            mem,
-            controller,
-            ppu,
             int_bus,
             cycle_counter: 3,
             cpu_cycle_count: 0,
@@ -118,26 +69,12 @@ impl Nes {
         self.frame.clone()
     }
 
-    pub fn run(&mut self) {
-        while !self.cpu.halt {
-            if self.mem.borrow().dma_cycles > 0 {
-                self.mem.borrow_mut().dma_cycles -= 1;
-            } else {
-                self.cpu.tick();
-            }
-
-            self.ppu.borrow_mut().tick();
-            self.ppu.borrow_mut().tick();
-            self.ppu.borrow_mut().tick();
-        }
-    }
-
     pub fn run_one_frame(&mut self) {
         while !self.frame.borrow().frame_ready {
             self.cpu.tick();
             self.cpu_cycle_count += 1;
             for _ in 0..3 {
-                self.ppu.borrow_mut().tick();
+                self.cpu.mem.ppu.tick();
             }
         }
         self.frame.borrow_mut().frame_ready = false;
@@ -146,7 +83,7 @@ impl Nes {
     pub fn run_one_cpu_cycle(&mut self) {
         self.cpu.tick();
         for _ in 0..3 {
-            self.ppu.borrow_mut().tick();
+            self.cpu.mem.ppu.tick();
         }
     }
 
@@ -155,7 +92,7 @@ impl Nes {
             self.cpu.tick();
             self.cycle_counter = 0;
         }
-        self.ppu.borrow_mut().tick();
+        self.cpu.mem.ppu.tick();
         self.cycle_counter += 1;
     }
 }

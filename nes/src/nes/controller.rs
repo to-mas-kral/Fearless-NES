@@ -14,7 +14,7 @@ impl Controller {
     }
 
     #[inline]
-    pub fn write(&mut self, val: u8) {
+    pub fn write_reg(&mut self, val: u8) {
         if self.strobe && (val & 1) == 0 {
             self.shifter = self.state;
         }
@@ -23,13 +23,12 @@ impl Controller {
     }
 
     #[inline]
-    pub fn read(&mut self) -> u8 {
-        //TODO: sometimes return 0x41 ?
+    pub fn read_reg(&mut self) -> u8 {
         if self.strobe {
-            return 0x40 | (self.state & 1);
+            return self.state & 1;
         }
 
-        let key = 0x40 | (self.shifter & 1);
+        let key = self.shifter & 1;
         self.shifter = 0x80 | (self.shifter >> 1);
 
         key

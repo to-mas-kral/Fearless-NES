@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::memory::*;
+use super::memory::Memory;
 use super::InterruptBus;
 
 mod state_machine;
@@ -38,17 +38,17 @@ pub struct Cpu {
     temp: usize,
 
     cached_irq: bool,
+    cached_nmi: bool,
+    pending_reset: bool,
     take_interrupt: bool,
     interrupt_type: InterruptType,
     interrupt_bus: Rc<RefCell<InterruptBus>>,
 
-    pending_reset: bool,
-
-    pub mem: Rc<RefCell<Memory>>, //reference to a memory map shared by other components
+    pub mem: Memory, //memory map
 }
 
 impl Cpu {
-    pub fn new(mem: Rc<RefCell<Memory>>, interrupt_bus: Rc<RefCell<InterruptBus>>) -> Cpu {
+    pub fn new(mem: Memory, interrupt_bus: Rc<RefCell<InterruptBus>>) -> Cpu {
         Cpu {
             a: 0,
             x: 0,
@@ -70,11 +70,11 @@ impl Cpu {
             temp: 0,
 
             cached_irq: false,
+            cached_nmi: false,
+            pending_reset: false,
             take_interrupt: false,
             interrupt_type: InterruptType::None,
             interrupt_bus,
-
-            pending_reset: false,
 
             mem,
         }
@@ -123,6 +123,7 @@ impl Cpu {
     }
 
     pub fn gen_reset(&mut self) {
+        //TODO: write 0 to 0x4015
         self.state = 0;
         self.take_interrupt = true;
         self.pending_reset = true;
@@ -143,7 +144,7 @@ impl Cpu {
             self.interrupt_bus.borrow_mut().irq_signal = false;
         }
 
-        if self.interrupt_bus.borrow().nmi_signal {
+        if self.cached_nmi {
             self.take_interrupt = true;
             self.interrupt_type = InterruptType::Nmi;
             self.interrupt_bus.borrow_mut().nmi_signal = false;
@@ -497,7 +498,7 @@ impl Cpu {
         self.set_z_n(self.x);
     }
 
-    //TODO: complete these
+    //TODO: complete unofficial opcodes
     #[inline]
     fn xaa(&mut self) {
         unimplemented!();

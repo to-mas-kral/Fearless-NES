@@ -9,14 +9,5 @@ macro_rules! debug_log {
     };
 }
 
-use std::path::Path;
-
 pub mod nes;
 mod tests;
-
-pub fn run() {
-    let mut nes = nes::Nes::new(&Path::new(
-        "/home/tomas/Documents/Programovani/fearless-nes/donkey kong.nes",
-    )).unwrap();
-    nes.run();
-}

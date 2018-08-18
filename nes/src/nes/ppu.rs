@@ -674,16 +674,16 @@ impl Ppu {
         //It's actually possible to make the NMI signal go from high to low twice within one vblank by
         //turning 0x2000 bit 7 off and then on without reading 0x2002
         //and one of the Bases Loaded games relies on that.
+
         match self.scanline {
-            241 => {
-                if self.xpos == 1 {
-                    self.ppustatus |= 1 << 7;
-                    if self.nmi_on_vblank {
-                        self.interrupt_bus.borrow_mut().nmi_signal = true;
-                    }
+            241 if self.xpos == 0 => (),
+            241 if self.xpos == 1 => {
+                self.ppustatus |= 1 << 7;
+                if self.nmi_on_vblank {
+                    self.interrupt_bus.borrow_mut().nmi_signal = true;
                 }
             }
-            _ => {
+            241..=260 => {
                 if !self.nmi_on_vblank {
                     self.nmi_reset = true;
                 } else if self.nmi_reset && self.nmi_on_vblank {
@@ -691,20 +691,7 @@ impl Ppu {
                     self.interrupt_bus.borrow_mut().nmi_signal = true;
                 }
             }
-        }
-
-        if self.scanline == 241 && self.xpos == 1 {
-            self.ppustatus |= 1 << 7;
-            if self.nmi_on_vblank {
-                self.interrupt_bus.borrow_mut().nmi_signal = true;
-            }
-        } else {
-            if !self.nmi_on_vblank {
-                self.nmi_reset = true;
-            } else if self.nmi_reset && self.nmi_on_vblank {
-                self.nmi_reset = false;
-                self.interrupt_bus.borrow_mut().nmi_signal = true;
-            }
+            _ => (),
         }
     }
 

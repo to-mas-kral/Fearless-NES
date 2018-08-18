@@ -36,15 +36,14 @@ fn main() {
 
     //TODO: unwraps
     let mut nes = fearless_nes::nes::Nes::new(Path::new(
-        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/blargg_instr/rom_singles/01-basics.nes",
-        "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/branch_timing_tests/1.Branch_Basics.nes",
-        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu_timing_test.nes",
-        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/branch_timing_tests/2.Backward_Branch.nes",
-        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/blargg_instr/rom_singles/10-branches.nes",
-        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/palette/palette.nes",
-        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/nestest/nestest.nes",
-        //"/home/tomas/Documents/Programovani/fearless-nes/SMB.nes",
-        //"/home/tomas/Documents/Programovani/fearless-nes/donkey kong.nes",
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/blargg_instr/rom_singles/01-basics.nes"
+        "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/branch_timing_tests/1.Branch_Basics.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/branch_timing_tests/3.Forward_Branch.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/blargg_instr/rom_singles/10-branches.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/palette/palette.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/nestest/nestest.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/SMB.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/donkey kong.nes"
     )).unwrap();
     let framebuffer = nes.get_framebuffer();
 
