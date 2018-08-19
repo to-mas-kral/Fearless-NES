@@ -124,6 +124,8 @@ pub struct Ppu {
     shift_low: u16,
     shift_high: u16,
 
+    ignore_writes: bool,
+
     ppustatus: u8,
     pub oamaddr: u8,
     write_toggle: bool,
@@ -189,6 +191,8 @@ impl Ppu {
             temp_vram_addr: 0,
             x_fine_scroll: 0,
 
+            ignore_writes: true,
+
             ppustatus: 0,
             oamaddr: 0,
             write_toggle: false,
@@ -212,6 +216,40 @@ impl Ppu {
             emphasize_green: false,
             emphasize_blue: false,
         }
+    }
+
+    //TODO: latch decay ?
+    #[inline]
+    pub fn read_reg(&mut self, addr: usize) -> u8 {
+        match addr & 7 {
+            0 | 1 | 3 | 5 | 6 => (),
+            2 => self.read_ppustatus(),
+            4 => self.read_oamdata(),
+            7 => self.read_ppudata(),
+            _ => unreachable!(),
+        };
+
+        self.latch
+    }
+
+    #[inline]
+    pub fn write_reg(&mut self, addr: usize, val: u8) {
+        self.latch = val;
+        match addr & 7 {
+            0 if !self.ignore_writes => self.write_ppuctrl(),
+            1 if !self.ignore_writes => self.write_ppumask(),
+            3 => self.write_oamaddr(),
+            4 => self.write_oamdata(),
+            5 if !self.ignore_writes => self.write_ppuscroll(),
+            6 if !self.ignore_writes => self.write_ppuaddr(),
+            7 => self.write_ppudata(),
+            _ => (),
+        }
+    }
+
+    #[inline]
+    pub fn enable_writes(&mut self) {
+        self.ignore_writes = false;
     }
 
     #[inline]
@@ -280,35 +318,6 @@ impl Ppu {
         index
     }
 
-    //TODO: latch decay ?
-    #[inline]
-    pub fn read_reg(&mut self, addr: usize) -> u8 {
-        match addr & 7 {
-            0 | 1 | 3 | 5 | 6 => (),
-            2 => self.read_ppustatus(),
-            4 => self.read_oamdata(),
-            7 => self.read_ppudata(),
-            _ => unreachable!(),
-        };
-
-        self.latch
-    }
-
-    #[inline]
-    pub fn write_reg(&mut self, addr: usize, val: u8) {
-        self.latch = val;
-        match addr & 7 {
-            0 => self.write_ppuctrl(),
-            1 => self.write_ppumask(),
-            3 => self.write_oamaddr(),
-            4 => self.write_oamdata(),
-            5 => self.write_ppuscroll(),
-            6 => self.write_ppuaddr(),
-            7 => self.write_ppudata(),
-            _ => unreachable!(),
-        }
-    }
-
     //Ppuctrl
     //    N -- 00000011 -- Name table address (0 = 0x2000; 1 = 0x2400; 2 = 0x2800; 3 = 0x2C00)
     //    I -- 00000100 -- PPU address increment (0: add 1, going across; 1: add 32, going down)
@@ -319,7 +328,6 @@ impl Ppu {
     //    V -- 10000000 -- Execute NMI on vblank
     #[inline]
     fn write_ppuctrl(&mut self) {
-        //TODO: ignore writes after reset (30000 cycles)
         //TODO: bit 0 bus conflict
         let val = self.latch;
         self.temp_vram_addr &= !0xC00;
@@ -374,7 +382,7 @@ impl Ppu {
     fn read_ppustatus(&mut self) {
         self.write_toggle = false;
         self.latch = self.ppustatus;
-        self.ppustatus &= 0xFF >> 1;
+        self.ppustatus &= 0x7F;
     }
 
     #[inline]
@@ -451,10 +459,6 @@ impl Ppu {
 
     #[inline]
     fn write_ppudata(&mut self) {
-        /* println!(
-            "Writing thru ppudata 0x{:X} to 0x{:X}",
-            self.latch, self.vram_addr
-        ); */
         self.write(self.vram_addr, self.latch);
 
         if self.rendering_enabled && self.scanline < 240 {
@@ -479,6 +483,7 @@ impl Ppu {
         0x2000 | (self.vram_addr & 0xFFF)
     }
 
+    #[inline]
     pub fn tick(&mut self) {
         let state = match self.scanline {
             0...239 => RenderState::Render,
@@ -549,7 +554,7 @@ impl Ppu {
                         //The skipped tick is implemented by jumping directly from (339, 261)
                         //to (0, 0), meaning the last tick of the last NT fetch takes place at (0, 0)
                         //on odd frames replacing the idle tick
-                        if self.odd_frame {
+                        if self.odd_frame & self.rendering_enabled {
                             self.scanline = 0;
                             self.xpos = 0;
                         }
@@ -666,27 +671,19 @@ impl Ppu {
 
     #[inline]
     fn handle_vblank(&mut self) {
-        //So the NMI signal is high for the whole Vblank period ?
-
-        //Yes, 0x2002 bit 7 is high during the whole vblank period if 0x2002 isn't read during that period.
-        //The NMI signal is active low (0 = on, 1 = off), produced as 0x2002 bit 7 NAND 0x2000 bit 7.
-        //The CPU calls the NMI handler when the NMI signal goes from high to low.
-        //It's actually possible to make the NMI signal go from high to low twice within one vblank by
-        //turning 0x2000 bit 7 off and then on without reading 0x2002
-        //and one of the Bases Loaded games relies on that.
-
-        match self.scanline {
-            241 if self.xpos == 0 => (),
-            241 if self.xpos == 1 => {
-                self.ppustatus |= 1 << 7;
+        match (self.scanline, self.xpos) {
+            (241, 0) => (),
+            (241, 1) => {
+                self.ppustatus |= 0x80;
                 if self.nmi_on_vblank {
                     self.interrupt_bus.borrow_mut().nmi_signal = true;
                 }
             }
-            241..=260 => {
+            (260, 340) => self.interrupt_bus.borrow_mut().nmi_signal = false,
+            (241..=260, _) => {
                 if !self.nmi_on_vblank {
                     self.nmi_reset = true;
-                } else if self.nmi_reset && self.nmi_on_vblank {
+                } else if self.nmi_reset && self.nmi_on_vblank && self.ppustatus & 0x80 != 0 {
                     self.nmi_reset = false;
                     self.interrupt_bus.borrow_mut().nmi_signal = true;
                 }

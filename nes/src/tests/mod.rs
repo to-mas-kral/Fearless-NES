@@ -66,7 +66,7 @@ fn nestest() {
     }
 }*/
 
-#[test]
+/*#[test]
 fn timing() {
     let test_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     //let test_log_path = Path::new(&test_dir).join("src/tests/nestest/nestest_formatted.log");
@@ -97,16 +97,14 @@ fn timing() {
     }
 
     panic!();
-}
+}*/
 
-macro_rules! blargg_instr_test {
+macro_rules! blargg_test {
     ($test_name:ident, $path:expr, $pass_text:expr) => {
         #[test]
         fn $test_name() {
             let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-            let test_path = Path::new(&base_dir)
-                .join("src/tests/blargg_instr/rom_singles/")
-                .join($path);
+            let test_path = Path::new(&base_dir).join("src/tests/").join($path);
 
             let mut nes = Nes::new(&test_path).expect("error when creating test NES instance");
 
@@ -140,67 +138,96 @@ macro_rules! blargg_instr_test {
     };
 }
 
-blargg_instr_test!(
+blargg_test!(
     blargg_instr_basics,
-    "01-basics.nes",
+    "blargg_instr/rom_singles/01-basics.nes",
     "\n01-basics\n\nPassed\n"
 );
-blargg_instr_test!(
+blargg_test!(
     blargg_instr_implied,
-    "02-implied.nes",
+    "blargg_instr/rom_singles/02-implied.nes",
     "\n02-implied\n\nPassed\n"
 );
-blargg_instr_test!(
+blargg_test!(
     blargg_instr_immediate,
-    "03-immediate.nes",
+    "blargg_instr/rom_singles/03-immediate.nes",
     "\n03-immediate\n\nPassed\n"
 );
-blargg_instr_test!(
+blargg_test!(
     blargg_instr_zero_page,
-    "04-zero_page.nes",
+    "blargg_instr/rom_singles/04-zero_page.nes",
     "\n04-zero_page\n\nPassed\n"
 );
-blargg_instr_test!(
+blargg_test!(
     blargg_instr_zero_page_xy,
-    "05-zp_xy.nes",
+    "blargg_instr/rom_singles/05-zp_xy.nes",
     "\n05-zp_xy\n\nPassed\n"
 );
-blargg_instr_test!(
+blargg_test!(
     blargg_instr_absolute,
-    "06-absolute.nes",
+    "blargg_instr/rom_singles/06-absolute.nes",
     "\n06-absolute\n\nPassed\n"
 );
-blargg_instr_test!(
+blargg_test!(
     blargg_instr_absolute_xy,
-    "07-abs_xy.nes",
+    "blargg_instr/rom_singles/07-abs_xy.nes",
     "\n07-abs_xy\n\nPassed\n"
 );
-blargg_instr_test!(
+blargg_test!(
     blargg_instr_indirect_x,
-    "08-ind_x.nes",
+    "blargg_instr/rom_singles/08-ind_x.nes",
     "\n08-ind_x\n\nPassed\n"
 );
-blargg_instr_test!(
+blargg_test!(
     blargg_instr_indirect_y,
-    "09-ind_y.nes",
+    "blargg_instr/rom_singles/09-ind_y.nes",
     "\n09-ind_y\n\nPassed\n"
 );
-blargg_instr_test!(
+blargg_test!(
     blargg_instr_branches,
-    "10-branches.nes",
+    "blargg_instr/rom_singles/10-branches.nes",
     "\n10-branches\n\nPassed\n"
 );
-blargg_instr_test!(blargg_instr_stack, "11-stack.nes", "\n11-stack\n\nPassed\n");
-blargg_instr_test!(
+blargg_test!(
+    blargg_instr_stack,
+    "blargg_instr/rom_singles/11-stack.nes",
+    "\n11-stack\n\nPassed\n"
+);
+blargg_test!(
     blargg_instr_jmp_jsr,
-    "12-jmp_jsr.nes",
+    "blargg_instr/rom_singles/12-jmp_jsr.nes",
     "\n12-jmp_jsr\n\nPassed\n"
 );
-blargg_instr_test!(blargg_instr_rts, "13-rts.nes", "\n13-rts\n\nPassed\n");
-blargg_instr_test!(blargg_instr_rti, "14-rti.nes", "\n14-rti\n\nPassed\n");
-blargg_instr_test!(blargg_instr_brk, "15-brk.nes", "\n15-brk\n\nPassed\n");
-blargg_instr_test!(
+blargg_test!(
+    blargg_instr_rts,
+    "blargg_instr/rom_singles/13-rts.nes",
+    "\n13-rts\n\nPassed\n"
+);
+blargg_test!(
+    blargg_instr_rti,
+    "blargg_instr/rom_singles/14-rti.nes",
+    "\n14-rti\n\nPassed\n"
+);
+blargg_test!(
+    blargg_instr_brk,
+    "blargg_instr/rom_singles/15-brk.nes",
+    "\n15-brk\n\nPassed\n"
+);
+blargg_test!(
     blargg_instr_special,
-    "16-special.nes",
+    "blargg_instr/rom_singles/16-special.nes",
     "\n16-special\n\nPassed\n"
 );
+
+//TODO: setup these timing tests
+/*blargg_test!(
+    blargg_instr_timing,
+    "instr_timing/rom_singles/1-instr_timing.nes",
+    "\n16-special\n\nPassed\n"
+);
+blargg_test!(
+    blargg_branch_timing,
+    "instr_timing/rom_singles/2-branch_timing.nes",
+    "\n16-special\n\nPassed\n"
+);
+*/

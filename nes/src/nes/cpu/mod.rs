@@ -128,11 +128,7 @@ impl Cpu {
         self.take_interrupt = true;
         self.pending_reset = true;
         self.interrupt_type = InterruptType::Reset;
-
-        for _ in 0..6 {
-            self.tick();
-        }
-
+        self.mem.write(0x4015, 0);
         self.pending_reset = false;
     }
 
@@ -456,27 +452,6 @@ impl Cpu {
     }
 
     #[inline]
-    fn compare(&mut self, num: u8, mut reg: u8) {
-        self.c = reg >= num;
-        reg = reg.wrapping_sub(num);
-        self.z = reg == 0;
-        self.n = reg & (1 << 7) != 0;
-    }
-
-    #[inline]
-    fn take_branch(&mut self) {
-        let diff = self.temp as i8 as isize;
-        let pc_before = self.pc;
-        if diff > 0 {
-            self.pc += diff as usize
-        } else {
-            self.pc -= diff.abs() as usize
-        };
-        let crosses = (pc_before & 0xFF00) != (self.pc & 0xFF00);
-        self.temp = if crosses { 1 } else { 0 };
-    }
-
-    #[inline]
     fn anc(&mut self, num: u8) {
         self.and(num);
         self.c = self.n;
@@ -498,15 +473,16 @@ impl Cpu {
         self.set_z_n(self.x);
     }
 
-    //TODO: complete unofficial opcodes
     #[inline]
-    fn xaa(&mut self) {
-        unimplemented!();
+    fn xaa(&mut self, num: u8) {
+        self.a = (self.a | 0xEE) & self.x & num;
+        self.set_z_n(self.a);
     }
 
     #[inline]
     fn ahx(&mut self) {
-        unimplemented!();
+        let result = self.a & self.x & ((self.ab >> 8) + 1) as u8;
+        self.mem.write(self.ab, result);
     }
 
     #[inline]
@@ -524,13 +500,18 @@ impl Cpu {
     }
 
     #[inline]
-    fn las(&mut self) {
-        unimplemented!();
+    fn las(&mut self, val: u8) {
+        self.sp &= val as usize;
+        self.a = self.sp as u8;
+        self.x = self.sp as u8;
+        self.set_z_n(self.a);
     }
 
     #[inline]
     fn tas(&mut self) {
-        unimplemented!();
+        self.sp = (self.a & self.x) as usize;
+        let result = self.sp & ((self.ab >> 8) + 1);
+        self.mem.write(self.ab, result as u8);
     }
 
     #[inline]
@@ -540,6 +521,27 @@ impl Cpu {
 
         self.c = (self.a >> 6) & 1 == 1;
         self.v = self.c != ((self.a >> 5) & 1 == 1);
+    }
+
+    #[inline]
+    fn compare(&mut self, num: u8, mut reg: u8) {
+        self.c = reg >= num;
+        reg = reg.wrapping_sub(num);
+        self.z = reg == 0;
+        self.n = reg & (1 << 7) != 0;
+    }
+
+    #[inline]
+    fn take_branch(&mut self) {
+        let diff = self.temp as i8 as isize;
+        let pc_before = self.pc;
+        if diff > 0 {
+            self.pc += diff as usize
+        } else {
+            self.pc -= diff.abs() as usize
+        };
+        let crosses = (pc_before & 0xFF00) != (self.pc & 0xFF00);
+        self.temp = if crosses { 1 } else { 0 };
     }
 
     #[inline]

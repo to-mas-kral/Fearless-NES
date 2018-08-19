@@ -36,10 +36,16 @@ fn main() {
 
     //TODO: unwraps
     let mut nes = fearless_nes::nes::Nes::new(Path::new(
-        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/blargg_instr/rom_singles/01-basics.nes"
-        "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/branch_timing_tests/1.Branch_Basics.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/01-vbl_basics.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/02-vbl_set_time.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/03-vbl_clear_time.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/04-nmi_control.nes"
+        "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/05-nmi_timing.nes"
+
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/branch_timing_tests/1.Branch_Basics.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/branch_timing_tests/3.Forward_Branch.nes"
-        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/blargg_instr/rom_singles/10-branches.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu_timing_test6/cpu_timing_test.nes"
+
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/palette/palette.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/nestest/nestest.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/SMB.nes"

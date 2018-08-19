@@ -9,7 +9,7 @@ use std::rc::Rc;
 pub struct Memory {
     cpu_ram: [u8; 0x800],
     open_bus: u8,
-    apu: Apu,
+    pub apu: Apu,
     controller: Rc<RefCell<Controller>>,
     mapper: Rc<RefCell<Box<Mapper>>>,
     pub ppu: Ppu,

@@ -855,7 +855,7 @@ impl Tick for super::Cpu {
             0x8B => {
                 self.check_interrupts();
                 let val = read_ab!(self);
-                self.xaa();
+                self.xaa(val);
                 self.pc += 1;
                 self.ab = self.pc;
                 self.state = 0x100;
@@ -951,7 +951,7 @@ impl Tick for super::Cpu {
                 self.temp = read_ab!(self) as usize;
                 self.pc += 1;
                 self.ab = self.pc;
-                self.state = 0x360;
+                self.state = 0x361;
             }
             0x9C => {
                 self.temp = read_ab!(self) as usize;
@@ -5200,31 +5200,41 @@ impl Tick for super::Cpu {
             }
             0x35E => {
                 cache_interrupts!(self);
-                self.ab = ((read_ab!(self) as usize) << 8) | self.temp;
-                self.pc += 1;
-                self.state = 0x35F
-            }
-            0x35F => {
-                self.check_interrupts();
-                let val = read_ab!(self);
-                self.las();
-                self.ab = self.pc;
-                self.state = 0x100
-            }
-            0x360 => {
                 self.ab = ((read_ab!(self) as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc += 1;
-                self.state = 0x361;
+                self.state = if (self.temp + self.y as usize) < 0x100 {
+                    0x360
+                } else {
+                    0x35F
+                };
+            }
+            0x35F => {
+                cache_interrupts!(self);
+                read_ab!(self);
+                self.ab = (self.ab as u16).wrapping_add(0x100) as usize;
+                self.state = 0x360
+            }
+            0x360 => {
+                self.check_interrupts();
+                let val = read_ab!(self);
+                self.las(val);
+                self.ab = self.pc;
+                self.state = 0x100;
             }
             0x361 => {
+                self.ab = ((read_ab!(self) as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.pc += 1;
+                self.state = 0x362;
+            }
+            0x362 => {
                 cache_interrupts!(self);
                 read_ab!(self);
                 if (self.temp + self.y as usize) >= 0x100 {
                     self.ab = (self.ab as u16).wrapping_add(0x100) as usize
                 };
-                self.state = 0x362;
+                self.state = 0x363;
             }
-            0x362 => {
+            0x363 => {
                 self.check_interrupts();
                 self.tas();
                 self.ab = self.pc;

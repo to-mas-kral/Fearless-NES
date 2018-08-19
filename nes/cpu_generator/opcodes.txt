@@ -73,7 +73,7 @@ BPL
     relative 0x10
 
 BRK
-    
+
 
     implied 0x00
 
@@ -279,22 +279,22 @@ ORA
     indirect_y 0x11
 
 PHA
-    
+
 
     implied 0x48
 
 PHP
-    
+
 
     implied 0x08
 
 PLA
-    
+
 
     implied 0x68
 
 PLP
-    
+
 
     implied 0x28
 
@@ -535,7 +535,7 @@ AXS
     immediate 0xCB
 
 XAA
-    self.xaa();
+    self.xaa(val);
 
     immediate 0x8B
 
@@ -556,9 +556,9 @@ SHY
     absolute_x_st 0x9C
 
 LAS
-    self.las();
+    self.las(val);
 
-    absolute 0xBB
+    absolute_y 0xBB
 
 TAS
     self.tas();

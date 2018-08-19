@@ -19,8 +19,8 @@ pub struct Nes {
     pub cpu: cpu::Cpu,
     pub controller: Rc<RefCell<controller::Controller>>,
     int_bus: Rc<RefCell<InterruptBus>>,
-    cycle_counter: u64,
-    cpu_cycle_count: u64,
+    apu_cycle: bool,
+    cycle_count: u64,
 }
 
 impl Nes {
@@ -46,19 +46,21 @@ impl Nes {
 
         let mut cpu = cpu::Cpu::new(mem, int_bus.clone());
 
-        cpu.gen_reset();
-        for _ in 0..18 {
-            cpu.mem.ppu.tick();
-        }
-
-        Ok(Nes {
+        let mut nes = Nes {
             frame,
             cpu,
             controller,
             int_bus,
-            cycle_counter: 3,
-            cpu_cycle_count: 0,
-        })
+            apu_cycle: false,
+            cycle_count: 0,
+        };
+
+        nes.cpu.gen_reset();
+        for _ in 0..6 {
+            nes.run_one_cpu_cycle();
+        }
+
+        Ok(nes)
     }
 
     pub fn set_controller_state(&mut self, keycode: controller::Keycode, state: bool) {
@@ -71,29 +73,26 @@ impl Nes {
 
     pub fn run_one_frame(&mut self) {
         while !self.frame.borrow().frame_ready {
-            self.cpu.tick();
-            self.cpu_cycle_count += 1;
-            for _ in 0..3 {
-                self.cpu.mem.ppu.tick();
-            }
+            self.run_one_cpu_cycle();
         }
         self.frame.borrow_mut().frame_ready = false;
     }
 
     pub fn run_one_cpu_cycle(&mut self) {
         self.cpu.tick();
+        self.cycle_count += 1;
+        if self.cycle_count == 29658 {
+            self.cpu.mem.ppu.enable_writes();
+        }
+
         for _ in 0..3 {
             self.cpu.mem.ppu.tick();
         }
-    }
 
-    pub fn run_one_ppu_cycle(&mut self) {
-        if self.cycle_counter == 3 {
-            self.cpu.tick();
-            self.cycle_counter = 0;
+        if self.apu_cycle {
+            self.cpu.mem.apu.tick();
         }
-        self.cpu.mem.ppu.tick();
-        self.cycle_counter += 1;
+        self.apu_cycle = !self.apu_cycle;
     }
 }
 
