@@ -36,11 +36,16 @@ fn main() {
 
     //TODO: unwraps
     let mut nes = fearless_nes::nes::Nes::new(Path::new(
-        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/01-vbl_basics.nes"
+        //  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/01-vbl_basics.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/02-vbl_set_time.nes"
-        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/03-vbl_clear_time.nes"
-        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/04-nmi_control.nes"
-        "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/05-nmi_timing.nes"
+        //  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/03-vbl_clear_time.nes"
+        //  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/04-nmi_control.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/05-nmi_timing.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/06-suppression.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/09-even_odd_frames.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes"
 
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/branch_timing_tests/1.Branch_Basics.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/branch_timing_tests/3.Forward_Branch.nes"
@@ -49,7 +54,8 @@ fn main() {
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/palette/palette.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/nestest/nestest.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/SMB.nes"
-        //"/home/tomas/Documents/Programovani/fearless-nes/donkey kong.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/donkey_kong.nes"
+        "/home/tomas/Documents/Programovani/fearless-nes/popeye.nes"
     )).unwrap();
     let framebuffer = nes.get_framebuffer();
 

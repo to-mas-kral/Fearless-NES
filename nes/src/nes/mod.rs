@@ -5,7 +5,6 @@ pub mod apu;
 pub mod controller;
 pub mod ines;
 pub mod mapper;
-pub mod memory;
 pub mod ppu;
 
 use std::cell::RefCell;
@@ -42,9 +41,13 @@ impl Nes {
 
         let controller = Rc::new(RefCell::new(controller::Controller::new()));
 
-        let mem = memory::Memory::new(apu, controller.clone(), mapper.clone(), ppu);
-
-        let mut cpu = cpu::Cpu::new(mem, int_bus.clone());
+        let mut cpu = cpu::Cpu::new(
+            int_bus.clone(),
+            apu,
+            controller.clone(),
+            mapper.clone(),
+            ppu,
+        );
 
         let mut nes = Nes {
             frame,
@@ -82,15 +85,15 @@ impl Nes {
         self.cpu.tick();
         self.cycle_count += 1;
         if self.cycle_count == 29658 {
-            self.cpu.mem.ppu.enable_writes();
+            self.cpu.ppu.enable_writes();
         }
 
         for _ in 0..3 {
-            self.cpu.mem.ppu.tick();
+            self.cpu.ppu.tick();
         }
 
         if self.apu_cycle {
-            self.cpu.mem.apu.tick();
+            self.cpu.apu.tick();
         }
         self.apu_cycle = !self.apu_cycle;
     }

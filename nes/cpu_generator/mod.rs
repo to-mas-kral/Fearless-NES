@@ -10,22 +10,15 @@ use std::io::Write;
 
 mod parser;
 
+mod opcodes;
+use self::opcodes::{Timing, OPCODES};
+
 pub fn generate_cpu() {
     let out_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let out_path = Path::new(&out_dir).join("src/nes/cpu/state_machine.rs");
 
-    let source_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let opcode_path = Path::new(&source_dir).join("cpu_generator/opcodes.txt");
-
-    let mut src = String::new();
-    let mut f = File::open(opcode_path).unwrap();
-    f.read_to_string(&mut src).unwrap();
-
-    let mut parser = parser::Parser::new(&src);
-    let instructions = parser.parse_file();
-
     let mut generator = Generator::new();
-    generator.generate_machine(instructions);
+    generator.generate_machine();
     generator.optimize_machine();
     generator.output_machine(&out_path);
 
@@ -49,7 +42,7 @@ struct Generator {
 impl Generator {
     pub fn new() -> Generator {
         Generator {
-            state: 0x100,
+            state: 0x101,
             state_machine: BTreeMap::new(),
         }
     }
@@ -85,10 +78,11 @@ impl Generator {
             "macro_rules! cache_interrupts {($self:ident) => {self.cached_irq = self.interrupt_bus.borrow().irq_signal;
             self.cached_nmi = self.interrupt_bus.borrow().nmi_signal;};}",
         );
-        s.push_str("macro_rules! read_ab {($self:ident) => {$self.mem.read($self.ab)};}");
+        s.push_str("macro_rules! read_ab {($self:ident) => {$self.read($self.ab)};}");
         s.push_str("macro_rules! sp_to_ab {($self:ident) => {$self.ab = $self.sp | 0x100};}");
         s.push_str("debug_log!(\"executing opcode 0x{:X}\", (self.state));");
         s.push_str("debug_log!(\"CPU state: {}\", (self.debug_info()));");
+        s.push_str("self.odd_cycle = !self.odd_cycle;");
         s.push_str("match self.state {");
 
         for (key, val) in self.state_machine.iter() {
@@ -103,52 +97,48 @@ impl Generator {
             .expect("error writing to a file while generating the cpu");
     }
 
-    pub fn generate_machine(&mut self, instructions: Vec<ParsedInstruction>) {
-        for i in instructions {
-            for op in &i.opcodes {
-                match op.0.as_str() {
-                    "implied" => match op.1 {
-                        0x28 => self.plp(op.1),
-                        0x68 => self.pla(op.1),
-                        0x08 => self.php(op.1),
-                        0x48 => self.pha(op.1),
-                        0x20 => self.jsr(op.1),
-                        0x00 => self.brk(op.1),
-                        0x40 => self.rti(op.1),
-                        0x60 => self.rts(op.1),
-                        _ => self.implied(&i.code, op.1),
-                    },
-                    "immediate" => self.immediate(&i.code, op.1),
-                    "accumulator" => self.accumulator(&i.code, op.1),
-                    "zero_page" => self.zero_page(&i.code, op.1),
-                    "zero_page_x" => self.zero_page_x(&i.code, op.1),
-                    "zero_page_y" => self.zero_page_y(&i.code, op.1),
-                    "relative" => self.relative(&i.code, op.1),
-                    "absolute" => self.absolute(&i.code, op.1),
-                    "absolute_x" => self.absolute_x_or_y(&i.code, op.1, "x"),
-                    "absolute_y" => self.absolute_x_or_y(&i.code, op.1, "y"),
-                    "indirect" => self.indirect(op.1),
-                    "absolute_jmp" => self.absolute_jmp(op.1),
-                    "indirect_x" => self.indirect_x(&i.code, op.1),
-                    "indirect_y" => self.indirect_y(&i.code, op.1),
-                    "zero_page_rmw" => self.zero_page_rmw(&i.code, op.1),
-                    "zero_page_x_rmw" => self.zero_page_x_rmw(&i.code, op.1),
-                    "absolute_rmw" => self.absolute_rmw(&i.code, op.1),
-                    "absolute_x_rmw" => self.absolute_x_rmw(&i.code, op.1),
-                    "zero_page_st" => self.zero_page_st(&i.code, op.1),
-                    "zero_page_x_st" => self.zero_page_x_or_y_st(&i.code, op.1, "x"),
-                    "zero_page_y_st" => self.zero_page_x_or_y_st(&i.code, op.1, "y"),
-                    "absolute_st" => self.absolute_st(&i.code, op.1),
-                    "absolute_x_st" => self.absolute_x_or_y_st(&i.code, op.1, "x"),
-                    "absolute_y_st" => self.absolute_x_or_y_st(&i.code, op.1, "y"),
-                    "indirect_x_st" => self.indirect_x_st(&i.code, op.1),
-                    "indirect_y_st" => self.indirect_y_st(&i.code, op.1),
-                    "indirect_x_illegal" => self.indirect_x_illegal(&i.code, op.1),
-                    "indirect_y_illegal" => self.indirect_y_illegal(&i.code, op.1),
-                    "absolute_y_illegal" => self.absolute_y_illegal(&i.code, op.1),
-                    am => panic!("unknown addressing mode: {}", am),
-                };
-            }
+    pub fn generate_machine(&mut self) {
+        for (opcode, opinfo) in OPCODES.iter().enumerate() {
+            match opinfo.0 {
+                Timing::Implied => self.implied(opinfo.1, opcode),
+                Timing::Rti => self.rti(opcode),
+                Timing::Rts => self.rts(opcode),
+                Timing::Jsr => self.jsr(opcode),
+                Timing::Brk => self.brk(opcode),
+                Timing::Pha => self.pha(opcode),
+                Timing::Php => self.php(opcode),
+                Timing::Plp => self.plp(opcode),
+                Timing::Pla => self.pla(opcode),
+                Timing::Immediate => self.immediate(opinfo.1, opcode),
+                Timing::Accumulator => self.accumulator(opinfo.1, opcode),
+                Timing::ZeroPage => self.zero_page(opinfo.1, opcode),
+                Timing::ZeroPageX => self.zero_page_x(opinfo.1, opcode),
+                Timing::ZeroPageY => self.zero_page_y(opinfo.1, opcode),
+                Timing::Relative => self.relative(opinfo.1, opcode),
+                Timing::Absolute => self.absolute(opinfo.1, opcode),
+                Timing::AbsoluteX => self.absolute_x_or_y(opinfo.1, opcode, "x"),
+                Timing::AbsoluteY => self.absolute_x_or_y(opinfo.1, opcode, "y"),
+                Timing::Indirect => self.indirect(opcode),
+                Timing::AbsoluteJmp => self.absolute_jmp(opcode),
+                Timing::IndirectX => self.indirect_x(opinfo.1, opcode),
+                Timing::IndirectY => self.indirect_y(opinfo.1, opcode),
+                Timing::ZeroPageRmw => self.zero_page_rmw(opinfo.1, opcode),
+                Timing::ZeroPageXRmw => self.zero_page_x_rmw(opinfo.1, opcode),
+                Timing::AbsoluteRmw => self.absolute_rmw(opinfo.1, opcode),
+                Timing::AbsoluteXRmw => self.absolute_x_rmw(opinfo.1, opcode),
+                Timing::ZeroPageSt => self.zero_page_st(opinfo.1, opcode),
+                Timing::ZeroPageXSt => self.zero_page_x_or_y_st(opinfo.1, opcode, "x"),
+                Timing::ZeroPageYSt => self.zero_page_x_or_y_st(opinfo.1, opcode, "y"),
+                Timing::AbsoluteSt => self.absolute_st(opinfo.1, opcode),
+                Timing::AbsoluteXSt => self.absolute_x_or_y_st(opinfo.1, opcode, "x"),
+                Timing::AbsoluteYSt => self.absolute_x_or_y_st(opinfo.1, opcode, "y"),
+                Timing::IndirectXSt => self.indirect_x_st(opinfo.1, opcode),
+                Timing::IndirectYSt => self.indirect_y_st(opinfo.1, opcode),
+                Timing::IndirectXIllegal => self.indirect_x_illegal(opinfo.1, opcode),
+                Timing::IndirectYIllegal => self.indirect_y_illegal(opinfo.1, opcode),
+                Timing::AbsoluteYIllegal => self.absolute_y_illegal(opinfo.1, opcode),
+                _ => unreachable!(),
+            };
         }
 
         let fetch_next = String::from("cache_interrupts!(self); let int = if self.take_interrupt {0} else {1}; self.state = u16::from(int * read_ab!(self)); self.pc += int as usize; self.ab = self.pc");
@@ -408,9 +398,12 @@ impl Generator {
             "self.ab = read_ab!(self) as usize; self.pc += 1; self.state = <>".to_string(),
             op,
         );
-        self.add_middle("self.mem.read_zp(self.ab); self.ab = (self.ab + self.x as usize) & 0xFF; self.state = <>".to_string());
-        self.add_middle("self.temp = self.mem.read_zp(self.ab) as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>".to_string());
-        self.add_middle("cache_interrupts!(self); self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | self.temp; self.state = <>;".to_string());
+        self.add_middle(
+            "self.ram[self.ab]; self.ab = (self.ab + self.x as usize) & 0xFF; self.state = <>"
+                .to_string(),
+        );
+        self.add_middle("self.temp = self.ram[self.ab] as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>".to_string());
+        self.add_middle("cache_interrupts!(self); self.ab = ((self.ram[self.ab] as usize) << 8) | self.temp; self.state = <>;".to_string());
         self.add_exit(format!(
             "self.check_interrupts(); let val = read_ab!(self); {} self.ab = self.pc; self.state = 0x100",
             i_code
@@ -423,11 +416,11 @@ impl Generator {
             String::from("self.ab = read_ab!(self) as usize; self.pc += 1; self.state = <>;");
 
         let cycle_2_state = self.update_state();
-        let cycle_1 = String::from("self.temp = self.mem.read_zp(self.ab) as usize; self.ab = (self.ab + 1usize) & 0xFF; self.state = <>;");
+        let cycle_1 = String::from("self.temp = self.ram[self.ab] as usize; self.ab = (self.ab + 1usize) & 0xFF; self.state = <>;");
 
         let cycle_3_state = self.update_state();
         let cycle_4_state = self.update_state();
-        let cycle_2 = String::from("cache_interrupts!(self); self.ab = (((self.mem.read_zp(self.ab) as usize) << 8) | ((self.temp + self.y as usize) & 0xFF)) as usize; self.state = if (self.temp + self.y as usize) < 0x100 {?<>} else {<>};");
+        let cycle_2 = String::from("cache_interrupts!(self); self.ab = (((self.ram[self.ab] as usize) << 8) | ((self.temp + self.y as usize) & 0xFF)) as usize; self.state = if (self.temp + self.y as usize) < 0x100 {?<>} else {<>};");
         let cycle_3 = String::from("cache_interrupts!(self); read_ab!(self); self.ab = (self.ab as u16).wrapping_add(0x100) as usize; self.state = <>;");
 
         self.state += 1;
@@ -453,11 +446,9 @@ impl Generator {
             "self.ab = read_ab!(self) as usize; self.pc += 1; self.state = <>;".to_string(),
             op,
         );
-        self.add_middle(
-            "self.temp = self.mem.read_zp(self.ab) as usize; self.state = <>;".to_string(),
-        );
-        self.add_middle(format!("cache_interrupts!(self); self.mem.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
-        self.add_exit("self.check_interrupts(); self.mem.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_middle("self.temp = self.ram[self.ab] as usize; self.state = <>;".to_string());
+        self.add_middle(format!("cache_interrupts!(self); self.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
+        self.add_exit("self.check_interrupts(); self.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
     }
 
     fn zero_page_x_rmw(&mut self, i_code: &str, op: usize) {
@@ -465,20 +456,21 @@ impl Generator {
             "self.ab = read_ab!(self) as usize; self.pc += 1; self.state = <>;".to_string(),
             op,
         );
-        self.add_middle("self.mem.read_zp(self.ab); self.ab = (self.ab + self.x as usize) & 0xFF; self.state = <>;".to_string());
         self.add_middle(
-            "self.temp = self.mem.read_zp(self.ab) as usize; self.state = <>;".to_string(),
+            "self.ram[self.ab]; self.ab = (self.ab + self.x as usize) & 0xFF; self.state = <>;"
+                .to_string(),
         );
-        self.add_middle(format!("cache_interrupts!(self); self.mem.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
-        self.add_exit("self.check_interrupts(); self.mem.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_middle("self.temp = self.ram[self.ab] as usize; self.state = <>;".to_string());
+        self.add_middle(format!("cache_interrupts!(self); self.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
+        self.add_exit("self.check_interrupts(); self.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
     }
 
     fn absolute_rmw(&mut self, i_code: &str, op: usize) {
         self.add_entry("self.temp = read_ab!(self) as usize; self.pc += 1; self.ab = self.pc; self.state = <>;".to_string(), op);
         self.add_middle("self.ab = ((read_ab!(self) as usize) << 8) | self.temp; self.pc += 1; self.state = <>;".to_string());
         self.add_middle("self.temp = read_ab!(self) as usize; self.state = <>;".to_string());
-        self.add_middle(format!("cache_interrupts!(self); self.mem.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
-        self.add_exit("self.check_interrupts(); self.mem.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string())
+        self.add_middle(format!("cache_interrupts!(self); self.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
+        self.add_exit("self.check_interrupts(); self.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string())
     }
 
     fn absolute_x_rmw(&mut self, i_code: &str, op: usize) {
@@ -486,8 +478,8 @@ impl Generator {
         self.add_middle("self.ab = ((read_ab!(self) as usize) << 8) | ((self.temp + self.x as usize) & 0xFF); self.pc += 1; self.state = <>;".to_string());
         self.add_middle("read_ab!(self); if (self.temp + self.x as usize) >= 0x100 {self.ab = (self.ab as u16).wrapping_add(0x100) as usize}; self.state = <>;".to_string());
         self.add_middle("self.temp = read_ab!(self) as usize; self.state = <>;".to_string());
-        self.add_middle(format!("cache_interrupts!(self); self.mem.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
-        self.add_exit("self.check_interrupts(); self.mem.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_middle(format!("cache_interrupts!(self); self.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
+        self.add_exit("self.check_interrupts(); self.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
     }
 
     fn zero_page_st(&mut self, i_code: &str, op: usize) {
@@ -507,7 +499,7 @@ impl Generator {
             "self.ab = read_ab!(self) as usize; self.pc += 1; self.state = <>;".to_string(),
             op,
         );
-        self.add_middle(format!("cache_interrupts!(self); self.mem.read_zp(self.ab); self.ab = (self.ab + self.{} as usize) & 0xFF; self.state = <>;", reg));
+        self.add_middle(format!("cache_interrupts!(self); self.ram[self.ab]; self.ab = (self.ab + self.{} as usize) & 0xFF; self.state = <>;", reg));
         self.add_exit(format!(
             "self.check_interrupts(); {} self.ab = self.pc; self.state = 0x100;",
             i_code
@@ -538,9 +530,12 @@ impl Generator {
             "self.ab = read_ab!(self) as usize; self.pc += 1; self.state = <>;".to_string(),
             op,
         );
-        self.add_middle("self.mem.read_zp(self.ab); self.ab = (self.ab + self.x as usize) & 0xFF; self.state = <>;".to_string());
-        self.add_middle("self.temp = self.mem.read_zp(self.ab) as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>;".to_string());
-        self.add_middle("cache_interrupts!(self); self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | self.temp; self.state = <>;".to_string());
+        self.add_middle(
+            "self.ram[self.ab]; self.ab = (self.ab + self.x as usize) & 0xFF; self.state = <>;"
+                .to_string(),
+        );
+        self.add_middle("self.temp = self.ram[self.ab] as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>;".to_string());
+        self.add_middle("cache_interrupts!(self); self.ab = ((self.ram[self.ab] as usize) << 8) | self.temp; self.state = <>;".to_string());
         self.add_exit(format!(
             "self.check_interrupts(); {} self.ab = self.pc; self.state = 0x100;",
             i_code
@@ -552,8 +547,8 @@ impl Generator {
             "self.ab = read_ab!(self) as usize; self.pc += 1; self.state = <>;".to_string(),
             op,
         );
-        self.add_middle("self.temp = self.mem.read_zp(self.ab) as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>;".to_string());
-        self.add_middle("self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | ((self.temp + self.y as usize) & 0xFF); self.state = <>;".to_string());
+        self.add_middle("self.temp = self.ram[self.ab] as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>;".to_string());
+        self.add_middle("self.ab = ((self.ram[self.ab] as usize) << 8) | ((self.temp + self.y as usize) & 0xFF); self.state = <>;".to_string());
         self.add_middle("cache_interrupts!(self); read_ab!(self); if self.temp + self.y as usize >= 0x100 {self.ab = (self.ab as u16).wrapping_add(0x100) as usize;} self.state = <>;".to_string());
         self.add_exit(format!(
             "self.check_interrupts(); {} self.ab = self.pc; self.state = 0x100;",
@@ -566,15 +561,18 @@ impl Generator {
             "self.ab = read_ab!(self) as usize; self.pc += 1; self.state = <>;".to_string(),
             op,
         );
-        self.add_middle("self.mem.read_zp(self.ab); self.ab = (self.ab + self.x as usize) & 0xFF; self.state = <>;".to_string());
-        self.add_middle("self.temp = self.mem.read_zp(self.ab) as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>;".to_string());
         self.add_middle(
-            "self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | self.temp; self.state = <>;"
+            "self.ram[self.ab]; self.ab = (self.ab + self.x as usize) & 0xFF; self.state = <>;"
+                .to_string(),
+        );
+        self.add_middle("self.temp = self.ram[self.ab] as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>;".to_string());
+        self.add_middle(
+            "self.ab = ((self.ram[self.ab] as usize) << 8) | self.temp; self.state = <>;"
                 .to_string(),
         );
         self.add_middle("self.temp = read_ab!(self) as usize; self.state = <>;".to_string());
-        self.add_middle(format!("cache_interrupts!(self); self.mem.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
-        self.add_exit("self.check_interrupts(); self.mem.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_middle(format!("cache_interrupts!(self); self.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
+        self.add_exit("self.check_interrupts(); self.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
     }
 
     fn indirect_y_illegal(&mut self, i_code: &str, op: usize) {
@@ -582,15 +580,15 @@ impl Generator {
             "self.ab = read_ab!(self) as usize; self.pc += 1; self.state = <>;".to_string(),
             op,
         );
-        self.add_middle("self.temp = self.mem.read_zp(self.ab) as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>;".to_string());
-        self.add_middle("self.ab = ((self.mem.read_zp(self.ab) as usize) << 8) | ((self.temp + self.y as usize) & 0xFF); self.state = <>;".to_string());
+        self.add_middle("self.temp = self.ram[self.ab] as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>;".to_string());
+        self.add_middle("self.ab = ((self.ram[self.ab] as usize) << 8) | ((self.temp + self.y as usize) & 0xFF); self.state = <>;".to_string());
         self.add_middle("read_ab!(self); if (self.temp + self.y as usize) >= 0x100 {self.ab = (self.ab as u16).wrapping_add(0x100) as usize}; self.state = <>;".to_string());
         self.add_middle("self.temp = read_ab!(self) as usize; self.state = <>;".to_string());
         self.add_middle(format!(
-            "cache_interrupts!(self); self.mem.write(self.ab, self.temp as u8); {} self.state = <>;",
+            "cache_interrupts!(self); self.write(self.ab, self.temp as u8); {} self.state = <>;",
             i_code
         ));
-        self.add_exit("self.check_interrupts(); self.mem.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_exit("self.check_interrupts(); self.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
     }
 
     fn absolute_y_illegal(&mut self, i_code: &str, op: usize) {
@@ -599,10 +597,10 @@ impl Generator {
         self.add_middle("read_ab!(self); if (self.temp + self.y as usize) >= 0x100 {self.ab = (self.ab as u16).wrapping_add(0x100) as usize;}; self.state = <>;".to_string());
         self.add_middle("self.temp = read_ab!(self) as usize; self.state = <>;".to_string());
         self.add_middle(format!(
-            "cache_interrupts!(self); self.mem.write(self.ab, self.temp as u8); {} self.state = <>;",
+            "cache_interrupts!(self); self.write(self.ab, self.temp as u8); {} self.state = <>;",
             i_code
         ));
-        self.add_exit("self.check_interrupts(); self.mem.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_exit("self.check_interrupts(); self.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
     }
 
     fn update_state(&mut self) -> usize {

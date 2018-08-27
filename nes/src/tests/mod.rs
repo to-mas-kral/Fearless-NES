@@ -11,33 +11,22 @@ use super::nes::Nes;
 
 use self::test::Bencher;
 #[cfg(test)]
-use super::nes::{cpu, mapper, memory, ppu, InterruptBus};
+use super::nes::{cpu, mapper, ppu, InterruptBus};
 use nes::cpu::Tick;
 
 use std::io::BufRead;
 use std::io::BufReader;
 
 #[bench]
-fn blargg_bencher_abs_xy(b: &mut Bencher) {
+fn donkey_kong_bencher(b: &mut Bencher) {
     let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let bench_path = Path::new(&base_dir).join("src/tests/blargg_instr/rom_singles/07-abs_xy.nes");
+    let bench_path =
+        Path::new(&base_dir).join("src/tests/instr_timing/rom_singles/1-instr_timing.nes");
 
     let mut nes = Nes::new(&bench_path).expect("error when creating bencher NES instance");
 
     b.iter(|| {
-        nes.cpu.tick();
-    });
-}
-
-#[bench]
-fn blargg_bencher_zp_xy(b: &mut Bencher) {
-    let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let bench_path = Path::new(&base_dir).join("src/tests/blargg_instr/rom_singles/05-zp_xy.nes");
-
-    let mut nes = Nes::new(&bench_path).expect("error when creating bencher NES instance");
-
-    b.iter(|| {
-        nes.cpu.tick();
+        nes.run_one_frame();
     });
 }
 
@@ -116,7 +105,7 @@ macro_rules! blargg_test {
                     nes.cpu.tick();
                 }
 
-                let test_state = nes.cpu.mem.read_direct(0x6000);
+                let test_state = nes.cpu.read_direct(0x6000);
                 if test_state == 0x80 {
                     test_running = true;
                 }
@@ -128,8 +117,8 @@ macro_rules! blargg_test {
 
             let mut s = String::new();
             let mut p: usize = 0x6004;
-            while nes.cpu.mem.read_direct(p) != 0 {
-                s.push(nes.cpu.mem.read_direct(p) as char);
+            while nes.cpu.read_direct(p) != 0 {
+                s.push(nes.cpu.read_direct(p) as char);
                 p += 1;
             }
 

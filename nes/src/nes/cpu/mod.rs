@@ -1,7 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::memory::Memory;
+use super::apu::Apu;
+use super::controller::Controller;
+use super::mapper::Mapper;
+use super::ppu::Ppu;
 use super::InterruptBus;
 
 mod state_machine;
@@ -34,6 +37,9 @@ pub struct Cpu {
     pub halt: bool,
     pub state: u16,
 
+    odd_cycle: bool,
+    dma_cycles: u16,
+
     pub ab: usize, //Address bus
     temp: usize,
 
@@ -44,11 +50,22 @@ pub struct Cpu {
     interrupt_type: InterruptType,
     interrupt_bus: Rc<RefCell<InterruptBus>>,
 
-    pub mem: Memory, //memory map
+    ram: [u8; 0x800],
+    open_bus: u8,
+    pub apu: Apu,
+    pub controller: Rc<RefCell<Controller>>,
+    mapper: Rc<RefCell<Box<Mapper>>>,
+    pub ppu: Ppu,
 }
 
 impl Cpu {
-    pub fn new(mem: Memory, interrupt_bus: Rc<RefCell<InterruptBus>>) -> Cpu {
+    pub fn new(
+        interrupt_bus: Rc<RefCell<InterruptBus>>,
+        apu: Apu,
+        controller: Rc<RefCell<Controller>>,
+        mapper: Rc<RefCell<Box<Mapper>>>,
+        ppu: Ppu,
+    ) -> Cpu {
         Cpu {
             a: 0,
             x: 0,
@@ -66,6 +83,9 @@ impl Cpu {
             halt: false,
             state: 0x100,
 
+            odd_cycle: true,
+            dma_cycles: 0,
+
             ab: 0,
             temp: 0,
 
@@ -76,59 +96,21 @@ impl Cpu {
             interrupt_type: InterruptType::None,
             interrupt_bus,
 
-            mem,
+            ram: [0; 0x800],
+            open_bus: 0,
+            apu,
+            controller,
+            mapper,
+            ppu,
         }
     }
 
-    pub fn debug_info(&mut self) -> String {
-        let mut status: u8 = 1 << 5;
-        status |= (if self.n { 1 } else { 0 }) << 7;
-        status |= (if self.v { 1 } else { 0 }) << 6;
-        status |= (if self.d { 1 } else { 0 }) << 3;
-        status |= (if self.i { 1 } else { 0 }) << 2;
-        status |= (if self.z { 1 } else { 0 }) << 1;
-        status |= if self.c { 1 } else { 0 };
-
-        format!(
-            "{:X} {:X} A:{:X} X:{:X} Y:{:X} P:{:X} SP:{:X}",
-            self.pc,
-            self.mem.read(self.pc),
-            self.a,
-            self.x,
-            self.y,
-            status,
-            self.sp,
-        )
-    }
-
-    pub fn debug_timing(&mut self) -> String {
-        let mut status: u8 = 0;
-        status |= (if self.n { 1 } else { 0 }) << 7;
-        status |= (if self.v { 1 } else { 0 }) << 6;
-        status |= (if self.d { 1 } else { 0 }) << 3;
-        status |= (if self.i { 1 } else { 0 }) << 2;
-        status |= (if self.z { 1 } else { 0 }) << 1;
-        status |= if self.c { 1 } else { 0 };
-
-        format!(
-            "{:X} ${:X} A:{:X} X:{:X} Y:{:X} P:{:X} SP:{:X}",
-            self.pc - 1,
-            self.state,
-            self.a,
-            self.x,
-            self.y,
-            status,
-            self.sp,
-        )
-    }
-
     pub fn gen_reset(&mut self) {
-        //TODO: write 0 to 0x4015
         self.state = 0;
         self.take_interrupt = true;
         self.pending_reset = true;
         self.interrupt_type = InterruptType::Reset;
-        self.mem.write(0x4015, 0);
+        self.write(0x4015, 0);
         self.pending_reset = false;
     }
 
@@ -141,6 +123,7 @@ impl Cpu {
         }
 
         if self.cached_nmi {
+            self.cached_nmi = false;
             self.take_interrupt = true;
             self.interrupt_type = InterruptType::Nmi;
             self.interrupt_bus.borrow_mut().nmi_signal = false;
@@ -166,6 +149,59 @@ impl Cpu {
             InterruptType::Irq | InterruptType::None => 0xFFFE,
             InterruptType::Nmi => 0xFFFA,
             InterruptType::Reset => 0xFFFC,
+        }
+    }
+
+    #[inline]
+    pub fn read(&mut self, index: usize) -> u8 {
+        self.open_bus = match index {
+            0..=0x1FFF => self.ram[index & 0x7FF],
+            0x2000..=0x3FFF => self.ppu.read_reg(index),
+            0x4000..=0x4014 => self.open_bus,
+            0x4015 => self.apu.read_status(),
+            0x4016 | 0x4017 => {
+                let tmp = self.controller.borrow_mut().read_reg();
+                (self.open_bus & 0xE0) | tmp
+            }
+            0x4018..=0x401F => self.open_bus,
+            0x4020..=0xFFFF => self.mapper.borrow_mut().read_prg(index - 0x4020),
+            _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
+        };
+
+        debug_log!(
+            "memory map - reading 0x{:X} from 0x{:X}",
+            (self.open_bus),
+            index
+        );
+
+        self.open_bus
+    }
+
+    #[inline]
+    pub fn write(&mut self, index: usize, val: u8) {
+        debug_log!("memory map - writing 0x{:X} to 0x{:X}", val, index);
+
+        match index {
+            0..=0x1FFF => self.ram[index & 0x7FF] = val,
+            0x2000..=0x3FFF => self.ppu.write_reg(index, val),
+            0x4000..=0x4013 => self.apu.write_reg(index, val),
+            0x4014 => self.state = 0x101,
+            0x4015 => self.apu.write_reg(index, val),
+            0x4016 => self.controller.borrow_mut().write_reg(val),
+            0x4017 => self.apu.write_reg(index, val),
+            0x4018..=0x401F => (),
+            0x4020..=0xFFFF => self.mapper.borrow_mut().write_prg(index - 0x4020, val),
+            _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
+        }
+    }
+
+    #[inline]
+    pub fn read_direct(&mut self, index: usize) -> u8 {
+        debug_log!("memory map - reading direct from 0x{:X}", index);
+        match index {
+            0..=0x1FFF => self.ram[index & 0x7FF],
+            0x4020..=0xFFFF => self.mapper.borrow_mut().read_prg_direct(index - 0x4020),
+            _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
         }
     }
 
@@ -354,17 +390,17 @@ impl Cpu {
 
     #[inline]
     fn sta(&mut self) {
-        self.mem.write(self.ab, self.a);
+        self.write(self.ab, self.a);
     }
 
     #[inline]
     fn stx(&mut self) {
-        self.mem.write(self.ab, self.x);
+        self.write(self.ab, self.x);
     }
 
     #[inline]
     fn sty(&mut self) {
-        self.mem.write(self.ab, self.y);
+        self.write(self.ab, self.y);
     }
 
     #[inline]
@@ -405,7 +441,7 @@ impl Cpu {
     #[inline]
     fn aax(&mut self) {
         let res = self.x & self.a;
-        self.mem.write(self.ab, res);
+        self.write(self.ab, res);
     }
 
     #[inline]
@@ -482,21 +518,19 @@ impl Cpu {
     #[inline]
     fn ahx(&mut self) {
         let result = self.a & self.x & ((self.ab >> 8) + 1) as u8;
-        self.mem.write(self.ab, result);
+        self.write(self.ab, result);
     }
 
     #[inline]
     fn shx(&mut self) {
         let result = ((self.ab >> 8) as u8).wrapping_add(1) & self.x;
-        self.mem
-            .write((usize::from(result) << 8) | (self.ab & 0xFF), self.x);
+        self.write((usize::from(result) << 8) | (self.ab & 0xFF), self.x);
     }
 
     #[inline]
     fn shy(&mut self) {
         let result = ((self.ab >> 8) as u8).wrapping_add(1) & self.y;
-        self.mem
-            .write((usize::from(result) << 8) | (self.ab & 0xFF), self.y);
+        self.write((usize::from(result) << 8) | (self.ab & 0xFF), self.y);
     }
 
     #[inline]
@@ -511,7 +545,7 @@ impl Cpu {
     fn tas(&mut self) {
         self.sp = (self.a & self.x) as usize;
         let result = self.sp & ((self.ab >> 8) + 1);
-        self.mem.write(self.ab, result as u8);
+        self.write(self.ab, result as u8);
     }
 
     #[inline]
@@ -545,13 +579,13 @@ impl Cpu {
     }
 
     #[inline]
-    fn push(&mut self, adr: usize, data: u8) {
-        self.mem.write_zp(adr, data);
+    fn push(&mut self, adr: usize, val: u8) {
+        self.ram[adr] = val;
     }
 
     #[inline]
     fn pop(&mut self, adr: usize) -> u8 {
-        self.mem.read_zp(adr)
+        self.ram[adr]
     }
 
     #[inline]

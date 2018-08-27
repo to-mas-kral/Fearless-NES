@@ -72,22 +72,6 @@ static PALETTE: [(u8, u8, u8); 64] = [
     (0x00, 0x00, 0x00),
 ];
 
-pub enum SpriteSize {
-    _8x8,
-    _8x16,
-}
-
-struct Sprite {
-    addr: u8, //Index in OAM (object attribute memory)
-    x: u8,
-    y: u8,
-    tile: u8,
-    attr: u8,
-    data_l: u8, //Tile data (low)
-    data_h: u8, //Tile data (high)
-}
-
-#[derive(Clone, Copy)]
 enum RenderState {
     PreRender,
     Render,
@@ -95,15 +79,55 @@ enum RenderState {
     VBlank,
 }
 
+#[derive(Clone, Copy)]
+struct Sprite {
+    y: u8,
+    x: u8,
+    index: u16,
+    palette: u8,
+    priority: bool, //O - in front, 1 - behind background
+    horizontal_flip: bool,
+    vertical_flip: bool,
+    tile_low: u8,
+    tile_high: u8,
+}
+
+impl Sprite {
+    pub fn new() -> Sprite {
+        Sprite {
+            y: 0,
+            x: 0,
+            index: 0,
+            palette: 0,
+            priority: false,
+            horizontal_flip: false,
+            vertical_flip: false,
+            tile_low: 0,
+            tile_high: 0,
+        }
+    }
+}
+
 pub struct Ppu {
-    pub output_buffer: [u8; 256 * 240],
-    pub frame: Rc<RefCell<Frame>>,
+    output_buffer: [u8; 256 * 240],
+    frame: Rc<RefCell<Frame>>,
 
     interrupt_bus: Rc<RefCell<InterruptBus>>,
-    nmi_reset: bool,
+    prev_nmi: bool,
 
     pub oam: [u8; 0x100],
-    pub palettes: [u8; 0x20],
+    secondary_oam: [u8; 0x20],
+    palettes: [u8; 0x20],
+
+    oamdata_buffer: u8,
+    sprite_eval_count: u8,
+    sprite_eval_state: u8,
+    sprite_fetch_step: u8,
+    sprite_in_range: bool,
+    sprites_found: u8,
+
+    sprite_index: u8,
+    sprite_buffer: [Sprite; 8],
 
     mapper: Rc<RefCell<Box<Mapper>>>,
 
@@ -111,9 +135,9 @@ pub struct Ppu {
     temp_vram_addr: usize,
     x_fine_scroll: u8,
 
-    pub xpos: u16,
-    pub scanline: u16,
-    pub odd_frame: bool,
+    xpos: u16,
+    scanline: u16,
+    odd_frame: bool,
 
     nametable_byte: u8,
     attr_table_byte: u8,
@@ -136,7 +160,7 @@ pub struct Ppu {
     addr_increment: usize,
     sp_pattern_table_addr: usize,
     bg_pattern_table_addr: usize,
-    sp_size: SpriteSize,
+    sp_size: u8,
     nmi_on_vblank: bool,
 
     greyscale: bool,
@@ -167,14 +191,25 @@ impl Ppu {
             frame,
 
             interrupt_bus,
-            nmi_reset: false,
+            prev_nmi: false,
 
             xpos: 0,
             scanline: 0,
             odd_frame: false,
 
             oam: [0; 0x100],
+            secondary_oam: [0; 0x20],
             palettes,
+
+            oamdata_buffer: 0,
+            sprite_eval_count: 0,
+            sprite_eval_state: 1,
+            sprite_fetch_step: 0,
+            sprite_in_range: false,
+            sprites_found: 0,
+
+            sprite_index: 0,
+            sprite_buffer: [Sprite::new(); 8],
 
             mapper,
 
@@ -203,7 +238,7 @@ impl Ppu {
             addr_increment: 1,
             sp_pattern_table_addr: 0,
             bg_pattern_table_addr: 0,
-            sp_size: SpriteSize::_8x8,
+            sp_size: 8,
             nmi_on_vblank: false,
 
             greyscale: false,
@@ -219,6 +254,7 @@ impl Ppu {
     }
 
     //TODO: latch decay ?
+    //TODO: open bus masks
     #[inline]
     pub fn read_reg(&mut self, addr: usize) -> u8 {
         match addr & 7 {
@@ -343,11 +379,7 @@ impl Ppu {
         self.addr_increment = if val & (1 << 2) == 0 { 1 } else { 32 };
         self.sp_pattern_table_addr = if val & (1 << 3) == 0 { 0 } else { 0x1000 };
         self.bg_pattern_table_addr = if val & (1 << 4) == 0 { 0 } else { 0x1000 };
-        self.sp_size = if val & (1 << 5) == 0 {
-            SpriteSize::_8x8
-        } else {
-            SpriteSize::_8x16
-        };
+        self.sp_size = if val & (1 << 5) == 0 { 8 } else { 16 };
         self.nmi_on_vblank = val & (1 << 7) != 0;
     }
 
@@ -383,6 +415,16 @@ impl Ppu {
         self.write_toggle = false;
         self.latch = self.ppustatus;
         self.ppustatus &= 0x7F;
+
+        if self.scanline == 241 && self.xpos < 3 {
+            //FIXME: suppress NMI
+            self.latch |= 0x80;
+            self.interrupt_bus.borrow_mut().nmi_signal = false;
+
+            if self.xpos == 0 {
+                self.latch &= 0x7F;
+            }
+        }
     }
 
     #[inline]
@@ -400,7 +442,7 @@ impl Ppu {
     #[inline]
     fn write_oamdata(&mut self) {
         //TODO: ignore writes during rendering
-        //TODO: implement other trickery involved with this register
+        //TODO: OAM memory decay
         self.oam[self.oamaddr as usize] = self.latch;
         self.oamaddr = self.oamaddr.wrapping_add(1);
     }
@@ -512,7 +554,6 @@ impl Ppu {
     //https://wiki.nesdev.com/w/index.php/PPU_rendering
     //http://wiki.nesdev.com/w/index.php/PPU_scrolling#Tile_and_attribute_fetching
     //https://wiki.nesdev.com/w/images/d/d1/Ntsc_timing.png
-
     #[inline]
     fn scanline_tick(&mut self, state: RenderState) {
         match state {
@@ -531,10 +572,14 @@ impl Ppu {
                     }
                     257 => {
                         self.t_to_v();
+                        self.fetch_sprites();
                     }
+                    258..=279 => self.fetch_sprites(),
                     280..=304 => {
                         self.v_from_t();
+                        self.fetch_sprites();
                     }
+                    305..=320 => self.fetch_sprites(),
                     321 => {
                         self.fetch_bg();
                     }
@@ -568,22 +613,28 @@ impl Ppu {
                 1 => {
                     self.fetch_bg();
                     self.draw_pixel();
+                    //TODO: secondary clear cycle-accurate ?
+                    self.secondary_oam = [0xFF; 0x20];
                 }
                 2..=256 => {
                     self.shift_tile_registers();
                     self.fetch_bg();
                     if self.xpos == 256 {
                         self.y_increment();
+                        self.sprite_evaluation();
+                    } else if self.xpos >= 65 {
+                        self.sprite_evaluation();
                     }
+
                     self.draw_pixel();
                 }
                 257 => {
                     self.t_to_v();
                     self.shift_tile_registers();
+                    self.fetch_sprites();
                 }
-                321 => {
-                    self.fetch_bg();
-                }
+                258..=320 => self.fetch_sprites(),
+                321 => self.fetch_bg(),
                 322..=337 => {
                     self.shift_tile_registers();
                     self.fetch_bg();
@@ -624,7 +675,6 @@ impl Ppu {
     //||| || +++++-------- coarse Y scroll
     //||| ++-------------- nametable select
     //+++----------------- fine Y scroll
-
     #[inline]
     fn fetch_bg(&mut self) {
         if self.rendering_enabled {
@@ -670,6 +720,178 @@ impl Ppu {
     }
 
     #[inline]
+    fn fetch_sprites(&mut self) {
+        if self.rendering_enabled {
+            self.oamaddr = 0;
+            match (self.xpos - 1) & 7 {
+                0 => {
+                    self.read(self.nametable_addr());
+                }
+                2 => {
+                    self.read(self.attr_table_addr());
+                }
+                3 => self.load_sprite(),
+                4 => {
+                    let index = self.sprite_buffer[self.sprite_index as usize].index;
+                    self.sprite_buffer[self.sprite_index as usize].tile_low =
+                        self.read(index as usize);
+                }
+                6 => {
+                    let index = self.sprite_buffer[self.sprite_index as usize].index;
+                    self.sprite_buffer[self.sprite_index as usize].tile_low =
+                        self.read(index as usize + 8);
+                    self.sprite_index = self.sprite_index & 7;
+                }
+                _ => (),
+            }
+        }
+    }
+
+    #[inline]
+    fn load_sprite(&mut self) {
+        let sprite_addr = 4 * self.sprite_index as usize;
+        let sprite = &mut self.sprite_buffer[self.sprite_index as usize];
+        sprite.y = self.secondary_oam[sprite_addr];
+        sprite.x = self.secondary_oam[sprite_addr + 3];
+
+        let attributes = self.secondary_oam[sprite_addr + 2];
+        sprite.vertical_flip = attributes & 0x80 != 0;
+        sprite.horizontal_flip = attributes & 0x40 != 0;
+        sprite.priority = attributes & 0x20 != 0;
+        sprite.palette = ((attributes & 3) << 2) | 0x10;
+
+        let scanline = if self.scanline == 261 {
+            -1
+        } else {
+            self.scanline as i16
+        };
+        let mut y_offset = if sprite.vertical_flip {
+            (self.sp_size - 1) as i16 - (scanline - sprite.y as i16)
+        } else {
+            scanline - sprite.y as i16
+        };
+
+        let index = self.secondary_oam[sprite_addr + 1];
+        sprite.index = if self.sp_size == 8 {
+            self.sp_pattern_table_addr as u16 | (u16::from(index) << 4) + y_offset as u16
+        } else {
+            if y_offset >= 8 {
+                y_offset += 8;
+            }
+            let pattern_table_addr = if index & 1 != 0 { 0x1000 } else { 0 };
+            pattern_table_addr | (u16::from(index & !1) << 4) + y_offset as u16
+        };
+    }
+
+    //http://wiki.nesdev.com/w/index.php/PPU_sprite_evaluation
+    #[inline]
+    fn sprite_evaluation(&mut self) {
+        //TODO: If the sprite address (OAMADDR, $2003) is not zero at the beginning of
+        //the pre-render scanline,on the 2C02 an OAM hardware refresh bug will cause the
+        //first 8 bytes of OAM to be overwritten by the 8 bytes beginning at OAMADDR & $F8 before sprite evaluation begins.[1][2]
+        if self.rendering_enabled {
+            if self.xpos == 65 {
+                self.sprite_eval_count = 0;
+                self.oamdata_buffer = 0;
+                self.sprites_found = 0;
+                self.sprite_fetch_step = 0;
+                self.sprite_eval_state = 1;
+            }
+
+            if self.xpos & 1 != 0 {
+                self.oamdata_buffer = self.oam[self.oamaddr as usize];
+            } else {
+                match self.sprite_eval_state {
+                    1 => {
+                        //1. Starting at n = 0, read a sprite's Y-coordinate (OAM[n][0], copying it to the next open slot
+                        //in secondary OAM (unless 8 sprites have been found, in which case the write is ignored).
+                        if self.sprites_found < 8 {
+                            self.secondary_oam[4 * self.sprites_found as usize] =
+                                self.oamdata_buffer;
+
+                            self.sprite_in_range = self.scanline >= self.oamdata_buffer as u16
+                                && self.scanline < self.oamdata_buffer as u16 + self.sp_size as u16;
+
+                            if !self.sprite_in_range {
+                                self.sprite_eval_state = 2;
+                            } else {
+                                self.sprite_fetch_step = 1;
+                                self.sprite_eval_state = 5;
+                            }
+                        }
+                    }
+                    2 => {
+                        //2. Increment n.
+                        self.sprite_eval_count += 1;
+                        if self.sprite_eval_count == 65 {
+                            self.sprite_eval_count = 0;
+                            //2a. If n has overflowed back to zero (all 64 sprites evaluated), go to 4.
+                            self.sprite_eval_state = 4;
+                        } else if self.sprites_found < 8 {
+                            //2b. If less than 8 sprites have been found, go to 1.
+                            self.sprite_eval_state = 1;
+                        } else if self.sprites_found == 8 {
+                            //2c. If exactly 8 sprites have been found, disable writes to secondary OAM because it is full.
+                            //This causes sprites in back to drop out.
+                            self.sprite_eval_state = 3;
+                        }
+                    }
+                    3 => {
+                        //3. Starting at m = 0, evaluate OAM[n][m] as a Y-coordinate.
+                        if self.scanline >= self.oamdata_buffer as u16
+                            && self.scanline < (self.oamdata_buffer + self.sp_size) as u16
+                        {
+                            self.ppustatus |= 0x20;
+                            self.sprite_fetch_step = 1;
+                            self.sprite_eval_state = 8;
+                        } else {
+                            //3b. If the value is not in range, increment n and m (without carry).
+                            //If n overflows to 0, go to 4; otherwise go to 3.
+                            self.sprite_eval_count += 1;
+                            self.sprite_fetch_step += 1;
+                            if self.sprite_eval_count == 65 {
+                                self.sprite_eval_count = 0;
+                                self.sprite_eval_state = 4;
+                            }
+                        }
+                    }
+                    4 => {
+                        //4. Attempt (and fail) to copy OAM[n][0] into the next free slot in secondary OAM,
+                        //and increment n (repeat until HBLANK is reached).
+                        self.sprite_eval_count += 1;
+                    }
+                    5 => {
+                        //1a. If Y-coordinate is in range, copy remaining bytes of sprite data (OAM[n][1] thru OAM[n][3]) into secondary OAM.
+                        self.secondary_oam
+                            [(4 * self.sprites_found + self.sprite_fetch_step) as usize] =
+                            self.oamdata_buffer;
+                        self.sprite_fetch_step += 1;
+
+                        if self.sprite_fetch_step == 4 {
+                            self.sprite_fetch_step = 0;
+                            self.sprites_found += 1;
+                            self.sprite_eval_state = 2;
+                        }
+                    }
+                    6 => {
+                        //3a. If the value is in range, set the sprite overflow flag in $2002 and read the next 3 entries of
+                        //OAM (incrementing 'm' after each byte and incrementing 'n' when 'm' overflows); if m = 3, increment n.
+                        self.sprite_fetch_step += 1;
+
+                        if self.sprite_fetch_step == 4 {
+                            self.sprite_fetch_step = 0;
+                            self.sprite_eval_count += 1;
+                            self.sprite_eval_state = 4;
+                        }
+                    }
+                    _ => (),
+                }
+                self.oamaddr = 4 * self.sprite_eval_count + self.sprite_fetch_step;
+            }
+        }
+    }
+
+    #[inline]
     fn handle_vblank(&mut self) {
         match (self.scanline, self.xpos) {
             (241, 0) => (),
@@ -681,19 +903,19 @@ impl Ppu {
             }
             (260, 340) => self.interrupt_bus.borrow_mut().nmi_signal = false,
             (241..=260, _) => {
-                if !self.nmi_on_vblank {
-                    self.nmi_reset = true;
-                } else if self.nmi_reset && self.nmi_on_vblank && self.ppustatus & 0x80 != 0 {
-                    self.nmi_reset = false;
+                let current_nmi = self.nmi_on_vblank && (self.ppustatus & 0x80) != 0;
+                if self.prev_nmi && current_nmi {
                     self.interrupt_bus.borrow_mut().nmi_signal = true;
+                } else if !self.prev_nmi {
+                    self.interrupt_bus.borrow_mut().nmi_signal = false;
                 }
+                self.prev_nmi = current_nmi;
             }
             _ => (),
         }
     }
 
     //Taken from: http://wiki.nesdev.com/w/index.php/PPU_scrolling
-
     #[inline]
     fn y_increment(&mut self) {
         if self.rendering_enabled {
@@ -717,7 +939,6 @@ impl Ppu {
     }
 
     //Taken from: http://wiki.nesdev.com/w/index.php/PPU_scrolling
-
     #[inline]
     fn coarse_x_increment(&mut self) {
         if (self.vram_addr & 0x1F) == 31 {
