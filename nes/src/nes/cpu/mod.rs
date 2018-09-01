@@ -20,6 +20,28 @@ enum InterruptType {
     None,
 }
 
+struct Dma {
+    cycles: u16,
+    oam: bool,
+    dmc: bool,
+    hijack_read: bool,
+    copy_buffer: u8,
+    addr: usize,
+}
+
+impl Dma {
+    pub fn new() -> Dma {
+        Dma {
+            cycles: 0,
+            oam: false,
+            dmc: false,
+            hijack_read: false,
+            copy_buffer: 0,
+            addr: 0,
+        }
+    }
+}
+
 pub struct Cpu {
     a: u8,         //Accumulator
     x: u8,         //X index
@@ -36,12 +58,12 @@ pub struct Cpu {
 
     pub halt: bool,
     pub state: u16,
-
     odd_cycle: bool,
-    dma_cycles: u16,
 
     pub ab: usize, //Address bus
+    db: u8,        //Data bus
     temp: usize,
+    open_bus: u8,
 
     cached_irq: bool,
     cached_nmi: bool,
@@ -51,7 +73,7 @@ pub struct Cpu {
     interrupt_bus: Rc<RefCell<InterruptBus>>,
 
     ram: [u8; 0x800],
-    open_bus: u8,
+    dma: Dma,
     pub apu: Apu,
     pub controller: Rc<RefCell<Controller>>,
     mapper: Rc<RefCell<Box<Mapper>>>,
@@ -82,11 +104,10 @@ impl Cpu {
 
             halt: false,
             state: 0x100,
-
-            odd_cycle: true,
-            dma_cycles: 0,
+            odd_cycle: false,
 
             ab: 0,
+            db: 0,
             temp: 0,
 
             cached_irq: false,
@@ -97,6 +118,7 @@ impl Cpu {
             interrupt_bus,
 
             ram: [0; 0x800],
+            dma: Dma::new(),
             open_bus: 0,
             apu,
             controller,
@@ -105,6 +127,12 @@ impl Cpu {
         }
     }
 
+    pub fn debug_info(&mut self) -> String {
+        format!(
+            "A: 0x{:X}, X: 0x{:X}, Y: 0x{:X}, pc: 0x{:X}, sp: 0x{:X}, ab: 0x{:X}",
+            self.a, self.x, self.y, self.pc, self.sp, self.ab
+        )
+    }
     pub fn gen_reset(&mut self) {
         self.state = 0;
         self.take_interrupt = true;
@@ -153,7 +181,7 @@ impl Cpu {
     }
 
     #[inline]
-    pub fn read(&mut self, index: usize) -> u8 {
+    pub fn read(&mut self, index: usize) {
         self.open_bus = match index {
             0..=0x1FFF => self.ram[index & 0x7FF],
             0x2000..=0x3FFF => self.ppu.read_reg(index),
@@ -174,7 +202,7 @@ impl Cpu {
             index
         );
 
-        self.open_bus
+        self.db = self.open_bus;
     }
 
     #[inline]
@@ -185,7 +213,10 @@ impl Cpu {
             0..=0x1FFF => self.ram[index & 0x7FF] = val,
             0x2000..=0x3FFF => self.ppu.write_reg(index, val),
             0x4000..=0x4013 => self.apu.write_reg(index, val),
-            0x4014 => self.state = 0x101,
+            0x4014 => {
+                self.dma.oam = true;
+                self.dma.addr = val as usize;
+            }
             0x4015 => self.apu.write_reg(index, val),
             0x4016 => self.controller.borrow_mut().write_reg(val),
             0x4017 => self.apu.write_reg(index, val),
@@ -202,6 +233,37 @@ impl Cpu {
             0..=0x1FFF => self.ram[index & 0x7FF],
             0x4020..=0xFFFF => self.mapper.borrow_mut().read_prg_direct(index - 0x4020),
             _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
+        }
+    }
+
+    //forums.nesdev.com/viewtopic.php?f=3&t=14120
+    #[inline]
+    pub fn dma(&mut self) {
+        if self.dma.cycles == 0 {
+            self.dma.hijack_read = true;
+        } else {
+            self.dma.hijack_read = false;
+            if self.dma.oam {
+                if self.dma.cycles == 1 && self.odd_cycle {
+                    self.read(self.ab);
+                } else {
+                    if self.dma.cycles & 1 != 0 {
+                        self.read((self.dma.addr << 8) + (self.dma.cycles as usize >> 1));
+                        self.dma.copy_buffer = self.db
+                    } else {
+                        self.write(0x2004, self.dma.copy_buffer);
+                    }
+                    self.dma.cycles += 1;
+
+                    if self.dma.cycles == 0x201 {
+                        self.dma.oam = false;
+                        self.dma.cycles = 0;
+                    }
+                }
+            }
+            if self.dma.dmc {
+                unimplemented!("DMC DMA is unimplemented");
+            }
         }
     }
 
@@ -579,16 +641,6 @@ impl Cpu {
     }
 
     #[inline]
-    fn push(&mut self, adr: usize, val: u8) {
-        self.ram[adr] = val;
-    }
-
-    #[inline]
-    fn pop(&mut self, adr: usize) -> u8 {
-        self.ram[adr]
-    }
-
-    #[inline]
     fn push_status(&mut self, brk_php: bool) {
         let mut status: u8 = 1 << 5;
         status |= (if self.n { 1 } else { 0 }) << 7;
@@ -598,12 +650,11 @@ impl Cpu {
         status |= (if self.i { 1 } else { 0 }) << 2;
         status |= (if self.z { 1 } else { 0 }) << 1;
         status |= if self.c { 1 } else { 0 };
-        self.push(self.ab, status);
+        self.write(self.ab, status);
     }
 
     #[inline]
-    fn pull_status(&mut self) {
-        let status = self.pop(self.ab);
+    fn pull_status(&mut self, status: u8) {
         self.n = status >> 7 != 0;
         self.v = (status >> 6) & 1 != 0;
         self.d = (status >> 3) & 1 != 0;

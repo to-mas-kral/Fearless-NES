@@ -434,17 +434,26 @@ impl Ppu {
 
     #[inline]
     fn read_oamdata(&mut self) {
-        self.latch = self.oam[self.oamaddr as usize];
-        //TODO: increment in some cases
-        //TODO: implement other trickery
+        if self.scanline <= 239 && self.rendering_enabled {
+            self.latch = self.oamdata_buffer;
+        } else {
+            self.latch = self.oam[self.oamaddr as usize];
+        }
     }
 
     #[inline]
     fn write_oamdata(&mut self) {
-        //TODO: ignore writes during rendering
-        //TODO: OAM memory decay
         self.oam[self.oamaddr as usize] = self.latch;
         self.oamaddr = self.oamaddr.wrapping_add(1);
+
+        if self.scanline >= 240 && !self.rendering_enabled {
+            if self.oamaddr & 3 == 2 {
+                self.oam[self.oamaddr as usize] = self.latch & 0xE3;
+                self.oamaddr = self.oamaddr.wrapping_add(1);
+            }
+        } else {
+            self.oamaddr = self.oamaddr.wrapping_add(4);
+        }
     }
 
     #[inline]
@@ -560,7 +569,6 @@ impl Ppu {
             RenderState::PreRender => {
                 match self.xpos {
                     1 => {
-                        //TODO: Sprite 0 overflow
                         self.ppustatus &= !(1 << 7);
                         self.fetch_bg();
                     }

@@ -100,9 +100,9 @@ macro_rules! blargg_test {
             let mut test_running = false;
 
             loop {
-                nes.cpu.tick();
+                nes.run_one_cpu_cycle();
                 while nes.cpu.state != 0x100 {
-                    nes.cpu.tick();
+                    nes.run_one_cpu_cycle();
                 }
 
                 let test_state = nes.cpu.read_direct(0x6000);
@@ -208,15 +208,14 @@ blargg_test!(
     "\n16-special\n\nPassed\n"
 );
 
-//TODO: setup these timing tests
-/*blargg_test!(
+blargg_test!(
     blargg_instr_timing,
     "instr_timing/rom_singles/1-instr_timing.nes",
-    "\n16-special\n\nPassed\n"
+    "Instruction timing test\n\nTakes about 25 seconds. Doesn\'t time the 8 branches and 12 illegal instructions.\n\nOfficial instructions...\n\nNOPs and alternate SBC...\n\nUnofficial instructions...\n\n1-instr_timing\n\nPassed\n"
 );
+
 blargg_test!(
     blargg_branch_timing,
     "instr_timing/rom_singles/2-branch_timing.nes",
-    "\n16-special\n\nPassed\n"
+    "\n2-branch_timing\n\nPassed\n"
 );
-*/

@@ -85,6 +85,25 @@ impl Mapper for Nrom {
                 }
                 _ => unreachable!(),
             },
+            Mirroring::Horizontal => match adr {
+                0..=0x3FF => {
+                    self.nt_ram[adr] = val;
+                    self.nt_ram[adr + 0x400] = val;
+                }
+                0x400..=0x7FF => {
+                    self.nt_ram[adr] = val;
+                    self.nt_ram[adr - 0x400] = val;
+                }
+                0x800..=0xBFF => {
+                    self.nt_ram[adr] = val;
+                    self.nt_ram[adr + 0x400] = val;
+                }
+                0xC00..=0xFFF => {
+                    self.nt_ram[adr] = val;
+                    self.nt_ram[adr - 0x400] = val;
+                }
+                _ => unreachable!(),
+            },
             _ => (),
         }
     }
