@@ -149,6 +149,7 @@ pub struct Ppu {
     shift_high: u16,
 
     ignore_writes: bool,
+    suppress_vbl: bool,
 
     ppustatus: u8,
     pub oamaddr: u8,
@@ -227,6 +228,7 @@ impl Ppu {
             x_fine_scroll: 0,
 
             ignore_writes: true,
+            suppress_vbl: false,
 
             ppustatus: 0,
             oamaddr: 0,
@@ -292,7 +294,7 @@ impl Ppu {
     fn write(&mut self, mut addr: usize, val: u8) {
         addr &= 0x3FFF;
         match addr {
-            0..=0x1FFF => self.mapper.borrow_mut().write_chr(addr, val),
+            0..=0x1FFF => (),
             0x2000..=0x2FFF => self.mapper.borrow_mut().write_nametable(addr - 0x2000, val),
             0x3000..=0x3EFF => self.mapper.borrow_mut().write_nametable(addr - 0x3000, val),
             0x3F00..=0x3FFF => self.palette_write(addr, val),
@@ -416,14 +418,16 @@ impl Ppu {
         self.latch = self.ppustatus;
         self.ppustatus &= 0x7F;
 
-        if self.scanline == 241 && self.xpos < 3 {
-            //FIXME: suppress NMI
+        //Reading $2002 within a few PPU clocks of when VBL is set results in special-case behavior.
+        //Reading one PPU clock before reads it as clear and never sets the flag or generates
+        //NMI for that frame. Reading on the same PPU clock or one later reads it as set,
+        //clears it, and suppresses the NMI for that frame.
+        if self.scanline == 241 && (self.xpos == 2 || self.xpos == 3) {
             self.latch |= 0x80;
             self.interrupt_bus.borrow_mut().nmi_signal = false;
-
-            if self.xpos == 0 {
-                self.latch &= 0x7F;
-            }
+        } else if self.scanline == 241 && self.xpos == 1 {
+            self.latch &= 0x7F;
+            self.suppress_vbl = true;
         }
     }
 
@@ -443,16 +447,17 @@ impl Ppu {
 
     #[inline]
     fn write_oamdata(&mut self) {
-        self.oam[self.oamaddr as usize] = self.latch;
-        self.oamaddr = self.oamaddr.wrapping_add(1);
-
-        if self.scanline >= 240 && !self.rendering_enabled {
-            if self.oamaddr & 3 == 2 {
-                self.oam[self.oamaddr as usize] = self.latch & 0xE3;
-                self.oamaddr = self.oamaddr.wrapping_add(1);
-            }
-        } else {
+        if self.rendering_enabled && (self.scanline <= 239 || self.scanline == 261) {
             self.oamaddr = self.oamaddr.wrapping_add(4);
+        } else {
+            let val = if self.oamaddr & 3 == 2 {
+                self.latch & 0xE3
+            } else {
+                self.latch
+            };
+
+            self.oam[self.oamaddr as usize] = val;
+            self.oamaddr = self.oamaddr.wrapping_add(1);
         }
     }
 
@@ -781,7 +786,7 @@ impl Ppu {
 
         let index = self.secondary_oam[sprite_addr + 1];
         sprite.index = if self.sp_size == 8 {
-            self.sp_pattern_table_addr as u16 | (u16::from(index) << 4) + y_offset as u16
+            self.sp_pattern_table_addr as u16 | (u16::from(index) << 4) | y_offset as u16
         } else {
             if y_offset >= 8 {
                 y_offset += 8;
@@ -904,8 +909,11 @@ impl Ppu {
         match (self.scanline, self.xpos) {
             (241, 0) => (),
             (241, 1) => {
-                self.ppustatus |= 0x80;
-                if self.nmi_on_vblank {
+                if !self.suppress_vbl {
+                    self.ppustatus |= 0x80
+                };
+                self.suppress_vbl = false;
+                if self.nmi_on_vblank && self.ppustatus & 0x80 != 0 {
                     self.interrupt_bus.borrow_mut().nmi_signal = true;
                 }
             }

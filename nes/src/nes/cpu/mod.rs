@@ -192,7 +192,13 @@ impl Cpu {
                 (self.open_bus & 0xE0) | tmp
             }
             0x4018..=0x401F => self.open_bus,
-            0x4020..=0xFFFF => self.mapper.borrow_mut().read_prg(index - 0x4020),
+            0x4020..=0xFFFF => {
+                if let Some(val) = self.mapper.borrow_mut().cpu_read(index) {
+                    val
+                } else {
+                    self.open_bus
+                }
+            }
             _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
         };
 
@@ -221,7 +227,7 @@ impl Cpu {
             0x4016 => self.controller.borrow_mut().write_reg(val),
             0x4017 => self.apu.write_reg(index, val),
             0x4018..=0x401F => (),
-            0x4020..=0xFFFF => self.mapper.borrow_mut().write_prg(index - 0x4020, val),
+            0x4020..=0xFFFF => self.mapper.borrow_mut().cpu_write(index, val),
             _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
         }
     }
@@ -231,7 +237,7 @@ impl Cpu {
         debug_log!("memory map - reading direct from 0x{:X}", index);
         match index {
             0..=0x1FFF => self.ram[index & 0x7FF],
-            0x4020..=0xFFFF => self.mapper.borrow_mut().read_prg_direct(index - 0x4020),
+            0x4020..=0xFFFF => self.mapper.borrow_mut().cpu_read_direct(index),
             _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
         }
     }
@@ -632,9 +638,11 @@ impl Cpu {
         let diff = self.temp as i8 as isize;
         let pc_before = self.pc;
         if diff > 0 {
-            self.pc += diff as usize
+            //self.pc += diff as usize
+            self.pc = (self.pc as u16).wrapping_add(diff as u16) as usize;
         } else {
-            self.pc -= diff.abs() as usize
+            //self.pc -= diff.abs() as usize
+            self.pc = (self.pc as u16).wrapping_sub(diff.abs() as u16) as usize;
         };
         let crosses = (pc_before & 0xFF00) != (self.pc & 0xFF00);
         self.temp = if crosses { 1 } else { 0 };
