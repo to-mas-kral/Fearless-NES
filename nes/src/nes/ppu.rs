@@ -503,7 +503,6 @@ impl Ppu {
                 .read_nametable(self.vram_addr - 0x3000);
         }
 
-        //TODO: buffered reads ?
         if self.rendering_enabled && self.scanline < 240 {
             self.coarse_x_increment();
             self.y_increment();
@@ -593,9 +592,7 @@ impl Ppu {
                         self.fetch_sprites();
                     }
                     305..=320 => self.fetch_sprites(),
-                    321 => {
-                        self.fetch_bg();
-                    }
+                    321 => self.fetch_bg(),
                     322..=337 => {
                         self.shift_tile_registers();
                         self.fetch_bg();
@@ -690,7 +687,7 @@ impl Ppu {
     //+++----------------- fine Y scroll
     #[inline]
     fn fetch_bg(&mut self) {
-        if self.rendering_enabled {
+        if self.show_bg {
             match self.xpos & 7 {
                 0 => self.coarse_x_increment(),
                 1 => {
@@ -711,9 +708,9 @@ impl Ppu {
                 //by 0, 2, 4, or 6 bits depending on bit 4 of the X and Y pixel position.
                 //Roughly: if (v & 0x40) attrbyte >>= 4; if (v & 0x02) attrbyte >>= 2.
                 3 => {
-                    let shift = ((self.vram_addr >> 4) & 0x04) | (self.vram_addr & 0x02);
+                    let shift = ((self.vram_addr >> 4) & 4) | (self.vram_addr & 2);
                     self.next_attr_table_byte =
-                        ((self.read(self.attr_table_addr()) >> shift) & 0x03) << 2;
+                        ((self.read(self.attr_table_addr()) >> shift) & 3) << 2;
                 }
                 5 => {
                     self.tile_addr = (usize::from(self.nametable_byte) << 4)
@@ -734,7 +731,7 @@ impl Ppu {
 
     #[inline]
     fn fetch_sprites(&mut self) {
-        if self.rendering_enabled {
+        if self.show_sp {
             self.oamaddr = 0;
             match (self.xpos - 1) & 7 {
                 0 => {
@@ -751,12 +748,13 @@ impl Ppu {
                 }
                 6 => {
                     let index = self.sprite_buffer[self.sprite_index as usize].index;
-                    self.sprite_buffer[self.sprite_index as usize].tile_low =
+                    self.sprite_buffer[self.sprite_index as usize].tile_high =
                         self.read(index as usize + 8);
-                    self.sprite_index = self.sprite_index & 7;
+                    self.sprite_index += 1;
+                    self.sprite_index &= 7;
                 }
                 _ => (),
-            }
+            };
         }
     }
 
@@ -919,10 +917,10 @@ impl Ppu {
             }
             (260, 340) => self.interrupt_bus.borrow_mut().nmi_signal = false,
             (241..=260, _) => {
-                let current_nmi = self.nmi_on_vblank && (self.ppustatus & 0x80) != 0;
-                if self.prev_nmi && current_nmi {
+                let current_nmi = self.nmi_on_vblank && ((self.ppustatus & 0x80) != 0);
+                if !self.prev_nmi && current_nmi {
                     self.interrupt_bus.borrow_mut().nmi_signal = true;
-                } else if !self.prev_nmi {
+                } else if !self.prev_nmi || !current_nmi {
                     self.interrupt_bus.borrow_mut().nmi_signal = false;
                 }
                 self.prev_nmi = current_nmi;
@@ -996,30 +994,52 @@ impl Ppu {
     #[inline]
     fn draw_pixel(&mut self) {
         let addr = (usize::from(self.scanline) << 8) + usize::from(self.xpos - 1);
-        let color_index = self.priority_mux();
+        let color_index = self.render_pixel();
         self.output_buffer[addr] = self.palette_read(color_index);
     }
 
     #[inline]
-    fn priority_mux(&mut self) -> usize {
+    fn render_pixel(&mut self) -> usize {
         if !self.rendering_enabled && (self.vram_addr & 0x3F00) == 0x3F00 {
             return self.vram_addr & 0x1F;
         }
 
-        let mut color_index = 0;
-        if self.show_bg {
-            color_index = self.bg_color();
+        let bg_index = if self.show_bg {
+            let tile_h_bit = ((self.shift_high << u16::from(self.x_fine_scroll)) & 0x8000) >> 14;
+            let tile_l_bit = ((self.shift_low << u16::from(self.x_fine_scroll)) & 0x8000) >> 15;
+            (u16::from(self.attr_table_byte) | tile_h_bit | tile_l_bit) as usize
+        } else {
+            0
+        };
+
+        for (pos, spr) in self.sprite_buffer.iter_mut().enumerate() {
+            let shift = self.xpos as i32 - spr.x as i32 - 1;
+            if shift >= 0 && shift <= 7 {
+                let sp_color = if spr.horizontal_flip {
+                    ((spr.tile_low >> shift) & 1) | (((spr.tile_high >> shift) & 1) << 1)
+                } else {
+                    (((spr.tile_low << shift) & 0x80) >> 7)
+                        | (((spr.tile_high << shift) & 0x80) >> 6)
+                };
+
+                //TODO: check is sprite 0 was encountered during sprite evaluation
+                if sp_color != 0 {
+                    if pos == 0
+                        && bg_index != 0
+                        && self.xpos != 255
+                        && self.show_bg
+                        && self.ppustatus & 0x40 == 0
+                    {
+                        self.ppustatus |= 0x40;
+                    }
+
+                    if self.show_sp && (bg_index == 0 || !spr.priority) {
+                        return usize::from(sp_color | spr.palette);
+                    }
+                }
+            }
         }
 
-        //TODO: sprites
-
-        color_index
-    }
-
-    #[inline]
-    fn bg_color(&mut self) -> usize {
-        let tile_h_bit = ((self.shift_high << u16::from(self.x_fine_scroll)) & 0x8000) >> 14;
-        let tile_l_bit = ((self.shift_low << u16::from(self.x_fine_scroll)) & 0x8000) >> 15;
-        (u16::from(self.attr_table_byte) | tile_h_bit | tile_l_bit) as usize
+        bg_index
     }
 }

@@ -145,6 +145,7 @@ impl Cpu {
     #[inline]
     fn check_interrupts(&mut self) {
         if !self.i && self.cached_irq {
+            self.cached_irq = false;
             self.take_interrupt = true;
             self.interrupt_type = InterruptType::Irq;
             self.interrupt_bus.borrow_mut().irq_signal = false;
@@ -167,11 +168,9 @@ impl Cpu {
 
     #[inline]
     fn interrupt_address(&mut self) -> usize {
-        //TODO: verify this procedure
-
-        if self.interrupt_bus.borrow().nmi_signal {
+        /*if self.interrupt_bus.borrow().nmi_signal {
             return 0xFFFA;
-        }
+        }*/
 
         match self.interrupt_type {
             InterruptType::Irq | InterruptType::None => 0xFFFE,

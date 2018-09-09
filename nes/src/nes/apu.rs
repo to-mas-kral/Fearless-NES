@@ -45,8 +45,8 @@ impl Apu {
                     self.pulse_1.length_counter.clock();
                     self.pulse_2.length_counter.clock();
                     self.noise.length_counter.clock();
+                    self.cycles = 0
                 }
-                18641 => self.cycles = 0,
                 _ => (),
             }
         } else {
@@ -63,8 +63,8 @@ impl Apu {
                     self.pulse_1.length_counter.clock();
                     self.pulse_2.length_counter.clock();
                     self.noise.length_counter.clock();
+                    self.cycles = 0
                 }
-                14915 => self.cycles = 0,
                 _ => (),
             }
         }
@@ -186,13 +186,9 @@ struct Pulse {
     constant_volume: bool,
     volume: u8,
 
-    sweep_enabled: bool,
-    period: u8,
-    negate: bool,
-    shift: u8,
-
     timer: u16,
 
+    sweep_unit: SweepUnit,
     length_counter: LengthCounter,
 }
 
@@ -203,13 +199,9 @@ impl Pulse {
             constant_volume: false,
             volume: 0,
 
-            sweep_enabled: false,
-            period: 0,
-            negate: false,
-            shift: 0,
-
             timer: 0,
 
+            sweep_unit: SweepUnit::new(),
             length_counter: LengthCounter::new(),
         }
     }
@@ -225,10 +217,7 @@ impl Pulse {
 
     #[inline]
     pub fn set_epns(&mut self, val: u8) {
-        self.sweep_enabled = (val & 0x80) != 0;
-        self.period = (val & 0x70) >> 4;
-        self.negate = (val & 8) != 0;
-        self.shift = val & 7;
+        self.sweep_unit.load(val);
     }
 
     #[inline]
@@ -441,6 +430,56 @@ impl LengthCounter {
     pub fn clock(&mut self) {
         if self.counter > 0 && !self.halt {
             self.counter -= 1;
+        }
+    }
+}
+
+struct SweepUnit {
+    enabled: bool,
+    negate: bool,
+    shift: u8,
+
+    period: u8,
+    counter: u8,
+
+    reload: bool,
+}
+
+impl SweepUnit {
+    pub fn new() -> SweepUnit {
+        SweepUnit {
+            enabled: false,
+            negate: false,
+            shift: 0,
+
+            period: 0,
+            counter: 0,
+
+            reload: false,
+        }
+    }
+
+    #[inline]
+    pub fn load(&mut self, val: u8) {
+        self.enabled = (val & 0x80) != 0;
+        self.period = (val & 0x70) >> 4;
+        self.negate = (val & 8) != 0;
+        self.shift = val & 7;
+        self.reload = true;
+    }
+
+    #[inline]
+    pub fn clock(&mut self) {
+        let mute = false;
+        if self.counter == 0 && self.enabled && !mute {
+            //adjust pulse period
+        }
+
+        if self.counter == 0 || self.reload {
+            self.counter = self.period;
+            self.reload = false;
+        } else {
+            self.counter = self.counter.wrapping_sub(1);
         }
     }
 }

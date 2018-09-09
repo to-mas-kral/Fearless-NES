@@ -41,7 +41,7 @@ impl Nes {
 
         let controller = Rc::new(RefCell::new(controller::Controller::new()));
 
-        let mut cpu = cpu::Cpu::new(
+        let cpu = cpu::Cpu::new(
             int_bus.clone(),
             apu,
             controller.clone(),

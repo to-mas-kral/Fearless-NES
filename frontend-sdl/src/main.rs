@@ -35,7 +35,6 @@ fn main() {
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     let mut nes = fearless_nes::nes::Nes::new(Path::new(
-        "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/04-nmi_control.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/05-nmi_timing.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/06-suppression.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes"
@@ -53,7 +52,8 @@ fn main() {
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/full_palette/full_palette.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu/nestest/nestest.nes"
 
-        //"/home/tomas/Documents/Programovani/fearless-nes/donkey_kong.nes"
+        "/home/tomas/Documents/Programovani/fearless-nes/donkey_kong.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/Balloon_fight.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/arkanoid.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/Clu_Clu_Land.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/Pinball.nes"

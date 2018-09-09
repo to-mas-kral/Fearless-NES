@@ -18,10 +18,10 @@ use std::io::BufRead;
 use std::io::BufReader;
 
 #[bench]
-fn donkey_kong_bencher(b: &mut Bencher) {
+fn nes_bencher(b: &mut Bencher) {
     let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let bench_path =
-        Path::new(&base_dir).join("src/tests/instr_timing/rom_singles/1-instr_timing.nes");
+        Path::new(&base_dir).join("src/tests/cpu/instr_timing/rom_singles/1-instr_timing.nes");
 
     let mut nes = Nes::new(&bench_path).expect("error when creating bencher NES instance");
 
@@ -285,17 +285,27 @@ blargg_test!(
     "00 V\n01 V\n02 V\n03 V\n04 V\n05 V\n06 -\n07 -\n08 -\n\n03-vbl_clear_time\n\nPassed\n"
 );
 
-/*blargg_test!(
+blargg_test!(
     ppu_vbl_nmi_control,
     "ppu/ppu_vbl_nmi/rom_singles/04-nmi_control.nes",
-    ""
+    "\n04-nmi_control\n\nPassed\n"
+);
+
+//TODO: get nmi_timing test working
+/*blargg_test!(
+    ppu_vbl_nmi_timing,
+    "ppu/ppu_vbl_nmi/rom_singles/05-nmi_timing.nes",
+    "wrong"
 );*/
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/05-nmi_timing.nes"
+
 //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/06-suppression.nes"
 //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes"
 //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes"
 //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/09-even_odd_frames.nes"
 //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes"
+
+blargg_test!(oam_read, "ppu/oam_read/oam_read.nes","----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n\noam_read\n\nPassed\n");
+blargg_test!(oam_stress, "ppu/oam_stress/oam_stress.nes", "----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n\noam_stress\n\nPassed\n");
 
 //TODO: implement mapper 1 and 3 -> stop using rom_singles
 /*TODO: implement these tests:
