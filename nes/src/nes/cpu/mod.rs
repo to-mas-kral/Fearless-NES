@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::cell::UnsafeCell;
 use std::rc::Rc;
 
 use super::apu::Apu;
@@ -70,7 +71,7 @@ pub struct Cpu {
     pending_reset: bool,
     take_interrupt: bool,
     interrupt_type: InterruptType,
-    interrupt_bus: Rc<RefCell<InterruptBus>>,
+    interrupt_bus: Rc<UnsafeCell<InterruptBus>>,
 
     ram: [u8; 0x800],
     dma: Dma,
@@ -82,7 +83,7 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn new(
-        interrupt_bus: Rc<RefCell<InterruptBus>>,
+        interrupt_bus: Rc<UnsafeCell<InterruptBus>>,
         apu: Apu,
         controller: Rc<RefCell<Controller>>,
         mapper: Rc<RefCell<Box<Mapper>>>,
@@ -148,21 +149,27 @@ impl Cpu {
             self.cached_irq = false;
             self.take_interrupt = true;
             self.interrupt_type = InterruptType::Irq;
-            self.interrupt_bus.borrow_mut().irq_signal = false;
+            unsafe {
+                (*self.interrupt_bus.get()).irq_signal = false;
+            }
         }
 
         if self.cached_nmi {
             self.cached_nmi = false;
             self.take_interrupt = true;
             self.interrupt_type = InterruptType::Nmi;
-            self.interrupt_bus.borrow_mut().nmi_signal = false;
+            unsafe {
+                (*self.interrupt_bus.get()).nmi_signal = false;
+            }
         }
 
-        if self.interrupt_bus.borrow().reset_signal {
+        if unsafe { (*self.interrupt_bus.get()).reset_signal } {
             self.take_interrupt = true;
             self.pending_reset = true;
             self.interrupt_type = InterruptType::Reset;
-            self.interrupt_bus.borrow_mut().reset_signal = false;
+            unsafe {
+                (*self.interrupt_bus.get()).reset_signal = false;
+            }
         }
     }
 

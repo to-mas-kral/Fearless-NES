@@ -14,8 +14,8 @@ impl Tick for super::Cpu {
         }
         macro_rules! cache_interrupts {
             ($self: ident) => {
-                self.cached_irq = self.interrupt_bus.borrow().irq_signal;
-                self.cached_nmi |= self.interrupt_bus.borrow().nmi_signal;
+                self.cached_irq = unsafe { (*self.interrupt_bus.get()).irq_signal };
+                self.cached_nmi |= unsafe { (*self.interrupt_bus.get()).nmi_signal };
             };
         }
         macro_rules! check_dma {

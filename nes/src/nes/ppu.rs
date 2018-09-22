@@ -1,10 +1,24 @@
 use std::cell::RefCell;
+use std::cell::UnsafeCell;
 use std::rc::Rc;
 
 use super::mapper::Mapper;
 use super::Frame;
 use super::InterruptBus;
 
+pub static PALETTE: [u8; 192] = [
+    84, 84, 84, 0, 30, 116, 8, 16, 144, 48, 0, 136, 68, 0, 100, 92, 0, 48, 84, 4, 0, 60, 24, 0, 32,
+    42, 0, 8, 58, 0, 0, 64, 0, 0, 60, 0, 0, 50, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 152, 150, 152, 8,
+    76, 196, 48, 50, 236, 92, 30, 228, 136, 20, 176, 160, 20, 100, 152, 34, 32, 120, 60, 0, 84, 90,
+    0, 40, 114, 0, 8, 124, 0, 0, 118, 40, 0, 102, 120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 236, 238, 236,
+    76, 154, 236, 120, 124, 236, 176, 98, 236, 228, 84, 236, 236, 88, 180, 236, 106, 100, 212, 136,
+    32, 160, 170, 0, 116, 196, 0, 76, 208, 32, 56, 204, 108, 56, 180, 204, 60, 60, 60, 0, 0, 0, 0,
+    0, 0, 236, 238, 236, 168, 204, 236, 188, 188, 236, 212, 178, 236, 236, 174, 236, 236, 174, 212,
+    236, 180, 176, 228, 196, 144, 204, 210, 120, 180, 222, 120, 168, 226, 144, 152, 226, 180, 160,
+    214, 228, 160, 162, 160, 0, 0, 0, 0, 0, 0,
+];
+
+/*
 static PALETTE: [(u8, u8, u8); 64] = [
     (0x7C, 0x7C, 0x7C),
     (0x00, 0x00, 0xFC),
@@ -70,7 +84,7 @@ static PALETTE: [(u8, u8, u8); 64] = [
     (0xF8, 0xD8, 0xF8),
     (0x00, 0x00, 0x00),
     (0x00, 0x00, 0x00),
-];
+];*/
 
 enum RenderState {
     PreRender,
@@ -109,10 +123,10 @@ impl Sprite {
 }
 
 pub struct Ppu {
-    output_buffer: [u8; 256 * 240],
+    pub output_buffer: [u8; 256 * 240],
     frame: Rc<RefCell<Frame>>,
 
-    interrupt_bus: Rc<RefCell<InterruptBus>>,
+    interrupt_bus: Rc<UnsafeCell<InterruptBus>>,
     prev_nmi: bool,
 
     pub oam: [u8; 0x100],
@@ -125,6 +139,7 @@ pub struct Ppu {
     sprite_fetch_step: u8,
     sprite_in_range: bool,
     sprites_found: u8,
+    sprite_0_added: bool,
 
     sprite_index: u8,
     sprite_buffer: [Sprite; 8],
@@ -177,7 +192,7 @@ pub struct Ppu {
 
 impl Ppu {
     pub fn new(
-        interrupt_bus: Rc<RefCell<InterruptBus>>,
+        interrupt_bus: Rc<UnsafeCell<InterruptBus>>,
         mapper: Rc<RefCell<Box<Mapper>>>,
         frame: Rc<RefCell<Frame>>,
     ) -> Ppu {
@@ -208,6 +223,7 @@ impl Ppu {
             sprite_fetch_step: 0,
             sprite_in_range: false,
             sprites_found: 0,
+            sprite_0_added: false,
 
             sprite_index: 0,
             sprite_buffer: [Sprite::new(); 8],
@@ -294,7 +310,7 @@ impl Ppu {
     fn write(&mut self, mut addr: usize, val: u8) {
         addr &= 0x3FFF;
         match addr {
-            0..=0x1FFF => (),
+            0..=0x1FFF => self.mapper.borrow_mut().write_chr(addr, val),
             0x2000..=0x2FFF => self.mapper.borrow_mut().write_nametable(addr - 0x2000, val),
             0x3000..=0x3EFF => self.mapper.borrow_mut().write_nametable(addr - 0x3000, val),
             0x3F00..=0x3FFF => self.palette_write(addr, val),
@@ -424,7 +440,9 @@ impl Ppu {
         //clears it, and suppresses the NMI for that frame.
         if self.scanline == 241 && (self.xpos == 2 || self.xpos == 3) {
             self.latch |= 0x80;
-            self.interrupt_bus.borrow_mut().nmi_signal = false;
+            unsafe {
+                (*self.interrupt_bus.get()).nmi_signal = false;
+            }
         } else if self.scanline == 241 && self.xpos == 1 {
             self.latch &= 0x7F;
             self.suppress_vbl = true;
@@ -522,7 +540,7 @@ impl Ppu {
         } else {
             //TODO: trigger some memory read
             self.vram_addr += self.addr_increment;
-        }
+        };
     }
 
     #[inline]
@@ -573,13 +591,17 @@ impl Ppu {
             RenderState::PreRender => {
                 match self.xpos {
                     1 => {
-                        self.ppustatus &= !(1 << 7);
+                        self.ppustatus &= !0xE0;
                         self.fetch_bg();
+                        self.oam_refresh_bug();
                     }
                     2..=256 => {
                         self.fetch_bg();
                         if self.xpos == 256 {
                             self.y_increment();
+                        }
+                        if self.xpos < 9 {
+                            self.oam_refresh_bug();
                         }
                     }
                     257 => {
@@ -599,10 +621,10 @@ impl Ppu {
                     }
                     339 => {
                         (*self.frame).borrow_mut().frame_ready = true;
-                        for (index, color_index) in self.output_buffer.iter().enumerate() {
+                        /*for (index, color_index) in self.output_buffer.iter().enumerate() {
                             (*self.frame).borrow_mut().output_buffer[index] =
                                 PALETTE[*color_index as usize];
-                        }
+                        }*/
 
                         self.read(self.nametable_addr());
 
@@ -687,7 +709,7 @@ impl Ppu {
     //+++----------------- fine Y scroll
     #[inline]
     fn fetch_bg(&mut self) {
-        if self.show_bg {
+        if self.rendering_enabled {
             match self.xpos & 7 {
                 0 => self.coarse_x_increment(),
                 1 => {
@@ -731,7 +753,7 @@ impl Ppu {
 
     #[inline]
     fn fetch_sprites(&mut self) {
-        if self.show_sp {
+        if self.rendering_enabled {
             self.oamaddr = 0;
             match (self.xpos - 1) & 7 {
                 0 => {
@@ -790,16 +812,13 @@ impl Ppu {
                 y_offset += 8;
             }
             let pattern_table_addr = if index & 1 != 0 { 0x1000 } else { 0 };
-            pattern_table_addr | (u16::from(index & !1) << 4) + y_offset as u16
+            pattern_table_addr | ((u16::from(index & !1) << 4) + y_offset as u16)
         };
     }
 
     //http://wiki.nesdev.com/w/index.php/PPU_sprite_evaluation
     #[inline]
     fn sprite_evaluation(&mut self) {
-        //TODO: If the sprite address (OAMADDR, $2003) is not zero at the beginning of
-        //the pre-render scanline,on the 2C02 an OAM hardware refresh bug will cause the
-        //first 8 bytes of OAM to be overwritten by the 8 bytes beginning at OAMADDR & $F8 before sprite evaluation begins.[1][2]
         if self.rendering_enabled {
             if self.xpos == 65 {
                 self.sprite_eval_count = 0;
@@ -807,6 +826,7 @@ impl Ppu {
                 self.sprites_found = 0;
                 self.sprite_fetch_step = 0;
                 self.sprite_eval_state = 1;
+                self.sprite_0_added = false;
             }
 
             if self.xpos & 1 != 0 {
@@ -814,21 +834,23 @@ impl Ppu {
             } else {
                 match self.sprite_eval_state {
                     1 => {
-                        //1. Starting at n = 0, read a sprite's Y-coordinate (OAM[n][0], copying it to the next open slot
-                        //in secondary OAM (unless 8 sprites have been found, in which case the write is ignored).
-                        if self.sprites_found < 8 {
-                            self.secondary_oam[4 * self.sprites_found as usize] =
-                                self.oamdata_buffer;
+                        //1. Starting at n = 0, read a sprite's Y-coordinate (OAM[n][0], copying it
+                        //to the next open slot in secondary OAM (unless 8 sprites have been
+                        //found, in which case the write is ignored).
+                        self.secondary_oam[4 * self.sprites_found as usize] = self.oamdata_buffer;
 
-                            self.sprite_in_range = self.scanline >= self.oamdata_buffer as u16
-                                && self.scanline < self.oamdata_buffer as u16 + self.sp_size as u16;
+                        self.sprite_in_range = self.scanline >= self.oamdata_buffer as u16
+                            && self.scanline < self.oamdata_buffer as u16 + self.sp_size as u16;
 
-                            if !self.sprite_in_range {
-                                self.sprite_eval_state = 2;
-                            } else {
-                                self.sprite_fetch_step = 1;
-                                self.sprite_eval_state = 5;
+                        if !self.sprite_in_range {
+                            self.sprite_eval_state = 2;
+                        } else {
+                            if self.sprite_eval_count == 0 {
+                                self.sprite_0_added = true;
                             }
+
+                            self.sprite_fetch_step = 1;
+                            self.sprite_eval_state = 5;
                         }
                     }
                     2 => {
@@ -842,8 +864,8 @@ impl Ppu {
                             //2b. If less than 8 sprites have been found, go to 1.
                             self.sprite_eval_state = 1;
                         } else if self.sprites_found == 8 {
-                            //2c. If exactly 8 sprites have been found, disable writes to secondary OAM because it is full.
-                            //This causes sprites in back to drop out.
+                            //2c. If exactly 8 sprites have been found, disable writes to
+                            //secondary OAM because it is full. This causes sprites in back to drop out.
                             self.sprite_eval_state = 3;
                         }
                     }
@@ -852,6 +874,9 @@ impl Ppu {
                         if self.scanline >= self.oamdata_buffer as u16
                             && self.scanline < (self.oamdata_buffer + self.sp_size) as u16
                         {
+                            //3a. If the value is in range, set the sprite overflow flag in $2002
+                            //and read the next 3 entries of OAM (incrementing 'm' after each byte
+                            //and incrementing 'n' when 'm' overflows); if m = 3, increment n.
                             self.ppustatus |= 0x20;
                             self.sprite_fetch_step = 1;
                             self.sprite_eval_state = 8;
@@ -862,41 +887,46 @@ impl Ppu {
                             self.sprite_fetch_step += 1;
                             if self.sprite_eval_count == 65 {
                                 self.sprite_eval_count = 0;
+                                self.sprite_fetch_step = 0;
                                 self.sprite_eval_state = 4;
                             }
                         }
                     }
                     4 => {
-                        //4. Attempt (and fail) to copy OAM[n][0] into the next free slot in secondary OAM,
-                        //and increment n (repeat until HBLANK is reached).
+                        //4. Attempt (and fail) to copy OAM[n][0] into the next free slot
+                        //in secondary OAM, and increment n (repeat until HBLANK is reached).
                         self.sprite_eval_count += 1;
                     }
-                    5 => {
-                        //1a. If Y-coordinate is in range, copy remaining bytes of sprite data (OAM[n][1] thru OAM[n][3]) into secondary OAM.
+                    5 | 6 => {
+                        //1a. If Y-coordinate is in range, copy remaining bytes of sprite
+                        //data (OAM[n][1] thru OAM[n][3]) into secondary OAM.
                         self.secondary_oam
-                            [(4 * self.sprites_found + self.sprite_fetch_step) as usize] =
+                            [4 * self.sprites_found as usize + self.sprite_fetch_step as usize] =
                             self.oamdata_buffer;
                         self.sprite_fetch_step += 1;
 
-                        if self.sprite_fetch_step == 4 {
-                            self.sprite_fetch_step = 0;
-                            self.sprites_found += 1;
-                            self.sprite_eval_state = 2;
-                        }
+                        self.sprite_eval_state += 1;
                     }
-                    6 => {
-                        //3a. If the value is in range, set the sprite overflow flag in $2002 and read the next 3 entries of
-                        //OAM (incrementing 'm' after each byte and incrementing 'n' when 'm' overflows); if m = 3, increment n.
+                    7 => {
+                        self.secondary_oam
+                            [4 * self.sprites_found as usize + self.sprite_fetch_step as usize] =
+                            self.oamdata_buffer;
+                        self.sprite_fetch_step = 0;
+                        self.sprite_eval_state = 2;
+                        self.sprites_found += 1;
+                    }
+                    8 | 9 => {
                         self.sprite_fetch_step += 1;
-
-                        if self.sprite_fetch_step == 4 {
-                            self.sprite_fetch_step = 0;
-                            self.sprite_eval_count += 1;
-                            self.sprite_eval_state = 4;
-                        }
+                        self.sprite_eval_state += 1;
+                    }
+                    10 => {
+                        self.sprite_fetch_step = 0;
+                        self.sprite_eval_count += 1;
+                        self.sprite_eval_state = 4;
                     }
                     _ => (),
                 }
+
                 self.oamaddr = 4 * self.sprite_eval_count + self.sprite_fetch_step;
             }
         }
@@ -912,16 +942,22 @@ impl Ppu {
                 };
                 self.suppress_vbl = false;
                 if self.nmi_on_vblank && self.ppustatus & 0x80 != 0 {
-                    self.interrupt_bus.borrow_mut().nmi_signal = true;
+                    unsafe {
+                        (*self.interrupt_bus.get()).nmi_signal = true;
+                    }
                 }
             }
-            (260, 340) => self.interrupt_bus.borrow_mut().nmi_signal = false,
+            (260, 340) => unsafe { (*self.interrupt_bus.get()).nmi_signal = false },
             (241..=260, _) => {
                 let current_nmi = self.nmi_on_vblank && ((self.ppustatus & 0x80) != 0);
                 if !self.prev_nmi && current_nmi {
-                    self.interrupt_bus.borrow_mut().nmi_signal = true;
+                    unsafe {
+                        (*self.interrupt_bus.get()).nmi_signal = true;
+                    }
                 } else if !self.prev_nmi || !current_nmi {
-                    self.interrupt_bus.borrow_mut().nmi_signal = false;
+                    unsafe {
+                        (*self.interrupt_bus.get()).nmi_signal = false;
+                    }
                 }
                 self.prev_nmi = current_nmi;
             }
@@ -985,6 +1021,18 @@ impl Ppu {
         }
     }
 
+    //If the sprite address (OAMADDR, $2003) is not zero at the beginning of
+    //the pre-render scanline,on the 2C02 an OAM hardware refresh bug will cause the
+    //first 8 bytes of OAM to be overwritten by the 8 bytes beginning at OAMADDR & $F8
+    //before sprite evaluation begins.
+    #[inline]
+    fn oam_refresh_bug(&mut self) {
+        if self.oamaddr >= 8 && self.rendering_enabled {
+            self.oam[self.xpos as usize - 1] =
+                self.oam[(self.oamaddr as usize & 0xF8).wrapping_add(self.xpos as usize - 1)];
+        }
+    }
+
     #[inline]
     fn shift_tile_registers(&mut self) {
         self.shift_low <<= 1;
@@ -1012,30 +1060,30 @@ impl Ppu {
             0
         };
 
-        for (pos, spr) in self.sprite_buffer.iter_mut().enumerate() {
-            let shift = self.xpos as i32 - spr.x as i32 - 1;
-            if shift >= 0 && shift <= 7 {
-                let sp_color = if spr.horizontal_flip {
-                    ((spr.tile_low >> shift) & 1) | (((spr.tile_high >> shift) & 1) << 1)
-                } else {
-                    (((spr.tile_low << shift) & 0x80) >> 7)
-                        | (((spr.tile_high << shift) & 0x80) >> 6)
-                };
+        if self.scanline != 1 && self.show_sp {
+            for spr in self.sprite_buffer.iter_mut() {
+                let shift = self.xpos as i32 - spr.x as i32 - 1;
+                if shift >= 0 && shift <= 7 {
+                    let sp_color = if spr.horizontal_flip {
+                        ((spr.tile_low >> shift) & 1) | (((spr.tile_high >> shift) & 1) << 1)
+                    } else {
+                        (((spr.tile_low << shift) & 0x80) >> 7)
+                            | (((spr.tile_high << shift) & 0x80) >> 6)
+                    };
 
-                //TODO: check is sprite 0 was encountered during sprite evaluation
-                if sp_color != 0 {
-                    if pos == 0
-                        && bg_index != 0
-                        && self.xpos != 255
-                        && self.show_bg
-                        && self.ppustatus & 0x40 == 0
-                    {
-                        self.ppustatus |= 0x40;
-                    }
+                    if sp_color != 0 {
+                        if self.sprite_0_added
+                            && bg_index != 0
+                            && self.xpos != 255
+                            && self.ppustatus & 0x40 == 0
+                        {
+                            self.ppustatus |= 0x40;
+                        }
 
-                    if self.show_sp && (bg_index == 0 || !spr.priority) {
-                        return usize::from(sp_color | spr.palette);
-                    }
+                        if bg_index == 0 || !spr.priority {
+                            return usize::from(sp_color | spr.palette);
+                        }
+                    };
                 }
             }
         }

@@ -2,6 +2,7 @@ extern crate fearless_nes;
 extern crate sdl2;
 
 use fearless_nes::nes::controller;
+use fearless_nes::nes::ppu::PALETTE;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -21,7 +22,7 @@ fn main() {
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
-        .window("rust-sdl2 demo", 256 * 4, 240 * 4)
+        .window("Fearless-NES", 256 * 4, 240 * 4)
         .position_centered()
         .build()
         .unwrap();
@@ -44,9 +45,16 @@ fn main() {
 
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_open_bus/ppu_open_bus.nes"
 
-        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu/branch_timing_tests/1.Branch_Basics.nes"
-        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu/branch_timing_tests/3.Forward_Branch.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu/cpu_timing_test6/cpu_timing_test.nes"
+        //Ox9D, 0x43, 0x46 - probably inaccurate due to NMI
+
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_sprite_hit/rom_singles/01-basics.nes"
+
+        //  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/1.Basics.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/2.Details.nes"
+        //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/3.Timing.nes"
+        //  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/4.Obscure.nes"
+        //  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/5.Emulator.nes"
 
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/palette/palette.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/full_palette/full_palette.nes"
@@ -60,7 +68,6 @@ fn main() {
         //"/home/tomas/Documents/Programovani/fearless-nes/SMB.nes"
         //"/home/tomas/Documents/Programovani/fearless-nes/popeye.nes",
     )).unwrap();
-    let framebuffer = nes.get_framebuffer();
 
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -144,7 +151,7 @@ fn main() {
 
         nes.run_one_frame();
 
-        buffer_to_texture(framebuffer.clone(), &mut sdl_texture);
+        buffer_to_texture(&nes, &mut sdl_texture);
 
         canvas.clear();
         canvas.set_scale(4f32, 4f32).unwrap();
@@ -158,7 +165,8 @@ fn main() {
 }
 
 #[inline]
-fn buffer_to_texture(frame: Rc<RefCell<Frame>>, texture: &mut Texture) {
+fn buffer_to_texture(nes: &fearless_nes::nes::Nes, texture: &mut Texture) {
+    let ppu_buffer = nes.cpu.ppu.output_buffer;
     texture
         .with_lock(None, |buffer: &mut [u8], pitch: usize| {
             for y in 0..240 {
@@ -166,11 +174,13 @@ fn buffer_to_texture(frame: Rc<RefCell<Frame>>, texture: &mut Texture) {
                     let texture_address = (y * pitch) + (x * 3);
                     let framebuffer_address = (y << 8) + x;
 
-                    let pixel_colour = frame.borrow_mut().output_buffer[framebuffer_address];
+                    let pixel_colour = ppu_buffer[framebuffer_address];
 
-                    buffer[texture_address] = pixel_colour.0;
-                    buffer[texture_address + 1] = pixel_colour.1;
-                    buffer[texture_address + 2] = pixel_colour.2;
+                    let palette_address = (pixel_colour * 3) as usize;
+
+                    buffer[texture_address] = PALETTE[palette_address];
+                    buffer[texture_address + 1] = PALETTE[palette_address + 1];
+                    buffer[texture_address + 2] = PALETTE[palette_address + 2];
                 }
             }
         }).unwrap();

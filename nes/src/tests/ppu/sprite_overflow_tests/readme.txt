@@ -71,13 +71,13 @@ of 14, etc. are treated as those sprites' Y coordinates for the purpose
 of determining whether overflow occurs on that scanline. This search
 continues until one of the (erroneously interpreted) Y coordinates
 places the sprite within the scanline, or all sprites have been scanned.
-Refer to the NESdevWiki for further information about this behavior. 
+Refer to the NESdevWiki for further information about this behavior.
 
-2) Checks that second byte of sprite #10 is treated as its Y 
-3) Checks that third byte of sprite #11 is treated as its Y 
-4) Checks that fourth byte of sprite #12 is treated as its Y 
-5) Checks that first byte of sprite #13 is treated as its Y 
-6) Checks that second byte of sprite #14 is treated as its Y 
+2) Checks that second byte of sprite #10 is treated as its Y
+3) Checks that third byte of sprite #11 is treated as its Y
+4) Checks that fourth byte of sprite #12 is treated as its Y
+5) Checks that first byte of sprite #13 is treated as its Y
+6) Checks that second byte of sprite #14 is treated as its Y
 7) Checks that search stops at the last sprite without overflow
 8) Same as test #2 but using a different range of sprites
 
@@ -92,5 +92,5 @@ likely to get wrong.
 4) Changing sprite RAM didn't recalculate flag time
 5) Changing sprite height didn't recalculate time
 
--- 
+--
 Shay Green <gblargg@gmail.com>

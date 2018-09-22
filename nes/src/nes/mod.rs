@@ -8,6 +8,7 @@ pub mod mapper;
 pub mod ppu;
 
 use std::cell::RefCell;
+use std::cell::UnsafeCell;
 use std::fs::File;
 use std::io;
 use std::path::Path;
@@ -17,7 +18,6 @@ pub struct Nes {
     pub frame: Rc<RefCell<Frame>>,
     pub cpu: cpu::Cpu,
     pub controller: Rc<RefCell<controller::Controller>>,
-    int_bus: Rc<RefCell<InterruptBus>>,
     apu_cycle: bool,
     cycle_count: u64,
 }
@@ -34,7 +34,7 @@ impl Nes {
 
         let frame = Rc::new(RefCell::new(Frame::new()));
 
-        let int_bus = Rc::new(RefCell::new(InterruptBus::new()));
+        let int_bus = Rc::new(UnsafeCell::new(InterruptBus::new()));
         let ppu = ppu::Ppu::new(int_bus.clone(), mapper.clone(), frame.clone());
 
         let apu = apu::Apu::new(int_bus.clone());
@@ -53,7 +53,6 @@ impl Nes {
             frame,
             cpu,
             controller,
-            int_bus,
             apu_cycle: false,
             cycle_count: 0,
         };
@@ -101,20 +100,20 @@ impl Nes {
 
 #[derive(Clone)]
 pub struct Frame {
-    pub output_buffer: [(u8, u8, u8); 256 * 240],
+    pub output_buffer: [u8; 256 * 240 * 3],
     pub frame_ready: bool,
 }
 
 impl Frame {
     pub fn new() -> Frame {
         Frame {
-            output_buffer: [(0, 0, 0); 256 * 240],
+            output_buffer: [0; 256 * 240 * 3],
             frame_ready: false,
         }
     }
 
     pub fn clear(&mut self) {
-        self.output_buffer = [(0, 0, 0); 256 * 240];
+        self.output_buffer = [0; 256 * 240 * 3];
     }
 }
 

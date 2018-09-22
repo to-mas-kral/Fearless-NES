@@ -10,6 +10,7 @@ pub trait Mapper {
     fn cpu_read_direct(&mut self, addr: usize) -> u8;
     fn cpu_write(&mut self, addr: usize, val: u8);
     fn read_chr(&mut self, addr: usize) -> u8;
+    fn write_chr(&mut self, addr: usize, val: u8);
     fn read_nametable(&mut self, addr: usize) -> u8;
     fn write_nametable(&mut self, addr: usize, val: u8);
     fn load_cartridge(&mut self, file: &mut File) -> Result<bool, NesError>;
@@ -61,6 +62,10 @@ impl Mapper for Nrom {
 
     fn read_chr(&mut self, addr: usize) -> u8 {
         self.chr[addr]
+    }
+
+    fn write_chr(&mut self, addr: usize, val: u8) {
+        self.chr[addr] = val;
     }
 
     fn read_nametable(&mut self, addr: usize) -> u8 {

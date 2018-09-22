@@ -14,5 +14,5 @@ debug_log = ["nes/debug_log"]
 opt-level = 3
 
 [profile.release]
-lto = true
+#lto = true
 #debug = true

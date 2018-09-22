@@ -1,9 +1,9 @@
 use super::InterruptBus;
-use std::cell::RefCell;
+use std::cell::UnsafeCell;
 use std::rc::Rc;
 
 pub struct Apu {
-    int_bus: Rc<RefCell<InterruptBus>>,
+    int_bus: Rc<UnsafeCell<InterruptBus>>,
     cycles: u16,
     pulse_1: Pulse,
     pulse_2: Pulse,
@@ -14,7 +14,7 @@ pub struct Apu {
 }
 
 impl Apu {
-    pub fn new(int_bus: Rc<RefCell<InterruptBus>>) -> Apu {
+    pub fn new(int_bus: Rc<UnsafeCell<InterruptBus>>) -> Apu {
         Apu {
             int_bus,
             cycles: 0,
