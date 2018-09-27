@@ -1,9 +1,6 @@
-use super::InterruptBus;
-use std::cell::UnsafeCell;
-use std::rc::Rc;
+use super::Nes;
 
 pub struct Apu {
-    int_bus: Rc<UnsafeCell<InterruptBus>>,
     cycles: u16,
     pulse_1: Pulse,
     pulse_2: Pulse,
@@ -11,12 +8,15 @@ pub struct Apu {
     noise: Noise,
     dmc: Dmc,
     frame_counter: FrameCounter,
+
+    cycle: bool,
+
+    pub nes: *mut Nes,
 }
 
 impl Apu {
-    pub fn new(int_bus: Rc<UnsafeCell<InterruptBus>>) -> Apu {
+    pub fn new() -> Apu {
         Apu {
-            int_bus,
             cycles: 0,
             pulse_1: Pulse::new(),
             pulse_2: Pulse::new(),
@@ -24,50 +24,58 @@ impl Apu {
             noise: Noise::new(),
             dmc: Dmc::new(),
             frame_counter: FrameCounter::new(),
+
+            cycle: false,
+
+            nes: 0 as *mut Nes,
         }
     }
 
     #[inline]
     pub fn tick(&mut self) {
-        self.cycles += 1;
+        if self.cycle {
+            self.cycles += 1;
 
-        if self.frame_counter.mode {
-            match self.cycles {
-                //TODO: clock envelopes and sweeps
-                3728 => {}
-                7456 => {
-                    self.pulse_1.length_counter.clock();
-                    self.pulse_2.length_counter.clock();
-                    self.noise.length_counter.clock();
+            if self.frame_counter.mode {
+                match self.cycles {
+                    //TODO: clock envelopes and sweeps
+                    3728 => {}
+                    7456 => {
+                        self.pulse_1.length_counter.clock();
+                        self.pulse_2.length_counter.clock();
+                        self.noise.length_counter.clock();
+                    }
+                    11185 => {}
+                    18640 => {
+                        self.pulse_1.length_counter.clock();
+                        self.pulse_2.length_counter.clock();
+                        self.noise.length_counter.clock();
+                        self.cycles = 0
+                    }
+                    _ => (),
                 }
-                11185 => {}
-                18640 => {
-                    self.pulse_1.length_counter.clock();
-                    self.pulse_2.length_counter.clock();
-                    self.noise.length_counter.clock();
-                    self.cycles = 0
+            } else {
+                match self.cycles {
+                    //TODO: clock envelopes and sweeps
+                    3728 => {}
+                    7456 => {
+                        self.pulse_1.length_counter.clock();
+                        self.pulse_2.length_counter.clock();
+                        self.noise.length_counter.clock();
+                    }
+                    11185 => {}
+                    14914 => {
+                        self.pulse_1.length_counter.clock();
+                        self.pulse_2.length_counter.clock();
+                        self.noise.length_counter.clock();
+                        self.cycles = 0
+                    }
+                    _ => (),
                 }
-                _ => (),
-            }
-        } else {
-            match self.cycles {
-                //TODO: clock envelopes and sweeps
-                3728 => {}
-                7456 => {
-                    self.pulse_1.length_counter.clock();
-                    self.pulse_2.length_counter.clock();
-                    self.noise.length_counter.clock();
-                }
-                11185 => {}
-                14914 => {
-                    self.pulse_1.length_counter.clock();
-                    self.pulse_2.length_counter.clock();
-                    self.noise.length_counter.clock();
-                    self.cycles = 0
-                }
-                _ => (),
             }
         }
+
+        self.cycle = !self.cycle;
     }
 
     #[inline]

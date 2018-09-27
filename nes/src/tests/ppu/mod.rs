@@ -1,4 +1,3 @@
-#[macro_use]
 use super::*;
 
 blargg_test!(

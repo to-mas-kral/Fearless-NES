@@ -76,8 +76,8 @@ impl Generator {
             "if self.dma.oam || self.dma.dmc { self.dma(); if self.dma.cycles != 0 {return;} }",
         );
         s.push_str(
-            "macro_rules! cache_interrupts {($self:ident) => {self.cached_irq = unsafe{(*self.interrupt_bus.get()).irq_signal};
-            self.cached_nmi |= unsafe{(*self.interrupt_bus.get()).nmi_signal};};}",
+            "macro_rules! cache_interrupts {($self:ident) => {self.cached_irq = nes!(self.nes).interrupt_bus.irq_signal;
+            self.cached_nmi |= nes!(self.nes).interrupt_bus.nmi_signal;}};",
         );
         s.push_str(
             "macro_rules! check_dma {($self:ident) => {if $self.dma.hijack_read {self.dma.cycles = 1; return; }}}",

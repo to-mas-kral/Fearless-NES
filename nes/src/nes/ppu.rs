@@ -1,10 +1,4 @@
-use std::cell::RefCell;
-use std::cell::UnsafeCell;
-use std::rc::Rc;
-
-use super::mapper::Mapper;
-use super::Frame;
-use super::InterruptBus;
+use super::Nes;
 
 pub static PALETTE: [u8; 192] = [
     84, 84, 84, 0, 30, 116, 8, 16, 144, 48, 0, 136, 68, 0, 100, 92, 0, 48, 84, 4, 0, 60, 24, 0, 32,
@@ -17,81 +11,6 @@ pub static PALETTE: [u8; 192] = [
     236, 180, 176, 228, 196, 144, 204, 210, 120, 180, 222, 120, 168, 226, 144, 152, 226, 180, 160,
     214, 228, 160, 162, 160, 0, 0, 0, 0, 0, 0,
 ];
-
-/*
-static PALETTE: [(u8, u8, u8); 64] = [
-    (0x7C, 0x7C, 0x7C),
-    (0x00, 0x00, 0xFC),
-    (0x00, 0x00, 0xBC),
-    (0x44, 0x28, 0xBC),
-    (0x94, 0x00, 0x84),
-    (0xA8, 0x00, 0x20),
-    (0xA8, 0x10, 0x00),
-    (0x88, 0x14, 0x00),
-    (0x50, 0x30, 0x00),
-    (0x00, 0x78, 0x00),
-    (0x00, 0x68, 0x00),
-    (0x00, 0x58, 0x00),
-    (0x00, 0x40, 0x58),
-    (0x00, 0x00, 0x00),
-    (0x00, 0x00, 0x00),
-    (0x00, 0x00, 0x00),
-    (0xBC, 0xBC, 0xBC),
-    (0x00, 0x78, 0xF8),
-    (0x00, 0x58, 0xF8),
-    (0x68, 0x44, 0xFC),
-    (0xD8, 0x00, 0xCC),
-    (0xE4, 0x00, 0x58),
-    (0xF8, 0x38, 0x00),
-    (0xE4, 0x5C, 0x10),
-    (0xAC, 0x7C, 0x00),
-    (0x00, 0xB8, 0x00),
-    (0x00, 0xA8, 0x00),
-    (0x00, 0xA8, 0x44),
-    (0x00, 0x88, 0x88),
-    (0x00, 0x00, 0x00),
-    (0x00, 0x00, 0x00),
-    (0x00, 0x00, 0x00),
-    (0xF8, 0xF8, 0xF8),
-    (0x3C, 0xBC, 0xFC),
-    (0x68, 0x88, 0xFC),
-    (0x98, 0x78, 0xF8),
-    (0xF8, 0x78, 0xF8),
-    (0xF8, 0x58, 0x98),
-    (0xF8, 0x78, 0x58),
-    (0xFC, 0xA0, 0x44),
-    (0xF8, 0xB8, 0x00),
-    (0xB8, 0xF8, 0x18),
-    (0x58, 0xD8, 0x54),
-    (0x58, 0xF8, 0x98),
-    (0x00, 0xE8, 0xD8),
-    (0x78, 0x78, 0x78),
-    (0x00, 0x00, 0x00),
-    (0x00, 0x00, 0x00),
-    (0xFC, 0xFC, 0xFC),
-    (0xA4, 0xE4, 0xFC),
-    (0xB8, 0xB8, 0xF8),
-    (0xD8, 0xB8, 0xF8),
-    (0xF8, 0xB8, 0xF8),
-    (0xF8, 0xA4, 0xC0),
-    (0xF0, 0xD0, 0xB0),
-    (0xFC, 0xE0, 0xA8),
-    (0xF8, 0xD8, 0x78),
-    (0xD8, 0xF8, 0x78),
-    (0xB8, 0xF8, 0xB8),
-    (0xB8, 0xF8, 0xD8),
-    (0x00, 0xFC, 0xFC),
-    (0xF8, 0xD8, 0xF8),
-    (0x00, 0x00, 0x00),
-    (0x00, 0x00, 0x00),
-];*/
-
-enum RenderState {
-    PreRender,
-    Render,
-    PostRender,
-    VBlank,
-}
 
 #[derive(Clone, Copy)]
 struct Sprite {
@@ -124,9 +43,7 @@ impl Sprite {
 
 pub struct Ppu {
     pub output_buffer: [u8; 256 * 240],
-    frame: Rc<RefCell<Frame>>,
 
-    interrupt_bus: Rc<UnsafeCell<InterruptBus>>,
     prev_nmi: bool,
 
     pub oam: [u8; 0x100],
@@ -143,8 +60,7 @@ pub struct Ppu {
 
     sprite_index: u8,
     sprite_buffer: [Sprite; 8],
-
-    mapper: Rc<RefCell<Box<Mapper>>>,
+    sprite_cache: [bool; 0x101],
 
     vram_addr: usize,
     temp_vram_addr: usize,
@@ -188,14 +104,12 @@ pub struct Ppu {
     emphasize_red: bool,
     emphasize_green: bool,
     emphasize_blue: bool,
+
+    pub nes: *mut Nes,
 }
 
 impl Ppu {
-    pub fn new(
-        interrupt_bus: Rc<UnsafeCell<InterruptBus>>,
-        mapper: Rc<RefCell<Box<Mapper>>>,
-        frame: Rc<RefCell<Frame>>,
-    ) -> Ppu {
+    pub fn new() -> Ppu {
         let palettes = [
             0x09, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x0D, 0x08, 0x10, 0x08, 0x24, 0x00, 0x00,
             0x04, 0x2C, 0x09, 0x01, 0x34, 0x03, 0x00, 0x04, 0x00, 0x14, 0x08, 0x3A, 0x00, 0x02,
@@ -204,9 +118,7 @@ impl Ppu {
 
         Ppu {
             output_buffer: [0; 256 * 240],
-            frame,
 
-            interrupt_bus,
             prev_nmi: false,
 
             xpos: 0,
@@ -227,8 +139,7 @@ impl Ppu {
 
             sprite_index: 0,
             sprite_buffer: [Sprite::new(); 8],
-
-            mapper,
+            sprite_cache: [false; 0x101],
 
             nametable_byte: 0,
             attr_table_byte: 0,
@@ -268,6 +179,8 @@ impl Ppu {
             emphasize_red: false,
             emphasize_green: false,
             emphasize_blue: false,
+
+            nes: 0 as *mut Nes,
         }
     }
 
@@ -310,9 +223,9 @@ impl Ppu {
     fn write(&mut self, mut addr: usize, val: u8) {
         addr &= 0x3FFF;
         match addr {
-            0..=0x1FFF => self.mapper.borrow_mut().write_chr(addr, val),
-            0x2000..=0x2FFF => self.mapper.borrow_mut().write_nametable(addr - 0x2000, val),
-            0x3000..=0x3EFF => self.mapper.borrow_mut().write_nametable(addr - 0x3000, val),
+            0..=0x1FFF => nes!(self.nes).mapper.write_chr(addr, val),
+            0x2000..=0x2FFF => nes!(self.nes).mapper.write_nametable(addr - 0x2000, val),
+            0x3000..=0x3EFF => nes!(self.nes).mapper.write_nametable(addr - 0x3000, val),
             0x3F00..=0x3FFF => self.palette_write(addr, val),
             _ => unreachable!(),
         }
@@ -322,9 +235,9 @@ impl Ppu {
     fn read(&mut self, mut addr: usize) -> u8 {
         addr &= 0x3FFF;
         match addr {
-            0..=0x1FFF => self.mapper.borrow_mut().read_chr(addr),
-            0x2000..=0x2FFF => self.mapper.borrow_mut().read_nametable(addr - 0x2000),
-            0x3000..=0x3EFF => self.mapper.borrow_mut().read_nametable(addr - 0x3000),
+            0..=0x1FFF => nes!(self.nes).mapper.read_chr(addr),
+            0x2000..=0x2FFF => nes!(self.nes).mapper.read_nametable(addr - 0x2000),
+            0x3000..=0x3EFF => nes!(self.nes).mapper.read_nametable(addr - 0x3000),
             0x3F00..=0x3FFF => self.palette_read(addr),
             _ => unreachable!(),
         }
@@ -440,9 +353,7 @@ impl Ppu {
         //clears it, and suppresses the NMI for that frame.
         if self.scanline == 241 && (self.xpos == 2 || self.xpos == 3) {
             self.latch |= 0x80;
-            unsafe {
-                (*self.interrupt_bus.get()).nmi_signal = false;
-            }
+            nes!(self.nes).interrupt_bus.nmi_signal = false;
         } else if self.scanline == 241 && self.xpos == 1 {
             self.latch &= 0x7F;
             self.suppress_vbl = true;
@@ -515,9 +426,8 @@ impl Ppu {
 
         if (self.vram_addr & 0x3FFF) >= 0x3F00 {
             self.latch = self.read(self.vram_addr);
-            self.read_buffer = self
+            self.read_buffer = nes!(self.nes)
                 .mapper
-                .borrow_mut()
                 .read_nametable(self.vram_addr - 0x3000);
         }
 
@@ -558,18 +468,10 @@ impl Ppu {
 
     #[inline]
     pub fn tick(&mut self) {
-        let state = match self.scanline {
-            0...239 => RenderState::Render,
-            240 => RenderState::PostRender,
-            241...260 => RenderState::VBlank,
-            261 => RenderState::PreRender,
-            _ => unreachable!("Invalid render state"),
-        };
-
         debug_log!("at scanline {} cycle {}", (self.scanline), (self.xpos));
         debug_log!("vram address: 0x{:X}", (self.vram_addr));
 
-        self.scanline_tick(state);
+        self.scanline_tick();
 
         self.xpos += 1;
         if self.xpos > 340 {
@@ -586,9 +488,9 @@ impl Ppu {
     //http://wiki.nesdev.com/w/index.php/PPU_scrolling#Tile_and_attribute_fetching
     //https://wiki.nesdev.com/w/images/d/d1/Ntsc_timing.png
     #[inline]
-    fn scanline_tick(&mut self, state: RenderState) {
-        match state {
-            RenderState::PreRender => {
+    fn scanline_tick(&mut self) {
+        match self.scanline {
+            261 => {
                 match self.xpos {
                     1 => {
                         self.ppustatus &= !0xE0;
@@ -606,6 +508,7 @@ impl Ppu {
                     }
                     257 => {
                         self.t_to_v();
+                        self.sprite_cache = [false; 0x101];
                         self.fetch_sprites();
                     }
                     258..=279 => self.fetch_sprites(),
@@ -620,12 +523,7 @@ impl Ppu {
                         self.fetch_bg();
                     }
                     339 => {
-                        (*self.frame).borrow_mut().frame_ready = true;
-                        /*for (index, color_index) in self.output_buffer.iter().enumerate() {
-                            (*self.frame).borrow_mut().output_buffer[index] =
-                                PALETTE[*color_index as usize];
-                        }*/
-
+                        nes!(self.nes).frame.ready = true;
                         self.read(self.nametable_addr());
 
                         //The skipped tick is implemented by jumping directly from (339, 261)
@@ -641,7 +539,7 @@ impl Ppu {
                     _ => (),
                 }
             }
-            RenderState::Render => match self.xpos {
+            0...239 => match self.xpos {
                 1 => {
                     self.fetch_bg();
                     self.draw_pixel();
@@ -663,6 +561,7 @@ impl Ppu {
                 257 => {
                     self.t_to_v();
                     self.shift_tile_registers();
+                    self.sprite_cache = [false; 0x101];
                     self.fetch_sprites();
                 }
                 258..=320 => self.fetch_sprites(),
@@ -676,7 +575,7 @@ impl Ppu {
                 }
                 _ => (),
             },
-            RenderState::VBlank => self.handle_vblank(),
+            241...260 => self.handle_vblank(),
             _ => (),
         }
     }
@@ -786,6 +685,12 @@ impl Ppu {
         let sprite = &mut self.sprite_buffer[self.sprite_index as usize];
         sprite.y = self.secondary_oam[sprite_addr];
         sprite.x = self.secondary_oam[sprite_addr + 3];
+
+        for i in 0..8 {
+            if sprite.x as usize + i < 257 {
+                self.sprite_cache[sprite.x as usize + i] = true;
+            }
+        }
 
         let attributes = self.secondary_oam[sprite_addr + 2];
         sprite.vertical_flip = attributes & 0x80 != 0;
@@ -942,22 +847,16 @@ impl Ppu {
                 };
                 self.suppress_vbl = false;
                 if self.nmi_on_vblank && self.ppustatus & 0x80 != 0 {
-                    unsafe {
-                        (*self.interrupt_bus.get()).nmi_signal = true;
-                    }
+                    nes!(self.nes).interrupt_bus.nmi_signal = true;
                 }
             }
-            (260, 340) => unsafe { (*self.interrupt_bus.get()).nmi_signal = false },
+            (260, 340) => nes!(self.nes).interrupt_bus.nmi_signal = false,
             (241..=260, _) => {
                 let current_nmi = self.nmi_on_vblank && ((self.ppustatus & 0x80) != 0);
                 if !self.prev_nmi && current_nmi {
-                    unsafe {
-                        (*self.interrupt_bus.get()).nmi_signal = true;
-                    }
+                    nes!(self.nes).interrupt_bus.nmi_signal = true;
                 } else if !self.prev_nmi || !current_nmi {
-                    unsafe {
-                        (*self.interrupt_bus.get()).nmi_signal = false;
-                    }
+                    nes!(self.nes).interrupt_bus.nmi_signal = false;
                 }
                 self.prev_nmi = current_nmi;
             }
@@ -1042,12 +941,12 @@ impl Ppu {
     #[inline]
     fn draw_pixel(&mut self) {
         let addr = (usize::from(self.scanline) << 8) + usize::from(self.xpos - 1);
-        let color_index = self.render_pixel();
+        let color_index = self.pixel_color();
         self.output_buffer[addr] = self.palette_read(color_index);
     }
 
     #[inline]
-    fn render_pixel(&mut self) -> usize {
+    fn pixel_color(&mut self) -> usize {
         if !self.rendering_enabled && (self.vram_addr & 0x3F00) == 0x3F00 {
             return self.vram_addr & 0x1F;
         }
@@ -1060,7 +959,7 @@ impl Ppu {
             0
         };
 
-        if self.scanline != 1 && self.show_sp {
+        if self.sprite_cache[self.xpos as usize] && self.scanline != 1 && self.show_sp {
             for spr in self.sprite_buffer.iter_mut() {
                 let shift = self.xpos as i32 - spr.x as i32 - 1;
                 if shift >= 0 && shift <= 7 {

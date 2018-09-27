@@ -14,11 +14,10 @@ impl Tick for super::Cpu {
         }
         macro_rules! cache_interrupts {
             ($self: ident) => {
-                self.cached_irq = unsafe { (*self.interrupt_bus.get()).irq_signal };
-                self.cached_nmi |= unsafe { (*self.interrupt_bus.get()).nmi_signal };
+                self.cached_irq = nes!(self.nes).interrupt_bus.irq_signal;
+                self.cached_nmi |= nes!(self.nes).interrupt_bus.nmi_signal;
             };
-        }
-        macro_rules! check_dma {
+        };        macro_rules! check_dma {
             ($self: ident) => {
                 if $self.dma.hijack_read {
                     self.dma.cycles = 1;

@@ -24,9 +24,9 @@ macro_rules! blargg_test {
             let mut test_running = false;
 
             loop {
-                nes.run_one_cpu_cycle();
+                nes.run_one_cycle();
                 while nes.cpu.state != 0x100 {
-                    nes.run_one_cpu_cycle();
+                    nes.run_one_cycle();
                 }
 
                 let test_state = nes.cpu.read_direct(0x6000);
@@ -51,14 +51,14 @@ macro_rules! blargg_test {
     };
 }
 
-mod ppu;
 mod cpu;
+mod ppu;
 
 #[bench]
 fn nes_bencher(b: &mut Bencher) {
     let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let bench_path =
-        Path::new(&base_dir).join("src/tests/cpu/instr_timing/rom_singles/1-instr_timing.nes");
+    let bench_path = Path::new(&base_dir)
+        .join("/home/tomas/Documents/Programovani/fearless-nes/donkey_kong.nes");
 
     let mut nes = Nes::new(&bench_path).expect("error when creating bencher NES instance");
 

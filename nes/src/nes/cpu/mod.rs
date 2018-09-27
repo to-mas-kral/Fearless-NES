@@ -1,12 +1,4 @@
-use std::cell::RefCell;
-use std::cell::UnsafeCell;
-use std::rc::Rc;
-
-use super::apu::Apu;
-use super::controller::Controller;
-use super::mapper::Mapper;
-use super::ppu::Ppu;
-use super::InterruptBus;
+use super::Nes;
 
 mod state_machine;
 
@@ -71,24 +63,15 @@ pub struct Cpu {
     pending_reset: bool,
     take_interrupt: bool,
     interrupt_type: InterruptType,
-    interrupt_bus: Rc<UnsafeCell<InterruptBus>>,
 
     ram: [u8; 0x800],
     dma: Dma,
-    pub apu: Apu,
-    pub controller: Rc<RefCell<Controller>>,
-    mapper: Rc<RefCell<Box<Mapper>>>,
-    pub ppu: Ppu,
+
+    pub nes: *mut Nes,
 }
 
 impl Cpu {
-    pub fn new(
-        interrupt_bus: Rc<UnsafeCell<InterruptBus>>,
-        apu: Apu,
-        controller: Rc<RefCell<Controller>>,
-        mapper: Rc<RefCell<Box<Mapper>>>,
-        ppu: Ppu,
-    ) -> Cpu {
+    pub fn new() -> Cpu {
         Cpu {
             a: 0,
             x: 0,
@@ -116,15 +99,12 @@ impl Cpu {
             pending_reset: false,
             take_interrupt: false,
             interrupt_type: InterruptType::None,
-            interrupt_bus,
 
             ram: [0; 0x800],
             dma: Dma::new(),
             open_bus: 0,
-            apu,
-            controller,
-            mapper,
-            ppu,
+
+            nes: 0 as *mut Nes,
         }
     }
 
@@ -149,27 +129,21 @@ impl Cpu {
             self.cached_irq = false;
             self.take_interrupt = true;
             self.interrupt_type = InterruptType::Irq;
-            unsafe {
-                (*self.interrupt_bus.get()).irq_signal = false;
-            }
+            nes!(self.nes).interrupt_bus.irq_signal = false
         }
 
         if self.cached_nmi {
             self.cached_nmi = false;
             self.take_interrupt = true;
             self.interrupt_type = InterruptType::Nmi;
-            unsafe {
-                (*self.interrupt_bus.get()).nmi_signal = false;
-            }
+            nes!(self.nes).interrupt_bus.nmi_signal = false
         }
 
-        if unsafe { (*self.interrupt_bus.get()).reset_signal } {
+        if nes!(self.nes).interrupt_bus.reset_signal {
             self.take_interrupt = true;
             self.pending_reset = true;
             self.interrupt_type = InterruptType::Reset;
-            unsafe {
-                (*self.interrupt_bus.get()).reset_signal = false;
-            }
+            nes!(self.nes).interrupt_bus.reset_signal = false;
         }
     }
 
@@ -190,16 +164,16 @@ impl Cpu {
     pub fn read(&mut self, index: usize) {
         self.open_bus = match index {
             0..=0x1FFF => self.ram[index & 0x7FF],
-            0x2000..=0x3FFF => self.ppu.read_reg(index),
+            0x2000..=0x3FFF => nes!(self.nes).ppu.read_reg(index),
             0x4000..=0x4014 => self.open_bus,
-            0x4015 => self.apu.read_status(),
+            0x4015 => nes!(self.nes).apu.read_status(),
             0x4016 | 0x4017 => {
-                let tmp = self.controller.borrow_mut().read_reg();
+                let tmp = nes!(self.nes).controller.read_reg();
                 (self.open_bus & 0xE0) | tmp
             }
             0x4018..=0x401F => self.open_bus,
             0x4020..=0xFFFF => {
-                if let Some(val) = self.mapper.borrow_mut().cpu_read(index) {
+                if let Some(val) = nes!(self.nes).mapper.cpu_read(index) {
                     val
                 } else {
                     self.open_bus
@@ -223,17 +197,17 @@ impl Cpu {
 
         match index {
             0..=0x1FFF => self.ram[index & 0x7FF] = val,
-            0x2000..=0x3FFF => self.ppu.write_reg(index, val),
-            0x4000..=0x4013 => self.apu.write_reg(index, val),
+            0x2000..=0x3FFF => nes!(self.nes).ppu.write_reg(index, val),
+            0x4000..=0x4013 => nes!(self.nes).apu.write_reg(index, val),
             0x4014 => {
                 self.dma.oam = true;
                 self.dma.addr = val as usize;
             }
-            0x4015 => self.apu.write_reg(index, val),
-            0x4016 => self.controller.borrow_mut().write_reg(val),
-            0x4017 => self.apu.write_reg(index, val),
+            0x4015 => nes!(self.nes).apu.write_reg(index, val),
+            0x4016 => nes!(self.nes).controller.write_reg(val),
+            0x4017 => nes!(self.nes).apu.write_reg(index, val),
             0x4018..=0x401F => (),
-            0x4020..=0xFFFF => self.mapper.borrow_mut().cpu_write(index, val),
+            0x4020..=0xFFFF => nes!(self.nes).mapper.cpu_write(index, val),
             _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
         }
     }
@@ -243,7 +217,7 @@ impl Cpu {
         debug_log!("memory map - reading direct from 0x{:X}", index);
         match index {
             0..=0x1FFF => self.ram[index & 0x7FF],
-            0x4020..=0xFFFF => self.mapper.borrow_mut().cpu_read_direct(index),
+            0x4020..=0xFFFF => nes!(self.nes).mapper.cpu_read_direct(index),
             _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
         }
     }

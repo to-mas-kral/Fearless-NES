@@ -6,6 +6,7 @@ authors = ["TomasKralCZ <tomas@kral.hk>"]
 [dependencies]
 fearless_nes = { path = "../nes" }
 sdl2 = "0.31.0"
+clap = "~2.32"
 
 [features]
 debug_log = ["fearless_nes/debug_log"]

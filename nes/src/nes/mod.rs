@@ -1,3 +1,11 @@
+#[macro_export]
+macro_rules! nes {
+    ($ptr:expr) => {{
+        let ret = unsafe { &mut *$ptr };
+        ret
+    }};
+}
+
 pub mod cpu;
 use self::cpu::Tick;
 
@@ -7,18 +15,20 @@ pub mod ines;
 pub mod mapper;
 pub mod ppu;
 
-use std::cell::RefCell;
-use std::cell::UnsafeCell;
 use std::fs::File;
 use std::io;
 use std::path::Path;
-use std::rc::Rc;
 
 pub struct Nes {
-    pub frame: Rc<RefCell<Frame>>,
     pub cpu: cpu::Cpu,
-    pub controller: Rc<RefCell<controller::Controller>>,
-    apu_cycle: bool,
+    pub ppu: ppu::Ppu,
+    pub apu: apu::Apu,
+
+    pub mapper: Box<mapper::Mapper>,
+    pub interrupt_bus: InterruptBus,
+    pub controller: controller::Controller,
+
+    pub frame: Frame,
     cycle_count: u64,
 }
 
@@ -27,93 +37,86 @@ impl Nes {
         let mut file = File::open(rom_path)?;
         let header = ines::parse_header(&mut file)?;
 
-        let mapper = Rc::new(RefCell::new(mapper::get_mapper(header)));
+        let mut mapper = mapper::get_mapper(header);
 
         let mut file = File::open(rom_path)?;
-        mapper.borrow_mut().load_cartridge(&mut file)?;
+        mapper.load_cartridge(&mut file)?;
 
-        let frame = Rc::new(RefCell::new(Frame::new()));
+        let ppu = ppu::Ppu::new();
+        let apu = apu::Apu::new();
+        let cpu = cpu::Cpu::new();
 
-        let int_bus = Rc::new(UnsafeCell::new(InterruptBus::new()));
-        let ppu = ppu::Ppu::new(int_bus.clone(), mapper.clone(), frame.clone());
+        let frame = Frame::new();
 
-        let apu = apu::Apu::new(int_bus.clone());
-
-        let controller = Rc::new(RefCell::new(controller::Controller::new()));
-
-        let cpu = cpu::Cpu::new(
-            int_bus.clone(),
-            apu,
-            controller.clone(),
-            mapper.clone(),
-            ppu,
-        );
+        let interrupt_bus = InterruptBus::new();
+        let controller = controller::Controller::new();
 
         let mut nes = Nes {
-            frame,
             cpu,
+            ppu,
+            apu,
+
+            mapper,
+            interrupt_bus,
             controller,
-            apu_cycle: false,
+
+            frame,
             cycle_count: 0,
         };
 
+        let ptr: *mut Nes = &mut nes;
+
+        nes.cpu.nes = ptr;
+        nes.ppu.nes = ptr;
+        nes.apu.nes = ptr;
+
         nes.cpu.gen_reset();
         for _ in 0..6 {
-            nes.run_one_cpu_cycle();
+            nes.run_one_cycle();
         }
 
         Ok(nes)
     }
 
     pub fn set_controller_state(&mut self, keycode: controller::Keycode, state: bool) {
-        self.controller.borrow_mut().set_button(keycode, state);
-    }
-
-    pub fn get_framebuffer(&self) -> Rc<RefCell<Frame>> {
-        self.frame.clone()
+        self.controller.set_button(keycode, state);
     }
 
     pub fn run_one_frame(&mut self) {
-        while !self.frame.borrow().frame_ready {
-            self.run_one_cpu_cycle();
+        while !self.frame.ready {
+            self.run_one_cycle();
         }
-        self.frame.borrow_mut().frame_ready = false;
+        self.frame.ready = false;
     }
 
-    pub fn run_one_cpu_cycle(&mut self) {
+    pub fn run_one_cycle(&mut self) {
+        let ptr: *mut Nes = self;
+        self.cpu.nes = ptr;
+        self.ppu.nes = ptr;
+        self.apu.nes = ptr;
+
         self.cpu.tick();
         self.cycle_count += 1;
         if self.cycle_count == 29658 {
-            self.cpu.ppu.enable_writes();
+            self.ppu.enable_writes();
         }
 
         for _ in 0..3 {
-            self.cpu.ppu.tick();
+            self.ppu.tick();
         }
 
-        if self.apu_cycle {
-            self.cpu.apu.tick();
-        }
-        self.apu_cycle = !self.apu_cycle;
+        self.apu.tick();
     }
 }
 
 #[derive(Clone)]
 pub struct Frame {
-    pub output_buffer: [u8; 256 * 240 * 3],
-    pub frame_ready: bool,
+    pub ready: bool,
 }
 
 impl Frame {
     pub fn new() -> Frame {
-        Frame {
-            output_buffer: [0; 256 * 240 * 3],
-            frame_ready: false,
-        }
-    }
-
-    pub fn clear(&mut self) {
-        self.output_buffer = [0; 256 * 240 * 3];
+        Frame { ready: false }
     }
 }
 
