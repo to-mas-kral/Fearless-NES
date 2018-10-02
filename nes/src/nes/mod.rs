@@ -64,7 +64,8 @@ impl Nes {
             cycle_count: 0,
         };
 
-        let ptr: *mut Nes = &mut nes;
+        //Update new pointer
+        let ptr: *mut _ = &mut nes;
 
         nes.cpu.nes = ptr;
         nes.ppu.nes = ptr;
@@ -91,9 +92,15 @@ impl Nes {
 
     pub fn run_one_cycle(&mut self) {
         let ptr: *mut Nes = self;
-        self.cpu.nes = ptr;
-        self.ppu.nes = ptr;
-        self.apu.nes = ptr;
+        if ptr != self.cpu.nes || ptr != self.ppu.nes || ptr != self.apu.nes {
+            let ptr: *mut Nes = self;
+
+            self.cpu.nes = ptr;
+            self.ppu.nes = ptr;
+            self.apu.nes = ptr;
+
+            panic!("pointer changed");
+        }
 
         self.cpu.tick();
         self.cycle_count += 1;

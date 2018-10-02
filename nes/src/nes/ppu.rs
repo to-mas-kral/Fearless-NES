@@ -1,3 +1,5 @@
+//use std::box::Box;
+
 use super::Nes;
 
 pub static PALETTE: [u8; 192] = [
@@ -42,7 +44,7 @@ impl Sprite {
 }
 
 pub struct Ppu {
-    pub output_buffer: [u8; 256 * 240],
+    pub output_buffer: Box<[u8; 256 * 240]>,
 
     prev_nmi: bool,
 
@@ -71,8 +73,8 @@ pub struct Ppu {
     odd_frame: bool,
 
     nametable_byte: u8,
-    attr_table_byte: u8,
-    next_attr_table_byte: u8,
+    attribute: u8,
+    fetch_attr: bool,
     tile_addr: usize,
     tile_lb: u8,
     tile_hb: u8,
@@ -117,7 +119,7 @@ impl Ppu {
         ];
 
         Ppu {
-            output_buffer: [0; 256 * 240],
+            output_buffer: Box::new([0; 256 * 240]),
 
             prev_nmi: false,
 
@@ -142,8 +144,8 @@ impl Ppu {
             sprite_cache: [false; 0x101],
 
             nametable_byte: 0,
-            attr_table_byte: 0,
-            next_attr_table_byte: 0,
+            attribute: 0,
+            fetch_attr: true,
             tile_addr: 0,
             tile_lb: 0,
             tile_hb: 0,
@@ -238,15 +240,15 @@ impl Ppu {
             0..=0x1FFF => nes!(self.nes).mapper.read_chr(addr),
             0x2000..=0x2FFF => nes!(self.nes).mapper.read_nametable(addr - 0x2000),
             0x3000..=0x3EFF => nes!(self.nes).mapper.read_nametable(addr - 0x3000),
-            0x3F00..=0x3FFF => self.palette_read(addr),
+            0x3F00..=0x3FFF => self.palettes[addr & 0x1F],
             _ => unreachable!(),
         }
     }
 
     #[inline]
     fn palette_write(&mut self, mut addr: usize, mut val: u8) {
-        addr &= 0x1f;
-        val &= 0x3f;
+        addr &= 0x1F;
+        val &= 0x3F;
 
         match addr {
             0x0 | 0x10 => {
@@ -425,10 +427,7 @@ impl Ppu {
         self.read_buffer = self.read(self.vram_addr);
 
         if (self.vram_addr & 0x3FFF) >= 0x3F00 {
-            self.latch = self.read(self.vram_addr);
-            self.read_buffer = nes!(self.nes)
-                .mapper
-                .read_nametable(self.vram_addr - 0x3000);
+            self.latch = self.palette_read(self.vram_addr);
         }
 
         if self.rendering_enabled && self.scanline < 240 {
@@ -517,10 +516,16 @@ impl Ppu {
                         self.fetch_sprites();
                     }
                     305..=320 => self.fetch_sprites(),
-                    321 => self.fetch_bg(),
-                    322..=337 => {
+                    321 => {
+                        self.fetch_bg();
+                        self.shift_tile_registers();
+                    }
+                    322..=336 => {
                         self.shift_tile_registers();
                         self.fetch_bg();
+                    }
+                    337 => {
+                        self.read(self.nametable_addr());
                     }
                     339 => {
                         nes!(self.nes).frame.ready = true;
@@ -543,7 +548,6 @@ impl Ppu {
                 1 => {
                     self.fetch_bg();
                     self.draw_pixel();
-                    //TODO: secondary clear cycle-accurate ?
                     self.secondary_oam = [0xFF; 0x20];
                 }
                 2..=256 => {
@@ -565,12 +569,15 @@ impl Ppu {
                     self.fetch_sprites();
                 }
                 258..=320 => self.fetch_sprites(),
-                321 => self.fetch_bg(),
-                322..=337 => {
+                321 => {
+                    self.fetch_bg();
+                    self.shift_tile_registers();
+                }
+                322..=336 => {
                     self.shift_tile_registers();
                     self.fetch_bg();
                 }
-                339 => {
+                337 | 339 => {
                     self.read(self.nametable_addr());
                 }
                 _ => (),
@@ -610,11 +617,14 @@ impl Ppu {
     fn fetch_bg(&mut self) {
         if self.rendering_enabled {
             match self.xpos & 7 {
-                0 => self.coarse_x_increment(),
+                0 => {
+                    self.coarse_x_increment();
+                }
                 1 => {
+                    self.shift_attrbutes();
+
                     self.shift_low |= u16::from(self.tile_lb);
                     self.shift_high |= u16::from(self.tile_hb);
-                    self.attr_table_byte = self.next_attr_table_byte;
 
                     self.nametable_byte = self.read(self.nametable_addr());
 
@@ -624,14 +634,13 @@ impl Ppu {
                     debug_log!("VRAM addr = 0x{:X}", (self.vram_addr));
                     debug_log!("Nametable byte = 0x{:X}", (self.nametable_byte));
                 }
-
                 //The 2-bit 1-of-4 selector" is used to shift the attribute byte right
                 //by 0, 2, 4, or 6 bits depending on bit 4 of the X and Y pixel position.
                 //Roughly: if (v & 0x40) attrbyte >>= 4; if (v & 0x02) attrbyte >>= 2.
                 3 => {
                     let shift = ((self.vram_addr >> 4) & 4) | (self.vram_addr & 2);
-                    self.next_attr_table_byte =
-                        ((self.read(self.attr_table_addr()) >> shift) & 3) << 2;
+                    let attr = (self.read(self.attr_table_addr()) >> shift) & 3;
+                    self.attribute |= attr << 6;
                 }
                 5 => {
                     self.tile_addr = (usize::from(self.nametable_byte) << 4)
@@ -782,7 +791,7 @@ impl Ppu {
                             //3a. If the value is in range, set the sprite overflow flag in $2002
                             //and read the next 3 entries of OAM (incrementing 'm' after each byte
                             //and incrementing 'n' when 'm' overflows); if m = 3, increment n.
-                            self.ppustatus |= 0x20;
+                            //self.ppustatus |= 0x20;
                             self.sprite_fetch_step = 1;
                             self.sprite_eval_state = 8;
                         } else {
@@ -939,10 +948,15 @@ impl Ppu {
     }
 
     #[inline]
+    fn shift_attrbutes(&mut self) {
+        self.attribute >>= 2;
+    }
+
+    #[inline]
     fn draw_pixel(&mut self) {
         let addr = (usize::from(self.scanline) << 8) + usize::from(self.xpos - 1);
         let color_index = self.pixel_color();
-        self.output_buffer[addr] = self.palette_read(color_index);
+        self.output_buffer[addr] = self.palettes[color_index];
     }
 
     #[inline]
@@ -954,7 +968,7 @@ impl Ppu {
         let bg_index = if self.show_bg {
             let tile_h_bit = ((self.shift_high << u16::from(self.x_fine_scroll)) & 0x8000) >> 14;
             let tile_l_bit = ((self.shift_low << u16::from(self.x_fine_scroll)) & 0x8000) >> 15;
-            (u16::from(self.attr_table_byte) | tile_h_bit | tile_l_bit) as usize
+            ((self.attribute & 0xC) as u16 | tile_h_bit | tile_l_bit) as usize
         } else {
             0
         };
@@ -987,6 +1001,10 @@ impl Ppu {
             }
         }
 
-        bg_index
+        if bg_index & 3 > 0 {
+            bg_index
+        } else {
+            0
+        }
     }
 }

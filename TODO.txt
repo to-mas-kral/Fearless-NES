@@ -1,0 +1,4 @@
+1. TODO: sprite evaluation, sprite overflow tests
+2. TODO: mapper & cartridge reorganizations, implement mappers 1, 2, 3
+3. TODO: refactor, clippy, documentation
+4. TODO: release 0.1.0 !

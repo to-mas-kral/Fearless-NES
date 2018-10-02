@@ -21,40 +21,45 @@ use sdl2::Error;
 use sdl2::EventPump;
 
 use std::path::Path;
+use std::thread;
 use std::time::{Duration, Instant};
 
-static ROM_PATH: &str = "/home/tomas/Documents/Programovani/fearless-nes/donkey_kong.nes";
+static ROM_PATH: &str = {
+    "/home/tomas/Documents/Programovani/fearless-nes/donkey_kong.nes"
 
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/05-nmi_timing.nes"
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/06-suppression.nes"
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes"
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes"
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/09-even_odd_frames.nes"
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/2048.nes"
 
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_open_bus/ppu_open_bus.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/05-nmi_timing.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/06-suppression.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/09-even_odd_frames.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes"
 
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu/cpu_timing_test6/cpu_timing_test.nes"
-//Ox9D, 0x43, 0x46 - probably inaccurate due to NMI
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_open_bus/ppu_open_bus.nes"
 
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_sprite_hit/rom_singles/01-basics.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu/cpu_timing_test6/cpu_timing_test.nes"
+    //Ox9D, 0x43, 0x46 - probably inaccurate due to NMI
 
-//  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/1.Basics.nes"
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/2.Details.nes"
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/3.Timing.nes"
-//  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/4.Obscure.nes"
-//  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/5.Emulator.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_sprite_hit/rom_singles/01-basics.nes"
 
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/palette/palette.nes"
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/full_palette/full_palette.nes"
-//"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu/nestest/nestest.nes"
+    //  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/1.Basics.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/2.Details.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/3.Timing.nes"
+    //  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/4.Obscure.nes"
+    //  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/5.Emulator.nes"
 
-//"/home/tomas/Documents/Programovani/fearless-nes/Balloon_fight.nes"
-//"/home/tomas/Documents/Programovani/fearless-nes/arkanoid.nes"
-//"/home/tomas/Documents/Programovani/fearless-nes/Clu_Clu_Land.nes"
-//"/home/tomas/Documents/Programovani/fearless-nes/Pinball.nes"
-//"/home/tomas/Documents/Programovani/fearless-nes/SMB.nes"
-//"/home/tomas/Documents/Programovani/fearless-nes/popeye.nes",
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/palette/palette.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/full_palette/full_palette.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu/nestest/nestest.nes"
+
+    //"/home/tomas/Documents/Programovani/fearless-nes/Balloon_fight.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/arkanoid.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/Clu_Clu_Land.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/Pinball.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/SMB.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/popeye.nes"
+};
 
 fn main() {
     let matches = App::new("Fearless-NES")
@@ -101,6 +106,15 @@ fn main() {
         }
     };
 
+    //Update new pointer
+    let ptr: *mut _ = &mut nes;
+
+    nes.cpu.nes = ptr;
+    nes.ppu.nes = ptr;
+    nes.apu.nes = ptr;
+
+    let mut pause = false;
+
     'running: loop {
         for event in sdl.event_pump.poll_iter() {
             match event {
@@ -113,6 +127,10 @@ fn main() {
                     keycode: Some(Keycode::F),
                     ..
                 } => nes.run_one_frame(),
+                Event::KeyDown {
+                    keycode: Some(Keycode::P),
+                    ..
+                } => pause = !pause,
                 Event::KeyDown {
                     keycode: Some(Keycode::A),
                     ..
@@ -181,8 +199,19 @@ fn main() {
             }
         }
 
-        nes.run_one_frame();
+        let start = Instant::now();
+        if !pause {
+            nes.run_one_frame();
+        }
         buffer_to_texture(&nes, &mut texture);
+        let end = Instant::now();
+
+        let elapsed = end.duration_since(start);
+        let expected = Duration::from_millis(16);
+
+        if let Some(d) = expected.checked_sub(elapsed) {
+            thread::sleep(d);
+        }
 
         sdl.canvas.clear();
         sdl.canvas
