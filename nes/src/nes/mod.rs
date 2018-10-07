@@ -98,8 +98,6 @@ impl Nes {
             self.cpu.nes = ptr;
             self.ppu.nes = ptr;
             self.apu.nes = ptr;
-
-            panic!("pointer changed");
         }
 
         self.cpu.tick();
@@ -147,7 +145,6 @@ impl InterruptBus {
 #[derive(Debug)]
 pub enum NesError {
     IoError(io::Error),
-    NesConstantMissing,
     PalRom,
     InvalidFile,
 }

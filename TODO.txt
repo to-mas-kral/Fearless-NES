@@ -1,4 +1,6 @@
-1. TODO: sprite evaluation, sprite overflow tests
-2. TODO: mapper & cartridge reorganizations, implement mappers 1, 2, 3
-3. TODO: refactor, clippy, documentation
-4. TODO: release 0.1.0 !
+# 0. sprite evaluation, sprite overflow tests
+1. TODO: sprite 0 hit tests
+2. TODO: vblank NMI timing tests
+3. TODO: mapper & cartridge reorganizations, implement mappers 2 & 3
+4. TODO: refactor, clippy, documentation
+5. TODO: release 0.1.0 !

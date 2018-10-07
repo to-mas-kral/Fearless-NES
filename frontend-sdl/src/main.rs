@@ -25,12 +25,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 static ROM_PATH: &str = {
-    "/home/tomas/Documents/Programovani/fearless-nes/donkey_kong.nes"
-
-    //"/home/tomas/Documents/Programovani/fearless-nes/2048.nes"
-
-    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/05-nmi_timing.nes"
-    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/06-suppression.nes"
+    "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/04-nmi_control.nes"
+    //  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/05-nmi_timing.nes"
+    //  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/06-suppression.nes"
     //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes"
     //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes"
     //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_vbl_nmi/rom_singles/09-even_odd_frames.nes"
@@ -41,18 +38,15 @@ static ROM_PATH: &str = {
     //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu/cpu_timing_test6/cpu_timing_test.nes"
     //Ox9D, 0x43, 0x46 - probably inaccurate due to NMI
 
-    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_sprite_hit/rom_singles/01-basics.nes"
-
-    //  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/1.Basics.nes"
-    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/2.Details.nes"
-    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/3.Timing.nes"
-    //  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/4.Obscure.nes"
-    //  "/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/sprite_overflow_tests/5.Emulator.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_sprite_hit/rom_singles/09-timing.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_sprite_hit/rom_singles/10-timing_order.nes"
 
     //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/palette/palette.nes"
     //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/full_palette/full_palette.nes"
     //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu/nestest/nestest.nes"
 
+    //"/home/tomas/Documents/Programovani/fearless-nes/donkey_kong.nes"
+    //"/home/tomas/Documents/Programovani/fearless-nes/2048.nes"
     //"/home/tomas/Documents/Programovani/fearless-nes/Balloon_fight.nes"
     //"/home/tomas/Documents/Programovani/fearless-nes/arkanoid.nes"
     //"/home/tomas/Documents/Programovani/fearless-nes/Clu_Clu_Land.nes"
@@ -73,14 +67,16 @@ fn main() {
                 .help("Sets the ROM input file to use")
                 .takes_value(true)
                 .required(false),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("scale")
                 .short("s")
                 .long("scale")
                 .help("Sets the screen size scaling")
                 .takes_value(true)
                 .required(false),
-        ).get_matches();
+        )
+        .get_matches();
 
     let rom_path = matches.value_of("rom").unwrap_or(ROM_PATH);
     let scale = value_t!(matches, "scale", f32).unwrap_or(4f32);
@@ -235,7 +231,11 @@ impl SdlSystem {
         let video_subsystem = sdl_context.video().unwrap();
 
         let window = video_subsystem
-            .window("Fearless-NES", 256 * scale as u32, 240 * scale as u32)
+            .window(
+                "Fearless-NES",
+                (256f32 * scale) as u32,
+                (240f32 * scale) as u32,
+            )
             .position_centered()
             .build()
             .unwrap();
@@ -271,5 +271,6 @@ fn buffer_to_texture(nes: &fearless_nes::nes::Nes, texture: &mut Texture) {
                     buffer[texture_address + 2] = PALETTE[palette_address + 2];
                 }
             }
-        }).unwrap();
+        })
+        .unwrap();
 }

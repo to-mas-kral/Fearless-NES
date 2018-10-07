@@ -74,7 +74,7 @@ pub fn parse_header(f: &mut File) -> Result<InesHeader, NesError> {
 
     for i in 0..3 {
         if header[i] != NES_CONSTANT[i] {
-            return Err(NesError::NesConstantMissing);
+            return Err(NesError::InvalidFile);
         }
     }
 
@@ -96,6 +96,10 @@ pub fn parse_header(f: &mut File) -> Result<InesHeader, NesError> {
     let has_trainer = header[6] & (1 << 2) != 0;
 
     let mapper = u32::from((header[6] >> 4) | (header[7] & 0xF0));
+
+    if header[9] != 0 {
+        return Err(NesError::PalRom);
+    }
 
     Ok(InesHeader {
         prg_rom_size: header[4],

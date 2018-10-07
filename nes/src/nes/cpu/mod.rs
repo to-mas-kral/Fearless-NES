@@ -149,9 +149,9 @@ impl Cpu {
 
     #[inline]
     fn interrupt_address(&mut self) -> usize {
-        /*if self.interrupt_bus.borrow().nmi_signal {
+        if nes!(self.nes).interrupt_bus.nmi_signal {
             return 0xFFFA;
-        }*/
+        }
 
         match self.interrupt_type {
             InterruptType::Irq | InterruptType::None => 0xFFFE,
@@ -201,7 +201,7 @@ impl Cpu {
             0x4000..=0x4013 => nes!(self.nes).apu.write_reg(index, val),
             0x4014 => {
                 self.dma.oam = true;
-                self.dma.addr = val as usize;
+                self.dma.addr = (val as usize) << 8;
             }
             0x4015 => nes!(self.nes).apu.write_reg(index, val),
             0x4016 => nes!(self.nes).controller.write_reg(val),
@@ -234,7 +234,8 @@ impl Cpu {
                     self.read(self.ab);
                 } else {
                     if self.dma.cycles & 1 != 0 {
-                        self.read((self.dma.addr << 8) + (self.dma.cycles as usize >> 1));
+                        self.read(self.dma.addr);
+                        self.dma.addr += 1;
                         self.dma.copy_buffer = self.db
                     } else {
                         self.write(0x2004, self.dma.copy_buffer);
