@@ -25,7 +25,6 @@ pub struct Nes {
     pub apu: apu::Apu,
 
     pub mapper: Box<mapper::Mapper>,
-    pub interrupt_bus: InterruptBus,
     pub controller: controller::Controller,
 
     pub frame: Frame,
@@ -48,7 +47,6 @@ impl Nes {
 
         let frame = Frame::new();
 
-        let interrupt_bus = InterruptBus::new();
         let controller = controller::Controller::new();
 
         let mut nes = Nes {
@@ -57,7 +55,6 @@ impl Nes {
             apu,
 
             mapper,
-            interrupt_bus,
             controller,
 
             frame,
@@ -100,12 +97,12 @@ impl Nes {
             self.apu.nes = ptr;
         }
 
-        self.cpu.tick();
         self.cycle_count += 1;
         if self.cycle_count == 29658 {
             self.ppu.enable_writes();
         }
 
+        self.cpu.tick();
         for _ in 0..3 {
             self.ppu.tick();
         }
@@ -122,23 +119,6 @@ pub struct Frame {
 impl Frame {
     pub fn new() -> Frame {
         Frame { ready: false }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct InterruptBus {
-    pub irq_signal: bool,
-    pub nmi_signal: bool,
-    pub reset_signal: bool,
-}
-
-impl InterruptBus {
-    pub fn new() -> InterruptBus {
-        InterruptBus {
-            irq_signal: false,
-            nmi_signal: false,
-            reset_signal: false,
-        }
     }
 }
 

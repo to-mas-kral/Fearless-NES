@@ -12,12 +12,7 @@ impl Tick for super::Cpu {
                 return;
             }
         }
-        macro_rules! cache_interrupts {
-            ($self: ident) => {
-                self.cached_irq = nes!(self.nes).interrupt_bus.irq_signal;
-                self.cached_nmi |= nes!(self.nes).interrupt_bus.nmi_signal;
-            };
-        };        macro_rules! check_dma {
+        macro_rules! cache_interrupts {($self:ident) => {self.cached_irq = self.irq_signal; self.cached_nmi = self.nmi_signal; /*self.irq_signal = false; self.nmi_signal = false;*/}};        macro_rules! check_dma {
             ($self: ident) => {
                 if $self.dma.hijack_read {
                     self.dma.cycles = 1;
@@ -2059,7 +2054,7 @@ impl Tick for super::Cpu {
                 self.ab = self.pc
             }
             0x101 => {
-                if !(self.take_interrupt && self.pending_reset) {
+                if !(self.take_interrupt && self.reset_signal) {
                     self.write(self.ab, (self.pc >> 8) as u8);
                 }
                 sp_to_ab!(self);
@@ -2067,7 +2062,7 @@ impl Tick for super::Cpu {
                 self.state = 0x102;
             }
             0x102 => {
-                if !(self.take_interrupt && self.pending_reset) {
+                if !(self.take_interrupt && self.reset_signal) {
                     self.write(self.ab, (self.pc & 0xFF) as u8);
                 }
                 sp_to_ab!(self);
@@ -2075,7 +2070,7 @@ impl Tick for super::Cpu {
                 self.state = 0x103;
             }
             0x103 => {
-                if !(self.take_interrupt && self.pending_reset) {
+                if !(self.take_interrupt && self.reset_signal) {
                     self.push_status(true);
                 }
                 self.ab = self.interrupt_address();

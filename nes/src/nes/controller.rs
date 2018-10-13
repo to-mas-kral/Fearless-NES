@@ -4,6 +4,8 @@ pub struct Controller {
     state: u8,
 }
 
+//TODO: 2 controllers, Famicone mode (0x4016 and 0x4017 reads)
+
 impl Controller {
     pub fn new() -> Controller {
         Controller {

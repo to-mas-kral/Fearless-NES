@@ -45,7 +45,7 @@ Tests sprite RAM access via $2003, $2004, and $4014
 2) Basic read/write doesn't work
 3) Address should increment on $2004 write
 4) Address should not increment on $2004 read
-5) Third sprite bytes should be masked with $e3 on read 
+5) Third sprite bytes should be masked with $e3 on read
 6) $4014 DMA copy doesn't work at all
 7) $4014 DMA copy should start at value in $2003 and wrap
 8) $4014 DMA copy should leave value in $2003 intact

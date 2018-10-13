@@ -37,7 +37,7 @@ blargg_test!(
 blargg_test!(
     ppu_vbl_nmi_on_timing,
     "ppu/ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes",
-    ""
+    "00 N\n01 N\n02 N\n03 N\n04 N\n05 -\n06 -\n07 -\n08 -\n\n07-nmi_on_timing\n\nPassed\n"
 );
 
 blargg_test!(
@@ -47,13 +47,13 @@ blargg_test!(
 );
 
 blargg_test!(
-    ppu_vbl_nmi_odd_frames,
+    ppu_vbl_nmi_even_odd_frames,
     "ppu/ppu_vbl_nmi/rom_singles/09-even_odd_frames.nes",
-    ""
+    "00 01 01 02 \n09-even_odd_frames\n\nPassed\n"
 );
 
 blargg_test!(
-    ppu_vbl_nmi_odd_timing,
+    ppu_vbl_nmi_even_odd_timing,
     "ppu/ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes",
     ""
 );
@@ -170,3 +170,22 @@ blargg_test!(
     "ppu/ppu_sprite_hit/rom_singles/08-double_height.nes",
     "\n08-double_height\n\nPassed\n"
 );
+
+blargg_test!(
+    ppu_sprite_hit_timing,
+    "ppu/ppu_sprite_hit/rom_singles/09-timing.nes",
+    ""
+);
+
+blargg_test!(
+    ppu_sprite_hit_timing_order,
+    "ppu/ppu_sprite_hit/rom_singles/10-timing_order.nes",
+    "\n10-timing_order\n\nPassed\n"
+);
+
+//TODO: automatize vbl_nmi_timing tests
+//blargg_test!(
+//    vbl_nmi_timing_frame_basics,
+//    "ppu/vbl_nmi_timing/1.frame_basics.nes",
+//    ""
+//);

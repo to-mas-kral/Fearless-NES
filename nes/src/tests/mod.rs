@@ -58,7 +58,7 @@ mod ppu;
 fn nes_bencher(b: &mut Bencher) {
     let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let bench_path = Path::new(&base_dir)
-        .join("/home/tomas/Documents/Programovani/fearless-nes/donkey_kong.nes");
+        .join("/home/tomas/Documents/Programovani/fearless-nes/SMB.nes");
 
     let mut nes = Nes::new(&bench_path).expect("error when creating bencher NES instance");
 

@@ -44,6 +44,7 @@ impl Sprite {
 pub struct Ppu {
     pub output_buffer: Box<[u8; 256 * 240]>,
 
+    suppress_nmi: bool,
     prev_nmi: bool,
 
     pub oam: [u8; 0x100],
@@ -119,6 +120,7 @@ impl Ppu {
         Ppu {
             output_buffer: Box::new([0; 256 * 240]),
 
+            suppress_nmi: false,
             prev_nmi: false,
 
             xpos: 0,
@@ -238,7 +240,7 @@ impl Ppu {
             0..=0x1FFF => nes!(self.nes).mapper.read_chr(addr),
             0x2000..=0x2FFF => nes!(self.nes).mapper.read_nametable(addr - 0x2000),
             0x3000..=0x3EFF => nes!(self.nes).mapper.read_nametable(addr - 0x3000),
-            0x3F00..=0x3FFF => self.palettes[addr & 0x1F],
+            0x3F00..=0x3FFF => self.palette_read(addr),
             _ => unreachable!(),
         }
     }
@@ -311,6 +313,11 @@ impl Ppu {
         self.sp_pattern_table_addr = if val & (1 << 3) == 0 { 0 } else { 0x1000 };
         self.bg_pattern_table_addr = if val & (1 << 4) == 0 { 0 } else { 0x1000 };
         self.sp_size = if val & (1 << 5) == 0 { 8 } else { 16 };
+
+        //if self.nmi_on_vblank && val & (1 << 7) == 0 && self.scanline == 241 {
+        //    println!("disabling NMI, cycle {:?}", self.xpos);
+        //}
+
         self.nmi_on_vblank = val & (1 << 7) != 0;
     }
 
@@ -351,11 +358,20 @@ impl Ppu {
         //Reading one PPU clock before reads it as clear and never sets the flag or generates
         //NMI for that frame. Reading on the same PPU clock or one later reads it as set,
         //clears it, and suppresses the NMI for that frame.
+
+        //if self.scanline == 241 && self.xpos < 9 {
+        //    println!("reading ppustatus, cycle: {:?}", self.xpos);
+        //}
+
         if self.scanline == 241 && (self.xpos == 2 || self.xpos == 3) {
             self.latch |= 0x80;
-            nes!(self.nes).interrupt_bus.nmi_signal = false;
+            nes!(self.nes).cpu.nmi_signal = false;
+            self.prev_nmi = true;
         } else if self.scanline == 241 && self.xpos == 1 {
             self.latch &= 0x7F;
+            nes!(self.nes).cpu.nmi_signal = false;
+            //self.prev_nmi = false;
+            self.suppress_nmi = true;
         }
     }
 
@@ -424,7 +440,10 @@ impl Ppu {
         self.read_buffer = self.read(self.vram_addr);
 
         if (self.vram_addr & 0x3FFF) >= 0x3F00 {
-            self.latch = self.palette_read(self.vram_addr);
+            self.latch = self.read(self.vram_addr);
+            self.read_buffer = nes!(self.nes)
+                .mapper
+                .read_nametable(self.vram_addr - 0x3000);
         }
 
         if self.rendering_enabled && self.scanline < 240 {
@@ -531,8 +550,7 @@ impl Ppu {
                         //to (0, 0), meaning the last tick of the last NT fetch takes place at (0, 0)
                         //on odd frames replacing the idle tick
                         if self.odd_frame & self.rendering_enabled {
-                            self.scanline = 0;
-                            self.xpos = 0;
+                            self.xpos = 340;
                         }
 
                         self.odd_frame = !self.odd_frame;
@@ -579,8 +597,48 @@ impl Ppu {
                 }
                 _ => (),
             },
-            241...260 => self.handle_vblank(),
+            241...260 => self.vblank(),
             _ => (),
+        }
+    }
+
+    #[inline]
+    fn vblank(&mut self) {
+        match (self.scanline, self.xpos) {
+            (241, 0) => (),
+            (241, 1) => {
+                if !self.suppress_nmi {
+                    self.ppustatus |= 0x80;
+                }
+
+                if self.nmi_on_vblank && !self.suppress_nmi {
+                    nes!(self.nes).cpu.nmi_signal = true;
+                    self.prev_nmi = true;
+                } else {
+                    self.prev_nmi = true;
+                }
+
+                self.suppress_nmi = false;
+            }
+            _ => {
+                let current_nmi = self.nmi_on_vblank && ((self.ppustatus & 0x80) != 0);
+
+                //if self.scanline == 241 && self.xpos < 9 {
+                //    println!(
+                //        "cycle: {:?}, prev_nmi: {:?}, current_nmi: {:?}",
+                //        self.xpos, self.prev_nmi, current_nmi
+                //    );
+                //}
+
+                match (self.prev_nmi, current_nmi) {
+                    (true, true) => (),
+                    (true, false) => (), //nes!(self.nes).cpu.nmi_signal = false
+                    (false, true) => nes!(self.nes).cpu.nmi_signal = true,
+                    (false, false) => (), //nes!(self.nes).cpu.nmi_signal = false,
+                }
+
+                self.prev_nmi = current_nmi;
+            }
         }
     }
 
@@ -823,32 +881,6 @@ impl Ppu {
         }
     }
 
-    #[inline]
-    fn handle_vblank(&mut self) {
-        match (self.scanline, self.xpos) {
-            //(241, 1) => (),
-            (241, 0) => {
-                self.ppustatus |= 0x80;
-                if self.nmi_on_vblank {
-                    nes!(self.nes).interrupt_bus.nmi_signal = true;
-                }
-            }
-            (260, 340) => nes!(self.nes).interrupt_bus.nmi_signal = false,
-            (241..=260, _) => {
-                let current_nmi = self.nmi_on_vblank && ((self.ppustatus & 0x80) != 0);
-                match (self.prev_nmi, current_nmi) {
-                    (true, true) => (),
-                    (true, false) => nes!(self.nes).interrupt_bus.nmi_signal = false,
-                    (false, true) => nes!(self.nes).interrupt_bus.nmi_signal = true,
-                    (false, false) => nes!(self.nes).interrupt_bus.nmi_signal = false,
-                }
-
-                self.prev_nmi = current_nmi;
-            }
-            _ => (),
-        }
-    }
-
     //Taken from: http://wiki.nesdev.com/w/index.php/PPU_scrolling
     #[inline]
     fn y_increment(&mut self) {
@@ -944,7 +976,12 @@ impl Ppu {
         let bg_index = if self.show_bg && self.xpos > self.bg_left_clip as u16 {
             let tile_h_bit = ((self.shift_high << u16::from(self.x_fine_scroll)) & 0x8000) >> 14;
             let tile_l_bit = ((self.shift_low << u16::from(self.x_fine_scroll)) & 0x8000) >> 15;
-            ((self.attribute & 0xC) as u16 | tile_h_bit | tile_l_bit) as usize
+            let attribute = if self.x_fine_scroll as u16 + (self.xpos - 1 & 7) < 8 {
+                (self.attribute & 0xC)
+            } else {
+                (self.attribute & 0x30) >> 2
+            };
+            (attribute as u16 | tile_h_bit | tile_l_bit) as usize
         } else {
             0
         };

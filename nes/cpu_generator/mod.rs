@@ -45,7 +45,7 @@ impl Generator {
     }
 
     pub fn optimize_machine(&mut self) {
-        //TODO: implement optimization
+        //TODO: optimize CPU state machine
         let mut optimized = BTreeMap::new();
 
         for (key, val) in &mut self.state_machine {
@@ -76,8 +76,7 @@ impl Generator {
             "if self.dma.oam || self.dma.dmc { self.dma(); if self.dma.cycles != 0 {return;} }",
         );
         s.push_str(
-            "macro_rules! cache_interrupts {($self:ident) => {self.cached_irq = nes!(self.nes).interrupt_bus.irq_signal;
-            self.cached_nmi |= nes!(self.nes).interrupt_bus.nmi_signal;}};",
+            "macro_rules! cache_interrupts {($self:ident) => {self.cached_irq = self.irq_signal; self.cached_nmi = self.nmi_signal; /*self.irq_signal = false; self.nmi_signal = false;*/}};",
         );
         s.push_str(
             "macro_rules! check_dma {($self:ident) => {if $self.dma.hijack_read {self.dma.cycles = 1; return; }}}",
@@ -236,9 +235,9 @@ impl Generator {
 
     fn brk(&mut self, op: usize) {
         self.add_entry("read_ab!(); check_dma!(self); let int = if self.take_interrupt {0} else {1}; self.pc += int; sp_to_ab!(self); self.sp = (self.sp as u8).wrapping_sub(1) as usize; self.state = <>;".to_string(), op);
-        self.add_middle("if !(self.take_interrupt && self.pending_reset) {self.write(self.ab, (self.pc >> 8) as u8);} sp_to_ab!(self); self.sp = (self.sp as u8).wrapping_sub(1) as usize; self.state = <>;".to_string());
-        self.add_middle("if !(self.take_interrupt && self.pending_reset) {self.write(self.ab, (self.pc & 0xFF) as u8);} sp_to_ab!(self); self.sp = (self.sp as u8).wrapping_sub(1) as usize; self.state = <>;".to_string());
-        self.add_middle("if !(self.take_interrupt && self.pending_reset) {self.push_status(true);} self.ab = self.interrupt_address(); self.take_interrupt = false; self.interrupt_type = super::InterruptType::None; self.state = <>;".to_string());
+        self.add_middle("if !(self.take_interrupt && self.reset_signal) {self.write(self.ab, (self.pc >> 8) as u8);} sp_to_ab!(self); self.sp = (self.sp as u8).wrapping_sub(1) as usize; self.state = <>;".to_string());
+        self.add_middle("if !(self.take_interrupt && self.reset_signal) {self.write(self.ab, (self.pc & 0xFF) as u8);} sp_to_ab!(self); self.sp = (self.sp as u8).wrapping_sub(1) as usize; self.state = <>;".to_string());
+        self.add_middle("if !(self.take_interrupt && self.reset_signal) {self.push_status(true);} self.ab = self.interrupt_address(); self.take_interrupt = false; self.interrupt_type = super::InterruptType::None; self.state = <>;".to_string());
         self.add_middle(
             "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.ab += 1; self.i = true; self.state = <>;"
                 .to_string(),

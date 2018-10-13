@@ -59,8 +59,10 @@ pub struct Cpu {
     open_bus: u8,
 
     cached_irq: bool,
+    pub irq_signal: bool,
     cached_nmi: bool,
-    pending_reset: bool,
+    pub nmi_signal: bool,
+    reset_signal: bool,
     take_interrupt: bool,
     interrupt_type: InterruptType,
 
@@ -95,8 +97,10 @@ impl Cpu {
             temp: 0,
 
             cached_irq: false,
+            irq_signal: false,
             cached_nmi: false,
-            pending_reset: false,
+            nmi_signal: false,
+            reset_signal: false,
             take_interrupt: false,
             interrupt_type: InterruptType::None,
 
@@ -117,39 +121,34 @@ impl Cpu {
     pub fn gen_reset(&mut self) {
         self.state = 0;
         self.take_interrupt = true;
-        self.pending_reset = true;
+        self.reset_signal = true;
         self.interrupt_type = InterruptType::Reset;
         self.write(0x4015, 0);
-        self.pending_reset = false;
+        self.reset_signal = false;
     }
 
     #[inline]
     fn check_interrupts(&mut self) {
         if !self.i && self.cached_irq {
             self.cached_irq = false;
+            self.nmi_signal = false;
             self.take_interrupt = true;
             self.interrupt_type = InterruptType::Irq;
-            nes!(self.nes).interrupt_bus.irq_signal = false
         }
 
         if self.cached_nmi {
             self.cached_nmi = false;
+            self.nmi_signal = false;
             self.take_interrupt = true;
             self.interrupt_type = InterruptType::Nmi;
-            nes!(self.nes).interrupt_bus.nmi_signal = false
         }
 
-        if nes!(self.nes).interrupt_bus.reset_signal {
-            self.take_interrupt = true;
-            self.pending_reset = true;
-            self.interrupt_type = InterruptType::Reset;
-            nes!(self.nes).interrupt_bus.reset_signal = false;
-        }
+        //TODO: resets
     }
 
     #[inline]
     fn interrupt_address(&mut self) -> usize {
-        if nes!(self.nes).interrupt_bus.nmi_signal {
+        if self.nmi_signal {
             return 0xFFFA;
         }
 
@@ -167,11 +166,11 @@ impl Cpu {
             0x2000..=0x3FFF => nes!(self.nes).ppu.read_reg(index),
             0x4000..=0x4014 => self.open_bus,
             0x4015 => nes!(self.nes).apu.read_status(),
-            0x4016 | 0x4017 => {
+            0x4016 => {
                 let tmp = nes!(self.nes).controller.read_reg();
                 (self.open_bus & 0xE0) | tmp
             }
-            0x4018..=0x401F => self.open_bus,
+            0x4017..=0x401F => self.open_bus,
             0x4020..=0xFFFF => {
                 if let Some(val) = nes!(self.nes).mapper.cpu_read(index) {
                     val
