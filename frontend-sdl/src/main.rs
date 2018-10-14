@@ -36,14 +36,7 @@ static ROM_PATH: &str = {
 
     //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu/nestest/nestest.nes"
 
-    //"/home/tomas/Documents/Programovani/fearless-nes/donkey_kong.nes"
-    //"/home/tomas/Documents/Programovani/fearless-nes/2048.nes"
-    //"/home/tomas/Documents/Programovani/fearless-nes/Balloon_fight.nes"
-    //"/home/tomas/Documents/Programovani/fearless-nes/arkanoid.nes"
-    //"/home/tomas/Documents/Programovani/fearless-nes/Clu_Clu_Land.nes"
-    //"/home/tomas/Documents/Programovani/fearless-nes/Pinball.nes"
-    "/home/tomas/Documents/Programovani/fearless-nes/SMB.nes"
-    //"/home/tomas/Documents/Programovani/fearless-nes/popeye.nes"
+    "/home/tomas/Documents/Programovani/fearless-nes/Nintendo/Super Mario Bros..nes"
 };
 
 fn main() {

@@ -1,3 +1,4 @@
+use super::cartridge::Mirroring;
 use super::Nes;
 
 pub static PALETTE: [u8; 192] = [
@@ -226,10 +227,56 @@ impl Ppu {
         addr &= 0x3FFF;
         match addr {
             0..=0x1FFF => nes!(self.nes).mapper.write_chr(addr, val),
-            0x2000..=0x2FFF => nes!(self.nes).mapper.write_nametable(addr - 0x2000, val),
-            0x3000..=0x3EFF => nes!(self.nes).mapper.write_nametable(addr - 0x3000, val),
+            0x2000..=0x2FFF => self.write_nametable(addr - 0x2000, val),
+            0x3000..=0x3EFF => self.write_nametable(addr - 0x3000, val),
             0x3F00..=0x3FFF => self.palette_write(addr, val),
             _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    fn write_nametable(&mut self, addr: usize, val: u8) {
+        let mapper = &mut nes!(self.nes).mapper;
+        match mapper.mirroring() {
+            Mirroring::Vertical => match addr {
+                0..=0x3FF => {
+                    mapper.write_nametable(addr, val);
+                    mapper.write_nametable(addr + 0x800, val);
+                }
+                0x400..=0x7FF => {
+                    mapper.write_nametable(addr, val);
+                    mapper.write_nametable(addr + 0x800, val);
+                }
+                0x800..=0xBFF => {
+                    mapper.write_nametable(addr, val);
+                    mapper.write_nametable(addr - 0x400, val);
+                }
+                0xC00..=0xFFF => {
+                    mapper.write_nametable(addr, val);
+                    mapper.write_nametable(addr - 0x800, val);
+                }
+                _ => unreachable!(),
+            },
+            Mirroring::Horizontal => match addr {
+                0..=0x3FF => {
+                    mapper.write_nametable(addr, val);
+                    mapper.write_nametable(addr + 0x400, val);
+                }
+                0x400..=0x7FF => {
+                    mapper.write_nametable(addr, val);
+                    mapper.write_nametable(addr - 0x400, val);
+                }
+                0x800..=0xBFF => {
+                    mapper.write_nametable(addr, val);
+                    mapper.write_nametable(addr + 0x400, val);
+                }
+                0xC00..=0xFFF => {
+                    mapper.write_nametable(addr, val);
+                    mapper.write_nametable(addr - 0x400, val);
+                }
+                _ => unreachable!(),
+            },
+            m => unimplemented!("{:?} mirroring is unimplemented", m),
         }
     }
 
@@ -440,10 +487,10 @@ impl Ppu {
         self.read_buffer = self.read(self.vram_addr);
 
         if (self.vram_addr & 0x3FFF) >= 0x3F00 {
-            self.latch = self.read(self.vram_addr);
+            self.latch = self.palette_read(self.vram_addr);
             self.read_buffer = nes!(self.nes)
                 .mapper
-                .read_nametable(self.vram_addr - 0x3000);
+                .read_nametable((self.vram_addr & 0x3FFF) - 0x3000);
         }
 
         if self.rendering_enabled && self.scanline < 240 {

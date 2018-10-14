@@ -67,7 +67,6 @@ fn nes_bencher(b: &mut Bencher) {
     });
 }
 
-//TODO: implement mapper 1 and 3 -> stop using rom_singles
 /*TODO: implement these tests:
     cpu_dummy_reads,
     cpu_interrupts_v2

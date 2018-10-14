@@ -12,6 +12,3 @@ $ cd fearless-NES
 $ rustup default nightly
 $ cargo run --release -p -frontend-sdl
 ```
-
-# Roadmap
-- [x] cycle-accurate CPU

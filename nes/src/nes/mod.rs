@@ -10,8 +10,8 @@ pub mod cpu;
 use self::cpu::Tick;
 
 pub mod apu;
+pub mod cartridge;
 pub mod controller;
-pub mod ines;
 pub mod mapper;
 pub mod ppu;
 
@@ -33,13 +33,11 @@ pub struct Nes {
 
 impl Nes {
     pub fn new(rom_path: &Path) -> Result<Nes, NesError> {
-        let mut file = File::open(rom_path)?;
-        let header = ines::parse_header(&mut file)?;
+        let mut rom = File::open(rom_path)?;
 
-        let mut mapper = mapper::get_mapper(header);
+        let cartridge = cartridge::parse_rom(&mut rom)?;
 
-        let mut file = File::open(rom_path)?;
-        mapper.load_cartridge(&mut file)?;
+        let mapper = mapper::create_mapper(cartridge)?;
 
         let ppu = ppu::Ppu::new();
         let apu = apu::Apu::new();
@@ -127,6 +125,7 @@ pub enum NesError {
     IoError(io::Error),
     PalRom,
     InvalidFile,
+    UnsupportedMapper,
 }
 
 impl From<io::Error> for NesError {
