@@ -227,8 +227,7 @@ impl Ppu {
         addr &= 0x3FFF;
         match addr {
             0..=0x1FFF => nes!(self.nes).mapper.write_chr(addr, val),
-            0x2000..=0x2FFF => self.write_nametable(addr - 0x2000, val),
-            0x3000..=0x3EFF => self.write_nametable(addr - 0x3000, val),
+            0x2000..=0x3EFF => self.write_nametable(addr & 0xFFF, val),
             0x3F00..=0x3FFF => self.palette_write(addr, val),
             _ => unreachable!(),
         }
@@ -276,6 +275,47 @@ impl Ppu {
                 }
                 _ => unreachable!(),
             },
+            Mirroring::SingleScreenLow => match addr {
+                0..=0x3FF => mapper.write_nametable(addr, val),
+                0x400..=0x7FF => mapper.write_nametable(addr - 0x400, val),
+                0x800..=0xBFF => mapper.write_nametable(addr - 0x800, val),
+                0xC00..=0xFFF => mapper.write_nametable(addr - 0xC00, val),
+                _ => unreachable!(),
+            },
+            Mirroring::SingleScreenHigh => match addr {
+                0..=0x3FF => mapper.write_nametable(addr + 0x400, val),
+                0x400..=0x7FF => mapper.write_nametable(addr, val),
+                0x800..=0xBFF => mapper.write_nametable(addr - 0x400, val),
+                0xC00..=0xFFF => mapper.write_nametable(addr - 0x800, val),
+                _ => unreachable!(),
+            }
+            Mirroring::FourScreen => match addr {
+                0..=0x3FF => {
+                    mapper.write_nametable(addr, val);
+                    mapper.write_nametable(addr + 0x400, val);
+                    mapper.write_nametable(addr + 0x800, val);
+                    mapper.write_nametable(addr + 0xC00, val);
+                }
+                0x400..=0x7FF => {
+                    mapper.write_nametable(addr - 0x400, val);
+                    mapper.write_nametable(addr, val);
+                    mapper.write_nametable(addr + 0x400, val);
+                    mapper.write_nametable(addr + 0x800, val);
+                }
+                0x800..=0xBFF => {
+                    mapper.write_nametable(addr - 0x800, val);
+                    mapper.write_nametable(addr - 0x400, val);
+                    mapper.write_nametable(addr, val);
+                    mapper.write_nametable(addr + 0x400, val);
+                }
+                0xC00..=0xFFF => {
+                    mapper.write_nametable(addr - 0xC00, val);
+                    mapper.write_nametable(addr - 0x800, val);
+                    mapper.write_nametable(addr - 0x400, val);
+                    mapper.write_nametable(addr, val);
+                }
+                _ => unreachable!(),
+            },
             m => unimplemented!("{:?} mirroring is unimplemented", m),
         }
     }
@@ -285,8 +325,7 @@ impl Ppu {
         addr &= 0x3FFF;
         match addr {
             0..=0x1FFF => nes!(self.nes).mapper.read_chr(addr),
-            0x2000..=0x2FFF => nes!(self.nes).mapper.read_nametable(addr - 0x2000),
-            0x3000..=0x3EFF => nes!(self.nes).mapper.read_nametable(addr - 0x3000),
+            0x2000..=0x3EFF => nes!(self.nes).mapper.read_nametable(addr & 0xFFF),
             0x3F00..=0x3FFF => self.palette_read(addr),
             _ => unreachable!(),
         }
@@ -590,6 +629,7 @@ impl Ppu {
                         self.read(self.nametable_addr());
                     }
                     339 => {
+                        self.sprite_cache = [false; 0x101];
                         nes!(self.nes).frame.ready = true;
                         self.read(self.nametable_addr());
 
@@ -811,6 +851,7 @@ impl Ppu {
         } else {
             self.scanline as i16
         };
+
         let mut y_offset = if sprite.vertical_flip {
             (self.sp_size - 1) as i16 - (scanline - sprite.y as i16)
         } else {
@@ -819,11 +860,12 @@ impl Ppu {
 
         let index = self.secondary_oam[sprite_addr + 1];
         sprite.index = if self.sp_size == 8 {
-            self.sp_pattern_table_addr as u16 | (u16::from(index) << 4) | y_offset as u16
+            (self.sp_pattern_table_addr as u16 | (u16::from(index) << 4)) + y_offset as u16
         } else {
             if y_offset >= 8 {
                 y_offset += 8;
             }
+
             let pattern_table_addr = if index & 1 != 0 { 0x1000 } else { 0 };
             pattern_table_addr | ((u16::from(index & !1) << 4) + y_offset as u16)
         };

@@ -1,5 +1,6 @@
 use super::*;
 
+//TODO: refactor vbl_nmi tests
 blargg_test!(
     ppu_vbl_nmi_basics,
     "ppu/ppu_vbl_nmi/rom_singles/01-vbl_basics.nes",
@@ -123,6 +124,7 @@ blargg_test!(oam_stress, "ppu/oam_stress/oam_stress.nes", "----------------\n---
 //    ""
 //);
 
+//TODO: refactor sprite hit tests
 blargg_test!(
     ppu_sprite_hit_basics,
     "ppu/ppu_sprite_hit/rom_singles/01-basics.nes",

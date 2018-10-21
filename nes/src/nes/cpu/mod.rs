@@ -212,11 +212,11 @@ impl Cpu {
     }
 
     #[inline]
-    pub fn read_direct(&mut self, index: usize) -> u8 {
+    pub fn peek(&mut self, index: usize) -> u8 {
         debug_log!("memory map - reading direct from 0x{:X}", index);
         match index {
             0..=0x1FFF => self.ram[index & 0x7FF],
-            0x4020..=0xFFFF => nes!(self.nes).mapper.cpu_read_direct(index),
+            0x4020..=0xFFFF => nes!(self.nes).mapper.cpu_peek(index),
             _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
         }
     }

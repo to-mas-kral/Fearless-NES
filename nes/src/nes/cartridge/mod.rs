@@ -8,9 +8,12 @@ use super::NesError;
 pub struct Cartridge {
     pub header: InesHeader,
 
-    pub rom: Vec<u8>,
-    //pub prg_ram: Vec<u8>,
+    pub prg_rom: Vec<u8>,
+    pub prg_ram: Vec<u8>,
+    pub chr: Vec<u8>,
 }
+
+//TODO: split PRG and CHR
 
 pub fn parse_rom(f: &mut File) -> Result<Cartridge, NesError> {
     let _bytes: Result<Vec<u8>, _> = f.bytes().collect();
@@ -20,11 +23,33 @@ pub fn parse_rom(f: &mut File) -> Result<Cartridge, NesError> {
 
     let rom: Vec<u8> = rom.iter().cloned().skip(16).collect();
 
+    let prg_end = 0x4000 * header.prg_rom_size as usize;
+
+    let mut prg_rom = Vec::new();
+    prg_rom.extend_from_slice(&rom[0..prg_end]);
+
+    let chr = if header.chr_rom_size != 0 {
+        let chr_end = prg_end + 0x2000 * header.chr_rom_size as usize;
+        let mut chr = Vec::new();
+        chr.extend_from_slice(&rom[prg_end..chr_end]);
+        chr
+    } else {
+        let chr = vec![0; 0x2000];
+        chr
+    };
+
+    let prg_ram = if header.prg_ram_size != 0 {
+        vec![0; 0x2000 * header.prg_ram_size as usize]
+    } else {
+        vec![0; 0x2000]
+    };
+
     Ok(Cartridge {
         header,
 
-        rom,
-        //prg_ram: Vec::new(),
+        prg_rom,
+        prg_ram,
+        chr,
     })
 }
 
@@ -34,7 +59,7 @@ pub struct InesHeader {
     pub prg_ram_size: u8,
     pub chr_rom_size: u8,
     pub mirroring: Mirroring,
-    pub has_prg_ram: bool,
+    pub has_battery: bool,
     pub has_trainer: bool,
     pub mapper: u32,
 }
@@ -67,7 +92,7 @@ fn parse_header(rom: &Vec<u8>) -> Result<InesHeader, NesError> {
         Mirroring::Horizontal
     };
 
-    let has_prg_ram = rom[6] & 2 != 0;
+    let has_battery = rom[6] & 2 != 0;
     let has_trainer = rom[6] & (1 << 2) != 0;
     if has_trainer {
         panic!("ROM has trainer, unsupported");
@@ -84,7 +109,7 @@ fn parse_header(rom: &Vec<u8>) -> Result<InesHeader, NesError> {
         chr_rom_size: rom[5],
         prg_ram_size: rom[8],
         mirroring,
-        has_prg_ram,
+        has_battery,
         has_trainer,
         mapper,
     })
@@ -94,7 +119,8 @@ fn parse_header(rom: &Vec<u8>) -> Result<InesHeader, NesError> {
 pub enum Mirroring {
     Horizontal,
     Vertical,
-    SingleScreen,
+    SingleScreenLow,
+    SingleScreenHigh,
     FourScreen,
     Obscure,
 }

@@ -29,7 +29,7 @@ macro_rules! blargg_test {
                     nes.run_one_cycle();
                 }
 
-                let test_state = nes.cpu.read_direct(0x6000);
+                let test_state = nes.cpu.peek(0x6000);
                 if test_state == 0x80 {
                     test_running = true;
                 }
@@ -41,8 +41,8 @@ macro_rules! blargg_test {
 
             let mut s = String::new();
             let mut p: usize = 0x6004;
-            while nes.cpu.read_direct(p) != 0 {
-                s.push(nes.cpu.read_direct(p) as char);
+            while nes.cpu.peek(p) != 0 {
+                s.push(nes.cpu.peek(p) as char);
                 p += 1;
             }
 
@@ -57,8 +57,8 @@ mod ppu;
 #[bench]
 fn nes_bencher(b: &mut Bencher) {
     let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let bench_path = Path::new(&base_dir)
-        .join("/home/tomas/Documents/Programovani/fearless-nes/SMB.nes");
+    let bench_path =
+        Path::new(&base_dir).join("/home/tomas/Documents/Programovani/fearless-nes/Nintendo/");
 
     let mut nes = Nes::new(&bench_path).expect("error when creating bencher NES instance");
 
