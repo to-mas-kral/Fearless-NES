@@ -27,7 +27,7 @@ pub struct Nes {
     pub mapper: Box<mapper::Mapper>,
     pub controller: controller::Controller,
 
-    pub frame: Frame,
+    pub frame_ready: bool,
     cycle_count: u64,
 }
 
@@ -43,8 +43,6 @@ impl Nes {
         let apu = apu::Apu::new();
         let cpu = cpu::Cpu::new();
 
-        let frame = Frame::new();
-
         let controller = controller::Controller::new();
 
         let mut nes = Nes {
@@ -55,7 +53,7 @@ impl Nes {
             mapper,
             controller,
 
-            frame,
+            frame_ready: false,
             cycle_count: 0,
         };
 
@@ -65,6 +63,7 @@ impl Nes {
         nes.cpu.nes = ptr;
         nes.ppu.nes = ptr;
         nes.apu.nes = ptr;
+        nes.mapper.update_nes_ptr(ptr);
 
         nes.cpu.gen_reset();
         for _ in 0..6 {
@@ -79,10 +78,10 @@ impl Nes {
     }
 
     pub fn run_one_frame(&mut self) {
-        while !self.frame.ready {
+        while !self.frame_ready {
             self.run_one_cycle();
         }
-        self.frame.ready = false;
+        self.frame_ready = false;
     }
 
     pub fn run_one_cycle(&mut self) {
@@ -93,6 +92,7 @@ impl Nes {
             self.cpu.nes = ptr;
             self.ppu.nes = ptr;
             self.apu.nes = ptr;
+            self.mapper.update_nes_ptr(ptr);
         }
 
         self.cycle_count += 1;
@@ -106,17 +106,6 @@ impl Nes {
         }
 
         self.apu.tick();
-    }
-}
-
-#[derive(Clone)]
-pub struct Frame {
-    pub ready: bool,
-}
-
-impl Frame {
-    pub fn new() -> Frame {
-        Frame { ready: false }
     }
 }
 

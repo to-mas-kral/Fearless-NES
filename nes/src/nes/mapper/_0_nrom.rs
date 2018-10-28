@@ -1,6 +1,5 @@
 use super::super::cartridge::Cartridge;
 use super::super::cartridge::Mirroring;
-
 use super::Mapper;
 
 pub struct Nrom {

@@ -1,0 +1,33 @@
+# CPU
+- [x] branch_timing_tests
+- [x] cpu_dummy_reads
+- [x] cpu_dummy_writes
+- [x] cpu_exec_space
+- [ ] cpu_interrupts_v2
+- [ ] cpu_reset
+- [ ] cpu_timing_test6
+- [ ] dma_sync_test
+- [ ] dmc_dma_during_read4
+- [ ] dpcmletterbox
+- [ ] instr_misc - all working, but APU test
+- [x] blargg_instr
+- [x] instr_timing
+- [x] nestest
+- [ ] sprdma_and_dmc_dma
+
+# PPU
+- [x] blargg_ppu_tests_2005_09_15b
+- [ ] full_palette - 3 tests
+- [ ] oam_read_vbl_wait
+- [x] oam_read
+- [x] oam_stress
+- [ ] oamtest3
+- [ ] read2004
+- [ ] nmi_sync
+- [ ] ppu_open_bus
+- [ ] ppu_read_buffer
+- [ ] ppu_sprite_hit - all working, but timing ones
+- [x] ppu_sprite_overflow
+- [ ] ppu_vbl_nmi
+- [ ] vbl_nmi_timing
+- [x] scanline

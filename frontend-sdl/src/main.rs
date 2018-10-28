@@ -92,6 +92,7 @@ fn main() {
     nes.cpu.nes = ptr;
     nes.ppu.nes = ptr;
     nes.apu.nes = ptr;
+    nes.mapper.update_nes_ptr(ptr);
 
     let mut pause = false;
 

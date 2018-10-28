@@ -13,7 +13,7 @@ pub static PALETTE: [u8; 192] = [
     214, 228, 160, 162, 160, 0, 0, 0, 0, 0, 0,
 ];
 
-#[derive(Clone, Copy)]
+#[derive(Copy, Clone)]
 struct Sprite {
     y: u8,
     x: u8,
@@ -288,34 +288,8 @@ impl Ppu {
                 0x800..=0xBFF => mapper.write_nametable(addr - 0x400, val),
                 0xC00..=0xFFF => mapper.write_nametable(addr - 0x800, val),
                 _ => unreachable!(),
-            }
-            Mirroring::FourScreen => match addr {
-                0..=0x3FF => {
-                    mapper.write_nametable(addr, val);
-                    mapper.write_nametable(addr + 0x400, val);
-                    mapper.write_nametable(addr + 0x800, val);
-                    mapper.write_nametable(addr + 0xC00, val);
-                }
-                0x400..=0x7FF => {
-                    mapper.write_nametable(addr - 0x400, val);
-                    mapper.write_nametable(addr, val);
-                    mapper.write_nametable(addr + 0x400, val);
-                    mapper.write_nametable(addr + 0x800, val);
-                }
-                0x800..=0xBFF => {
-                    mapper.write_nametable(addr - 0x800, val);
-                    mapper.write_nametable(addr - 0x400, val);
-                    mapper.write_nametable(addr, val);
-                    mapper.write_nametable(addr + 0x400, val);
-                }
-                0xC00..=0xFFF => {
-                    mapper.write_nametable(addr - 0xC00, val);
-                    mapper.write_nametable(addr - 0x800, val);
-                    mapper.write_nametable(addr - 0x400, val);
-                    mapper.write_nametable(addr, val);
-                }
-                _ => unreachable!(),
             },
+            Mirroring::FourScreen => mapper.write_nametable(addr, val),
             m => unimplemented!("{:?} mirroring is unimplemented", m),
         }
     }
@@ -325,9 +299,34 @@ impl Ppu {
         addr &= 0x3FFF;
         match addr {
             0..=0x1FFF => nes!(self.nes).mapper.read_chr(addr),
-            0x2000..=0x3EFF => nes!(self.nes).mapper.read_nametable(addr & 0xFFF),
+            0x2000..=0x3EFF => self.read_nametable(addr & 0xFFF),
             0x3F00..=0x3FFF => self.palette_read(addr),
             _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    fn read_nametable(&mut self, addr: usize) -> u8 {
+        let mapper = &mut nes!(self.nes).mapper;
+        match mapper.mirroring() {
+            Mirroring::Vertical => nes!(self.nes).mapper.read_nametable(addr),
+            Mirroring::Horizontal => nes!(self.nes).mapper.read_nametable(addr),
+            Mirroring::SingleScreenLow => match addr {
+                0..=0x3FF => mapper.read_nametable(addr),
+                0x400..=0x7FF => mapper.read_nametable(addr - 0x400),
+                0x800..=0xBFF => mapper.read_nametable(addr - 0x800),
+                0xC00..=0xFFF => mapper.read_nametable(addr - 0xC00),
+                _ => unreachable!(),
+            },
+            Mirroring::SingleScreenHigh => match addr {
+                0..=0x3FF => mapper.read_nametable(addr + 0x400),
+                0x400..=0x7FF => mapper.read_nametable(addr),
+                0x800..=0xBFF => mapper.read_nametable(addr - 0x400),
+                0xC00..=0xFFF => mapper.read_nametable(addr - 0x800),
+                _ => unreachable!(),
+            },
+            Mirroring::FourScreen => mapper.read_nametable(addr),
+            m => unimplemented!("{:?} mirroring is unimplemented", m),
         }
     }
 
@@ -630,7 +629,7 @@ impl Ppu {
                     }
                     339 => {
                         self.sprite_cache = [false; 0x101];
-                        nes!(self.nes).frame.ready = true;
+                        nes!(self.nes).frame_ready = true;
                         self.read(self.nametable_addr());
 
                         //The skipped tick is implemented by jumping directly from (339, 261)

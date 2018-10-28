@@ -8,6 +8,8 @@ use super::nes::Nes;
 
 use self::test::Bencher;
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::Hasher;
 use std::io::BufRead;
 use std::io::BufReader;
 
@@ -51,14 +53,38 @@ macro_rules! blargg_test {
     };
 }
 
+#[macro_escape]
+macro_rules! hash_test {
+    ($test_name:ident ,$path:expr, $frames:expr, $hash:expr) => {
+        #[test]
+        fn $test_name() {
+            let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+            let test_path = Path::new(&base_dir).join("src/tests/").join($path);
+
+            let mut nes = Nes::new(&test_path).expect("error when creating test NES instance");
+
+            for _ in 0..$frames {
+                nes.run_one_frame();
+            }
+
+            let mut hasher = DefaultHasher::new();
+
+            for addr in 0..0xFFF {
+                hasher.write_u8(nes.mapper.read_nametable(addr));
+            }
+
+            assert_eq!(hasher.finish(), $hash);
+        }
+    };
+}
+
 mod cpu;
 mod ppu;
 
 #[bench]
 fn nes_bencher(b: &mut Bencher) {
     let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let bench_path =
-        Path::new(&base_dir).join("/home/tomas/Documents/Programovani/fearless-nes/Nintendo/");
+    let bench_path = Path::new(&base_dir).join("src/tests/SPRITE.NES");
 
     let mut nes = Nes::new(&bench_path).expect("error when creating bencher NES instance");
 
@@ -66,8 +92,3 @@ fn nes_bencher(b: &mut Bencher) {
         nes.run_one_frame();
     });
 }
-
-/*TODO: implement these tests:
-    cpu_dummy_reads,
-    cpu_interrupts_v2
-*/

@@ -18,8 +18,8 @@ impl Apu {
     pub fn new() -> Apu {
         Apu {
             cycles: 0,
-            pulse_1: Pulse::new(),
-            pulse_2: Pulse::new(),
+            pulse_1: Pulse::new(1),
+            pulse_2: Pulse::new(0),
             triangle: Triangle::new(),
             noise: Noise::new(),
             dmc: Dmc::new(),
@@ -33,6 +33,9 @@ impl Apu {
 
     #[inline]
     pub fn tick(&mut self) {
+        self.pulse_1.clock();
+        self.pulse_2.clock();
+
         if self.cycle {
             self.cycles += 1;
 
@@ -41,14 +44,16 @@ impl Apu {
                     //TODO: clock envelopes and sweeps
                     3728 => {}
                     7456 => {
-                        self.pulse_1.length_counter.clock();
-                        self.pulse_2.length_counter.clock();
+                        self.pulse_1.frame_clock();
+                        self.pulse_2.frame_clock();
+
                         self.noise.length_counter.clock();
                     }
                     11185 => {}
                     18640 => {
-                        self.pulse_1.length_counter.clock();
-                        self.pulse_2.length_counter.clock();
+                        self.pulse_1.frame_clock();
+                        self.pulse_2.frame_clock();
+
                         self.noise.length_counter.clock();
                         self.cycles = 0
                     }
@@ -57,17 +62,29 @@ impl Apu {
             } else {
                 match self.cycles {
                     //TODO: clock envelopes and sweeps
+                    //0 => {
+                    //    if !self.frame_counter.irq_inhibit {
+                    //        nes!(self.nes).cpu.irq_signal = true;
+                    //    }
+                    //}
                     3728 => {}
                     7456 => {
-                        self.pulse_1.length_counter.clock();
-                        self.pulse_2.length_counter.clock();
+                        self.pulse_1.frame_clock();
+                        self.pulse_2.frame_clock();
+
                         self.noise.length_counter.clock();
                     }
                     11185 => {}
                     14914 => {
-                        self.pulse_1.length_counter.clock();
-                        self.pulse_2.length_counter.clock();
+                        self.pulse_1.frame_clock();
+                        self.pulse_2.frame_clock();
+
                         self.noise.length_counter.clock();
+
+                        //if !self.frame_counter.irq_inhibit {
+                        //    nes!(self.nes).cpu.irq_signal = true;
+                        //}
+
                         self.cycles = 0
                     }
                     _ => (),
@@ -100,7 +117,15 @@ impl Apu {
             0x4012 => self.dmc.set_a(val),
             0x4013 => self.dmc.set_l(val),
             0x4015 => self.write_status(val),
-            0x4017 => self.frame_counter.set_mi(val),
+            0x4017 => {
+                self.frame_counter.set_mi(val);
+                if val & 0x80 != 0 {
+                    self.pulse_1.frame_clock();
+                    self.pulse_2.frame_clock();
+
+                    self.noise.length_counter.clock();
+                }
+            }
             _ => (),
         }
     }
@@ -166,78 +191,147 @@ impl Apu {
             self.noise.length_counter.counter = 0;
         }
 
+        self.noise.length_counter.enable = n;
+
         //if !t {
-        //    self.triangle.length_counter.counter = 0;
+        //    self.triangle.linear_counter.counter = 0;
         //}
 
         if !p_2 {
-            self.pulse_2.volume = 0;
+            //self.pulse_2.volume = 0;
             self.pulse_2.length_counter.counter = 0;
         }
 
+        self.pulse_2.length_counter.enable = p_2;
+
         if !p_1 {
-            self.pulse_1.volume = 0;
+            //self.pulse_1.volume = 0;
             self.pulse_1.length_counter.counter = 0;
         }
+
+        self.pulse_1.length_counter.enable = p_1;
     }
 }
 
+//The reason for the odd output from the sequencer is that the counter is initialized to zero
+//but counts downward rather than upward. Thus it reads the sequence lookup table in the
+//order 0, 7, 6, 5, 4, 3, 2, 1.
+
+//Duty  Sequence lookup table   Output waveform
+//0     0 0 0 0 0 0 0 1         0 1 0 0 0 0 0 0 (12.5%)
+//1     0 0 0 0 0 0 1 1         0 1 1 0 0 0 0 0 (25%)
+//2     0 0 0 0 1 1 1 1         0 1 1 1 1 0 0 0 (50%)
+//3     1 1 1 1 1 1 0 0         1 0 0 1 1 1 1 1 (25% negated)
+
+static DUTY_SEQUENCE: [bool; 0x20] = [
+    false, false, false, false, false, false, false, true, false, false, false, false, false,
+    false, true, true, false, false, false, false, true, true, true, true, true, true, true, true,
+    true, true, false, false,
+];
+
 //The pulse channels produce a variable-width pulse signal, controlled by volume, envelope, length, and sweep units.
-//$4000 / $4004   DDLC VVVV   Duty (D), envelope loop / length counter halt (L), constant volume (C), volume/envelope (V)
+//$4000 / $4004   DDLC VVVV   Duty (D), envelope loop / length counter halt (L), constant volume (C), volume/envelope (V) divider period
 //  Side effects: The duty cycle is changed (see table below), but the sequencer's current position isn't affected.
 //$4001 / $4005   EPPP NSSS   Sweep unit: enabled (E), period (P), negate (N), shift (S)
 //$4002 / $4006   TTTT TTTT   Timer low (T)
 //$4003 / $4007   LLLL LTTT   Length counter load (L), timer high (T)
-//  Side effects: The sequencer is immediately restarted at the first value of the current sequence. The envelope is also restarted. The period divider is not reset.[1]
+//  Side effects: The sequencer is immediately restarted at the first value of the current sequence. The envelope is also restarted. The period divider is not reset.
 struct Pulse {
-    duty: u8,
-    constant_volume: bool,
-    volume: u8,
+    duty_cycle: u8,
+    duty_seq: u8,
+    envelope: Envelope,
 
-    timer: u16,
-
-    sweep_unit: SweepUnit,
+    sweep: Sweep,
     length_counter: LengthCounter,
+
+    enabled: bool,
 }
 
 impl Pulse {
-    pub fn new() -> Pulse {
+    pub fn new(adder_mode: u16) -> Pulse {
         Pulse {
-            duty: 0,
-            constant_volume: false,
-            volume: 0,
+            duty_cycle: 0,
+            duty_seq: 0,
+            envelope: Envelope::new(),
 
-            timer: 0,
-
-            sweep_unit: SweepUnit::new(),
+            sweep: Sweep::new(adder_mode),
             length_counter: LengthCounter::new(),
+
+            enabled: false,
         }
     }
 
     #[inline]
     pub fn set_dlcv(&mut self, val: u8) {
-        //TODO:change duty cycle
-        self.duty = (val & 0xC0) >> 6;
+        self.duty_seq = (val & 0xC0) >> 3;
         self.length_counter.halt = (val & 0x20) != 0;
-        self.constant_volume = (val & 0x10) != 0;
-        self.volume = val & 0xF;
+        self.envelope._loop = (val & 0x20) != 0;
+        self.envelope.constant_volume = (val & 0x10) != 0;
+        self.envelope.period = val & 0xF;
     }
 
     #[inline]
     pub fn set_epns(&mut self, val: u8) {
-        self.sweep_unit.load(val);
+        self.sweep.load(val);
     }
 
     #[inline]
     pub fn set_t(&mut self, val: u8) {
-        self.timer = (self.timer & !0xFF) | u16::from(val);
+        self.sweep.timer = (self.sweep.timer & !0xFF) | u16::from(val);
     }
 
     #[inline]
     pub fn set_lt(&mut self, val: u8) {
-        //TODO:restart sequencer
+        //TODO:restart sequencer - is this right ?
+        self.duty_cycle = 0;
         self.length_counter.load((val & 0xF8) >> 3);
-        self.timer = (self.timer & !0x700) | (u16::from(val & 7) << 8);
+        self.sweep.timer = (self.sweep.timer & !0x700) | (u16::from(val & 7) << 8);
+    }
+
+    #[inline]
+    pub fn clock(&mut self) {
+        if self.sweep.timer > 0 {
+            self.sweep.timer -= 1;
+        } else {
+            self.duty_cycle = (self.duty_cycle + 1) & 7;
+            self.sweep.timer = self.sweep.period;
+        }
+    }
+
+    #[inline]
+    pub fn frame_clock(&mut self) {
+        self.length_counter.clock();
+        self.envelope.clock();
+        self.sweep.clock();
+    }
+
+    //The mixer receives the current envelope volume except when
+    //The sequencer output is zero, or
+    //overflow from the sweep unit's adder is silencing the channel, or
+    //the length counter is zero, or
+    //the timer has a value less than eight.
+    #[inline]
+    pub fn output(&mut self) -> u8 {
+        let active = DUTY_SEQUENCE[(self.duty_seq & self.duty_cycle) as usize];
+
+        if self.enabled
+            && active
+            && self.length_counter.counter > 0
+            && self.sweep.timer >= 8
+            && self.sweep.period < 0x800
+        {
+            //The envelope unit's volume output depends on the constant volume flag: if set, the
+            //envelope parameter directly sets the volume, otherwise the decay level is the current
+            //volume. The constant volume flag has no effect besides selecting the volume source;
+            //the decay level will still be updated when constant volume is selected.
+            if self.envelope.constant_volume {
+                return self.envelope.period;
+            } else {
+                return self.envelope.step;
+            }
+        } else {
+            0
+        }
     }
 }
 
@@ -391,6 +485,12 @@ impl Dmc {
     }
 }
 
+//$4017   MI--.----   Set mode and interrupt (write)
+//Bit 7   M--- ----   Sequencer mode: 0 selects 4-step sequence, 1 selects 5-step sequence
+//Bit 6   -I-- ----   Interrupt inhibit flag. If set, the frame interrupt flag is cleared,
+//otherwise it is unaffected.
+//Side effects: After 3 or 4 CPU clock cycles*, the timer is reset.
+//If the mode flag is set, then both "quarter frame" and "half frame" signals are also generated
 struct FrameCounter {
     mode: bool, //true -5-step, false-4-step
     irq_inhibit: bool,
@@ -407,7 +507,7 @@ impl FrameCounter {
     #[inline]
     pub fn set_mi(&mut self, val: u8) {
         self.mode = val & 0x80 != 0;
-        self.irq_inhibit = val & 0x40 != 0;
+        self.irq_inhibit &= val & 0x40 == 0;
     }
 }
 
@@ -418,6 +518,7 @@ static LENGTH_TABLE: [u8; 0x20] = [
 
 struct LengthCounter {
     halt: bool,
+    enable: bool,
     counter: u8,
 }
 
@@ -425,13 +526,16 @@ impl LengthCounter {
     pub fn new() -> LengthCounter {
         LengthCounter {
             halt: false,
+            enable: true,
             counter: 0,
         }
     }
 
     #[inline]
     pub fn load(&mut self, val: u8) {
-        self.counter = LENGTH_TABLE[val as usize];
+        if self.enable {
+            self.counter = LENGTH_TABLE[val as usize];
+        }
     }
 
     #[inline]
@@ -442,20 +546,23 @@ impl LengthCounter {
     }
 }
 
-struct SweepUnit {
+struct Sweep {
     enabled: bool,
     negate: bool,
     shift: u8,
 
-    period: u8,
-    counter: u8,
+    period: u16,
+    counter: u16,
 
     reload: bool,
+    timer: u16,
+
+    adder_mode: u16, //Pulse 1: 1, pulse 2: 0
 }
 
-impl SweepUnit {
-    pub fn new() -> SweepUnit {
-        SweepUnit {
+impl Sweep {
+    pub fn new(adder_mode: u16) -> Sweep {
+        Sweep {
             enabled: false,
             negate: false,
             shift: 0,
@@ -464,30 +571,110 @@ impl SweepUnit {
             counter: 0,
 
             reload: false,
+            timer: 0,
+
+            adder_mode,
         }
     }
 
     #[inline]
     pub fn load(&mut self, val: u8) {
         self.enabled = (val & 0x80) != 0;
-        self.period = (val & 0x70) >> 4;
+        self.period = (val as u16 & 0x70) >> 4;
         self.negate = (val & 8) != 0;
         self.shift = val & 7;
         self.reload = true;
     }
 
+    //When the frame counter sends a half-frame clock (at 120 or 96 Hz), two things happen.
+    //If the divider's counter is zero, the sweep is enabled, and the sweep unit is not muting the
+    //channel: The pulse's period is adjusted.
+
+    //If the divider's counter is zero or the reload flag is true: The counter is set to P and the
+    //reload flag is cleared. Otherwise, the counter is decremented.
     #[inline]
     pub fn clock(&mut self) {
-        let mute = false;
-        if self.counter == 0 && self.enabled && !mute {
-            //adjust pulse period
-        }
-
         if self.counter == 0 || self.reload {
-            self.counter = self.period;
+            self.counter = self.period + 1;
             self.reload = false;
         } else {
-            self.counter = self.counter.wrapping_sub(1);
+            self.counter -= 1;
+        }
+
+        let mute = false;
+        if self.counter == 0 && self.enabled && !mute {
+            //The sweep unit continuously calculates each channel's target period in this way:
+
+            //A barrel shifter shifts the channel's 11-bit raw timer period right by the shift count,
+            //producing the change amount. If the negate flag is true, the change amount is made negative.
+            //The target period is the sum of the current period and the change amount.
+
+            //For example, if the negate flag is false and the shift amount is zero, the change amount
+            //equals the current period, making the target period equal to twice the current period.
+
+            //The two pulse channels have their adders' carry inputs wired differently, which produces
+            //different results when each channel's change amount is made negative:
+
+            //Pulse 1 adds the ones' complement (−c − 1). Making 20 negative produces a change amount
+            //of −21.
+            //Pulse 2 adds the two's complement (−c). Making 20 negative produces a change amount of −20.
+            self.counter = self.period + 1;
+
+            let change = self.timer >> self.shift;
+            if !self.negate {
+                self.period += change;
+            } else {
+                self.period -= change + self.adder_mode;
+            }
+        }
+    }
+}
+
+struct Envelope {
+    start: bool,
+    period: u8,
+    step: u8,
+    constant_volume: bool,
+    decay_counter: u8,
+    _loop: bool,
+}
+
+impl Envelope {
+    pub fn new() -> Envelope {
+        Envelope {
+            start: false,
+            period: 0,
+            step: 0,
+            constant_volume: false,
+            decay_counter: 0,
+            _loop: false,
+        }
+    }
+
+    //When clocked by the frame counter, one of two actions occurs: if the start flag is clear, the divider
+    //is clocked, otherwise the start flag is cleared, the decay level counter is loaded with 15, and the
+    //divider's period is immediately reloaded.
+
+    //When the divider is clocked while at 0, it is loaded with V and clocks the decay level counter.
+    //Then one of two actions occurs: If the counter is non-zero, it is decremented, otherwise if the
+    //loop flag is set, the decay level counter is loaded with 15.
+    #[inline]
+    pub fn clock(&mut self) {
+        if !self.start {
+            if self.step == 0 {
+                self.step = self.period;
+                if self.decay_counter != 0 {
+                    self.decay_counter -= 1;
+                } else if self._loop {
+                    self.decay_counter = 15;
+                }
+            } else {
+                self.step -= 1;
+            }
+        } else {
+            self.start = false;
+            self.decay_counter = 15;
+            self.step = self.period;
         }
     }
 }

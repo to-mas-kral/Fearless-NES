@@ -1,5 +1,8 @@
 use super::*;
 
+//TODO: get read_buffer test working
+//TODO: implement oamtest3 - mapper 7 needed
+
 //TODO: refactor vbl_nmi tests
 blargg_test!(
     ppu_vbl_nmi_basics,
@@ -59,70 +62,82 @@ blargg_test!(
     ""
 );
 
-//TODO: automatize blargg_ppu_tests_2005
-//blargg_test!(
-//    blargg_ppu_tests_2005_palette_ram,
-//    "ppu/blargg_ppu_tests_2005.09.15b/palette_ram.nes",
-//    ""
-//);
-//
-//
-//blargg_test!(
-//    blargg_ppu_tests_2005_power_up_palette,
-//    "ppu/blargg_ppu_tests_2005.09.15b/power_up_palette.nes",
-//    ""
-//);
-//
-//
-//blargg_test!(
-//    blargg_ppu_tests_2005_sprite_ram,
-//    "ppu/blargg_ppu_tests_2005.09.15b/sprite_ram.nes",
-//    ""
-//);
-//
-//
-//blargg_test!(
-//    blargg_ppu_tests_2005_vbl_clear_time,
-//    "ppu/blargg_ppu_tests_2005.09.15b/vbl_clear_time.nes",
-//    ""
-//);
-//
-//
-//blargg_test!(
-//    blargg_ppu_tests_2005_vram_access,
-//    "ppu/blargg_ppu_tests_2005.09.15b/vram_access.nes",
-//    ""
-//);
+hash_test!(
+    blargg_ppu_tests_2005_palette_ram,
+    "ppu/blargg_ppu_tests_2005.09.15b/palette_ram.nes",
+    180,
+    437891936304612670
+);
+
+
+hash_test!(
+    blargg_ppu_tests_2005_power_up_palette,
+    "ppu/blargg_ppu_tests_2005.09.15b/power_up_palette.nes",
+    180,
+    6750449166931430976
+);
+
+
+hash_test!(
+    blargg_ppu_tests_2005_sprite_ram,
+    "ppu/blargg_ppu_tests_2005.09.15b/sprite_ram.nes",
+    180,
+    437891936304612670
+);
+
+
+hash_test!(
+    blargg_ppu_tests_2005_vbl_clear_time,
+    "ppu/blargg_ppu_tests_2005.09.15b/vbl_clear_time.nes",
+    180,
+    437891936304612670
+);
+
+
+hash_test!(
+    blargg_ppu_tests_2005_vram_access,
+    "ppu/blargg_ppu_tests_2005.09.15b/vram_access.nes",
+    180,
+    8270824088457806082
+);
 
 blargg_test!(oam_read, "ppu/oam_read/oam_read.nes","----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n\noam_read\n\nPassed\n");
 blargg_test!(oam_stress, "ppu/oam_stress/oam_stress.nes", "----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n----------------\n\noam_stress\n\nPassed\n");
 
-//TODO: automatize sprite_overflow tests
-//blargg_test!(
-//    sprite_overflow_tests_basics,
-//    "ppu/sprite_overflow_tests/1.Basics.nes",
-//    ""
-//);
-//blargg_test!(
-//    sprite_overflow_tests_details,
-//    "ppu/sprite_overflow_tests/2.Details.nes",
-//    ""
-//);
-//blargg_test!(
-//    sprite_overflow_tests_timing,
-//    "ppu/sprite_overflow_tests/3.Timing.nes",
-//    ""
-//);
-//blargg_test!(
-//    sprite_overflow_tests_obscure,
-//    "ppu/sprite_overflow_tests/4.Obscure.nes",
-//    ""
-//);
-//blargg_test!(
-//    sprite_overflow_tests_emulator,
-//    "ppu/sprite_overflow_tests/5.Emulator.nes",
-//    ""
-//);
+hash_test!(
+    sprite_overflow_tests_basics,
+    "ppu/sprite_overflow_tests/1.Basics.nes",
+    180,
+    12903855929148818637
+);
+
+hash_test!(
+    sprite_overflow_tests_details,
+    "ppu/sprite_overflow_tests/2.Details.nes",
+    180,
+    11212288191330984064
+);
+
+hash_test!(
+    sprite_overflow_tests_timing,
+    "ppu/sprite_overflow_tests/3.Timing.nes",
+    180,
+    9851834163110547518
+);
+
+hash_test!(
+    sprite_overflow_tests_obscure,
+    "ppu/sprite_overflow_tests/4.Obscure.nes",
+    180,
+    406031556439261211
+);
+
+hash_test!(
+    sprite_overflow_tests_emulator,
+    "ppu/sprite_overflow_tests/5.Emulator.nes",
+    180,
+    4343549908322138215
+);
 
 //TODO: refactor sprite hit tests
 blargg_test!(
@@ -185,9 +200,58 @@ blargg_test!(
     "\n10-timing_order\n\nPassed\n"
 );
 
-//TODO: automatize vbl_nmi_timing tests
-//blargg_test!(
-//    vbl_nmi_timing_frame_basics,
-//    "ppu/vbl_nmi_timing/1.frame_basics.nes",
-//    ""
-//);
+hash_test!(
+    vbl_nmi_timing_frame_basics,
+    "ppu/vbl_nmi_timing/1.frame_basics.nes",
+    180,
+    3452887670413388586
+);
+
+hash_test!(
+    vbl_nmi_timing_vbl_timing,
+    "ppu/vbl_nmi_timing/2.vbl_timing.nes",
+    180,
+    14772986747222263228
+);
+
+hash_test!(
+    vbl_nmi_timing_even_odd_frames,
+    "ppu/vbl_nmi_timing/3.even_odd_frames.nes",
+    180,
+    3063649233938891139
+);
+
+hash_test!(
+    vbl_nmi_timing_vbl_clear_timing,
+    "ppu/vbl_nmi_timing/4.vbl_clear_timing.nes",
+    180,
+    10129148082447838393
+);
+
+hash_test!(
+    vbl_nmi_timing_nmi_suppression,
+    "ppu/vbl_nmi_timing/5.nmi_suppression.nes",
+    180,
+    16599726142867019008
+);
+
+hash_test!(
+    vbl_nmi_timing_nmi_disable,
+    "ppu/vbl_nmi_timing/6.nmi_disable.nes",
+    180,
+    0
+);
+
+hash_test!(
+    vbl_nmi_timing_nmi_timing,
+    "ppu/vbl_nmi_timing/7.nmi_timing.nes",
+    180,
+    0
+);
+
+hash_test!(
+    scanline,
+    "ppu/scanline/scanline.nes",
+    250,
+    3225924796581909531
+);
