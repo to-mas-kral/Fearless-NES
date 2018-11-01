@@ -568,9 +568,6 @@ impl Ppu {
 
     #[inline]
     pub fn tick(&mut self) {
-        debug_log!("at scanline {} cycle {}", (self.scanline), (self.xpos));
-        debug_log!("vram address: 0x{:X}", (self.vram_addr));
-
         self.scanline_tick();
 
         self.xpos += 1;
@@ -768,12 +765,6 @@ impl Ppu {
                     self.shift_high |= u16::from(self.tile_hb);
 
                     self.nametable_byte = self.read(self.nametable_addr());
-
-                    debug_log!("---- fetching data for a new tile ----",);
-                    debug_log!("shift_high {:b}", (self.shift_high));
-                    debug_log!("shift_low {:b}", (self.shift_low));
-                    debug_log!("VRAM addr = 0x{:X}", (self.vram_addr));
-                    debug_log!("Nametable byte = 0x{:X}", (self.nametable_byte));
                 }
                 //The 2-bit 1-of-4 selector" is used to shift the attribute byte right
                 //by 0, 2, 4, or 6 bits depending on bit 4 of the X and Y pixel position.
@@ -788,13 +779,8 @@ impl Ppu {
                         | (self.vram_addr >> 12)
                         | self.bg_pattern_table_addr;
                     self.tile_lb = self.read(self.tile_addr);
-                    debug_log!("Tile addr low = 0x{:X}", (self.tile_addr));
-                    debug_log!("Tile lb = {:b}", (self.tile_lb));
                 }
-                7 => {
-                    self.tile_hb = self.read(self.tile_addr + 8);
-                    debug_log!("Tile hb = {:b}", (self.tile_hb));
-                }
+                7 => self.tile_hb = self.read(self.tile_addr + 8),
                 _ => (),
             }
         }

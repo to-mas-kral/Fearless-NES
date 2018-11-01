@@ -1,7 +1,11 @@
 use super::Nes;
 
+static SAMPLE_FREQ: u32 = 40;
+
 pub struct Apu {
     cycles: u16,
+    sample_counter: u32,
+
     pulse_1: Pulse,
     pulse_2: Pulse,
     triangle: Triangle,
@@ -9,15 +13,27 @@ pub struct Apu {
     dmc: Dmc,
     frame_counter: FrameCounter,
 
-    cycle: bool,
+    pulse_table: [f32; 31],
+    tnd_table: [f32; 203],
 
     pub nes: *mut Nes,
 }
 
 impl Apu {
     pub fn new() -> Apu {
+        let mut pulse_table = [0f32; 31];
+        for n in 0..31 {
+            pulse_table[n] = 95.52 / (8128f32 / n as f32 + 100f32);
+        }
+
+        let mut tnd_table = [0f32; 203];
+        for n in 0..203 {
+            tnd_table[n] = 163.67 / (24329f32 / n as f32 + 100f32);
+        }
+
         Apu {
             cycles: 0,
+            sample_counter: 0,
             pulse_1: Pulse::new(1),
             pulse_2: Pulse::new(0),
             triangle: Triangle::new(),
@@ -25,9 +41,10 @@ impl Apu {
             dmc: Dmc::new(),
             frame_counter: FrameCounter::new(),
 
-            cycle: false,
-
             nes: 0 as *mut Nes,
+
+            pulse_table,
+            tnd_table,
         }
     }
 
@@ -36,7 +53,7 @@ impl Apu {
         self.pulse_1.clock();
         self.pulse_2.clock();
 
-        if self.cycle {
+        if self.frame_counter.odd_cycle {
             self.cycles += 1;
 
             if self.frame_counter.mode {
@@ -48,6 +65,7 @@ impl Apu {
                         self.pulse_2.frame_clock();
 
                         self.noise.length_counter.clock();
+                        self.triangle.length_counter.clock();
                     }
                     11185 => {}
                     18640 => {
@@ -55,6 +73,7 @@ impl Apu {
                         self.pulse_2.frame_clock();
 
                         self.noise.length_counter.clock();
+                        self.triangle.length_counter.clock();
                         self.cycles = 0
                     }
                     _ => (),
@@ -73,6 +92,7 @@ impl Apu {
                         self.pulse_2.frame_clock();
 
                         self.noise.length_counter.clock();
+                        self.triangle.length_counter.clock();
                     }
                     11185 => {}
                     14914 => {
@@ -80,6 +100,7 @@ impl Apu {
                         self.pulse_2.frame_clock();
 
                         self.noise.length_counter.clock();
+                        self.triangle.length_counter.clock();
 
                         //if !self.frame_counter.irq_inhibit {
                         //    nes!(self.nes).cpu.irq_signal = true;
@@ -92,7 +113,43 @@ impl Apu {
             }
         }
 
-        self.cycle = !self.cycle;
+        self.frame_counter.odd_cycle = !self.frame_counter.odd_cycle;
+
+        self.sample_counter += 1;
+        if self.sample_counter == SAMPLE_FREQ {
+            self.sample_counter = 0;
+            let output = self.mixer();
+        }
+    }
+
+    #[inline]
+    fn mixer(&mut self) -> f32 {
+        //The APU mixer formulas can be efficiently implemented using two lookup tables: a 31-entry table
+        //for the two pulse channels and a 203-entry table for the remaining channels (due to the approximation
+        //of tnd_out, the numerators are adjusted slightly to preserve the normalized output range).
+        //
+        //output = pulse_out + tnd_out
+        //
+        //pulse_table [n] = 95.52 / (8128.0 / n + 100)
+        //
+        //pulse_out = pulse_table [pulse1 + pulse2]
+        //
+        //The tnd_out table is approximated (within 4%) by using a base unit close to the DMC's DAC.
+        //
+        //tnd_table [n] = 163.67 / (24329.0 / n + 100)
+        //
+        //tnd_out = tnd_table [3 * triangle + 2 * noise + dmc]
+
+        let pulse_1 = self.pulse_1.output() as usize;
+        let pulse_2 = self.pulse_2.output() as usize;
+        let pulse_out = self.pulse_table[pulse_1 + pulse_2];
+
+        let triangle = 0;
+        let noise = 0;
+        let dmc = 0;
+        let tnd_out = self.tnd_table[3 * triangle + 2 * noise + dmc];
+
+        pulse_out + tnd_out
     }
 
     #[inline]
@@ -146,9 +203,9 @@ impl Apu {
             result |= 2;
         }
 
-        //if self.triangle.length_counter.counter > 0 {
-        //    result |= 4;
-        //}
+        if self.triangle.length_counter.counter > 0 {
+            result |= 4;
+        }
 
         if self.noise.length_counter.counter > 0 {
             result |= 8;
@@ -190,26 +247,22 @@ impl Apu {
             self.noise.volume = 0;
             self.noise.length_counter.counter = 0;
         }
+        self.noise.length_counter.enabled = n;
 
-        self.noise.length_counter.enable = n;
-
-        //if !t {
-        //    self.triangle.linear_counter.counter = 0;
-        //}
+        if !t {
+            self.triangle.length_counter.counter = 0;
+        }
+        self.triangle.length_counter.enabled = t;
 
         if !p_2 {
-            //self.pulse_2.volume = 0;
             self.pulse_2.length_counter.counter = 0;
         }
-
-        self.pulse_2.length_counter.enable = p_2;
+        self.pulse_2.length_counter.enabled = p_2;
 
         if !p_1 {
-            //self.pulse_1.volume = 0;
             self.pulse_1.length_counter.counter = 0;
         }
-
-        self.pulse_1.length_counter.enable = p_1;
+        self.pulse_1.length_counter.enabled = p_1;
     }
 }
 
@@ -264,7 +317,7 @@ impl Pulse {
     #[inline]
     pub fn set_dlcv(&mut self, val: u8) {
         self.duty_seq = (val & 0xC0) >> 3;
-        self.length_counter.halt = (val & 0x20) != 0;
+        self.length_counter.enabled = (val & 0x20) == 0;
         self.envelope._loop = (val & 0x20) != 0;
         self.envelope.constant_volume = (val & 0x10) != 0;
         self.envelope.period = val & 0xF;
@@ -282,7 +335,19 @@ impl Pulse {
 
     #[inline]
     pub fn set_lt(&mut self, val: u8) {
-        //TODO:restart sequencer - is this right ?
+        //    $4003 write:
+        //freq_timer =        v.210       (high 3 bits)
+
+        //if( channel_enabled )
+        //    length_counter =    lengthtable[ v.76543 ]
+        //
+        //; phase is also reset here  (important for games like SMB)
+        //freq_counter =      freq_timer
+        //duty_counter =      0
+
+        //; decay is also flagged for reset here
+        //decay_reset_flag =  true
+
         self.duty_cycle = 0;
         self.length_counter.load((val & 0xF8) >> 3);
         self.sweep.timer = (self.sweep.timer & !0x700) | (u16::from(val & 7) << 8);
@@ -312,10 +377,9 @@ impl Pulse {
     //the timer has a value less than eight.
     #[inline]
     pub fn output(&mut self) -> u8 {
-        let active = DUTY_SEQUENCE[(self.duty_seq & self.duty_cycle) as usize];
+        let active = DUTY_SEQUENCE[(self.duty_seq | self.duty_cycle) as usize];
 
-        if self.enabled
-            && active
+        if active
             && self.length_counter.counter > 0
             && self.sweep.timer >= 8
             && self.sweep.period < 0x800
@@ -350,7 +414,7 @@ struct Triangle {
     counter_reload: u8,
     timer: u16,
 
-    length_counter_load: u8,
+    length_counter: LengthCounter,
 }
 
 impl Triangle {
@@ -360,13 +424,14 @@ impl Triangle {
             counter_reload: 0,
             timer: 0,
 
-            length_counter_load: 0,
+            length_counter: LengthCounter::new(),
         }
     }
 
     #[inline]
     pub fn set_c(&mut self, val: u8) {
         self.counter_control = val & 0x80 != 0;
+        self.length_counter.enabled = val & 0x80 == 0;
         self.counter_reload = val & 0x7F;
     }
 
@@ -377,7 +442,7 @@ impl Triangle {
 
     #[inline]
     pub fn set_l(&mut self, val: u8) {
-        self.length_counter_load = (val & 0xF8) >> 3;
+        self.length_counter.load((val & 0xF8) >> 3);
         self.timer = (self.timer & !0x700) | (u16::from(val & 7) << 8);
         //TODO: set linear control reload flag
     }
@@ -415,7 +480,7 @@ impl Noise {
 
     #[inline]
     pub fn set_lcn(&mut self, val: u8) {
-        self.length_counter.halt = (val & 0x20) != 0;
+        self.length_counter.enabled = (val & 0x20) == 0;
         self.constant_volume = (val & 0x10) != 0;
         self.volume = val & 0xF;
     }
@@ -493,6 +558,7 @@ impl Dmc {
 //If the mode flag is set, then both "quarter frame" and "half frame" signals are also generated
 struct FrameCounter {
     mode: bool, //true -5-step, false-4-step
+    odd_cycle: bool,
     irq_inhibit: bool,
 }
 
@@ -500,6 +566,7 @@ impl FrameCounter {
     pub fn new() -> FrameCounter {
         FrameCounter {
             mode: false,
+            odd_cycle: false,
             irq_inhibit: true,
         }
     }
@@ -517,30 +584,28 @@ static LENGTH_TABLE: [u8; 0x20] = [
 ];
 
 struct LengthCounter {
-    halt: bool,
-    enable: bool,
+    enabled: bool,
     counter: u8,
 }
 
 impl LengthCounter {
     pub fn new() -> LengthCounter {
         LengthCounter {
-            halt: false,
-            enable: true,
+            enabled: true,
             counter: 0,
         }
     }
 
     #[inline]
     pub fn load(&mut self, val: u8) {
-        if self.enable {
+        if self.enabled {
             self.counter = LENGTH_TABLE[val as usize];
         }
     }
 
     #[inline]
     pub fn clock(&mut self) {
-        if self.counter > 0 && !self.halt {
+        if self.counter > 0 && self.enabled {
             self.counter -= 1;
         }
     }

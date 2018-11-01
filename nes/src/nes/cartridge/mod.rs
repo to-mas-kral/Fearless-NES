@@ -13,8 +13,6 @@ pub struct Cartridge {
     pub chr: Vec<u8>,
 }
 
-//TODO: split PRG and CHR
-
 pub fn parse_rom(f: &mut File) -> Result<Cartridge, NesError> {
     let _bytes: Result<Vec<u8>, _> = f.bytes().collect();
     let rom = _bytes?;

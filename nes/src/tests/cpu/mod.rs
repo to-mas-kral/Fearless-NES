@@ -2,7 +2,7 @@ use super::*;
 
 //TODO: implement cpu_interrupts_v2 tests
 
-//TODO: get nestest working
+//TODO: nestest
 /*#[test]
 fn nestest() {
     let nestest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();

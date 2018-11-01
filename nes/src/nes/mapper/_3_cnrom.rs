@@ -46,7 +46,7 @@ impl Mapper for Cnrom {
 
     fn cpu_write(&mut self, addr: usize, val: u8) {
         if let 0x8000..=0xFFFF = addr {
-            self.chr = 0x2000 * (val as usize);
+            self.chr = 0x2000 * ((val & 3) as usize);
         }
     }
 

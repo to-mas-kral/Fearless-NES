@@ -1,7 +1,6 @@
-# TODO
-- [x] sprite evaluation, sprite overflow tests
-- [x] sprite 0 hit tests
-- [ ] TODO: vblank NMI timing tests & sprite 0 hit timing test
-- [x] TODO: mapper & cartridge reorganizations, implement mappers 2 & 3
-- [ ] TODO: refactor, clippy, documentation
-- [ ] TODO: release 0.1.0 !
+# TODO for 0.2
+- [ ] get the APU done, including tests
+- [ ] get all PPU_vbl timing tests to pass
+
+# TODO for 0.3
+- [ ] implement the MMC3 mapper

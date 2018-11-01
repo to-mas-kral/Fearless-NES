@@ -7,12 +7,9 @@ members = [
     "nes",
 ]
 
-[features]
-debug_log = ["nes/debug_log"]
-
 [profile.test]
 opt-level = 3
 
 [profile.release]
-#lto = true
+lto = true
 #debug = true

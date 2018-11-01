@@ -90,8 +90,8 @@ impl Mmc1 {
 
         self.chr_mode = (val & 0x10) >> 4;
 
-        println!("val: {}, mode: {}", val, self.prg_mode);
-        println!("prg_1: 0x{:X}, prg_2: 0x{:X}", self.prg_1, self.prg_2);
+        //println!("val: {}, mode: {}", val, self.prg_mode);
+        //println!("prg_1: 0x{:X}, prg_2: 0x{:X}", self.prg_1, self.prg_2);
     }
 
     //CHR bank 0 (internal, $A000-$BFFF)
@@ -110,10 +110,10 @@ impl Mmc1 {
             self.chr_1 = 0x1000 * (val as usize & 0xFE);
             self.chr_2 = self.chr_1 + 0x1000;
         }
-        println!(
-            "switching chr banks, mode: {}, chr_1: 0x{:X}, chr_2: 0x{:X}",
-            self.chr_mode, self.chr_1, self.chr_2
-        );
+        //println!(
+        //    "switching chr banks, mode: {}, chr_1: 0x{:X}, chr_2: 0x{:X}",
+        //    self.chr_mode, self.chr_1, self.chr_2
+        //);
     }
 
     //CHR bank 1 (internal, $C000-$DFFF)
@@ -127,10 +127,10 @@ impl Mmc1 {
         if self.chr_mode == 1 {
             self.chr_2 = 0x1000 * (val & self.chr_mask) as usize;
         }
-        println!(
-            "switching chr banks, mode: {}, chr_1: 0x{:X}, chr_2: 0x{:X}",
-            self.chr_mode, self.chr_1, self.chr_2
-        );
+        //println!(
+        //    "switching chr banks, mode: {}, chr_1: 0x{:X}, chr_2: 0x{:X}",
+        //    self.chr_mode, self.chr_1, self.chr_2
+        //);
     }
 
     //PRG bank (internal, $E000-$FFFF)

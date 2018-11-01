@@ -181,19 +181,11 @@ impl Cpu {
             _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
         };
 
-        debug_log!(
-            "memory map - reading 0x{:X} from 0x{:X}",
-            (self.open_bus),
-            index
-        );
-
         self.db = self.open_bus;
     }
 
     #[inline]
     pub fn write(&mut self, index: usize, val: u8) {
-        debug_log!("memory map - writing 0x{:X} to 0x{:X}", val, index);
-
         match index {
             0..=0x1FFF => self.ram[index & 0x7FF] = val,
             0x2000..=0x3FFF => nes!(self.nes).ppu.write_reg(index, val),
@@ -213,7 +205,6 @@ impl Cpu {
 
     #[inline]
     pub fn peek(&mut self, index: usize) -> u8 {
-        debug_log!("memory map - reading direct from 0x{:X}", index);
         match index {
             0..=0x1FFF => self.ram[index & 0x7FF],
             0x4020..=0xFFFF => nes!(self.nes).mapper.cpu_peek(index),

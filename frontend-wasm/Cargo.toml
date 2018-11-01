@@ -6,6 +6,3 @@ authors = ["TomasKralCZ <tomas@kral.hk>"]
 [dependencies]
 fearless_nes = { path = "../nes" }
 #stdweb = "0.4.7"
-
-[features]
-debug_log = ["fearless_nes/debug_log"]

@@ -1,13 +1,13 @@
 #[macro_use]
 extern crate clap;
 extern crate fearless_nes;
+extern crate rand;
 extern crate sdl2;
 
 use clap::{App, Arg};
 
-use fearless_nes::nes::controller;
-use fearless_nes::nes::ppu::PALETTE;
-
+use sdl2::audio::AudioQueue;
+use sdl2::audio::AudioSpecDesired;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
@@ -24,25 +24,13 @@ use std::path::Path;
 use std::thread;
 use std::time::{Duration, Instant};
 
-static ROM_PATH: &str = {
-    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/vbl_nmi_timing/5.nmi_suppression.nes"
-    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/vbl_nmi_timing/6.nmi_disable.nes"
-    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/vbl_nmi_timing/7.nmi_timing.nes"
-
-    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/ppu/ppu_open_bus/ppu_open_bus.nes"
-
-    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu/cpu_timing_test6/cpu_timing_test.nes"
-    //Ox9D, 0x43, 0x46 - probably inaccurate due to NMI
-
-    //"/home/tomas/Documents/Programovani/fearless-nes/nes/src/tests/cpu/nestest/nestest.nes"
-
-    "/home/tomas/Documents/Programovani/fearless-nes/Nintendo/Super Mario Bros..nes"
-};
+use fearless_nes::nes::controller;
+use fearless_nes::nes::ppu::PALETTE;
 
 fn main() {
     let matches = App::new("Fearless-NES")
         .version("0.1.0")
-        .author("Tomáš Král <tomas@kral.hk>")
+        .author("Tomáš Král <kral.hk@tomas>")
         .about("A NES emulator written in Rust")
         .arg(
             Arg::with_name("rom")
@@ -50,7 +38,7 @@ fn main() {
                 .long("rom")
                 .help("Sets the ROM input file to use")
                 .takes_value(true)
-                .required(false),
+                .required(true),
         )
         .arg(
             Arg::with_name("scale")
@@ -62,7 +50,8 @@ fn main() {
         )
         .get_matches();
 
-    let rom_path = matches.value_of("rom").unwrap_or(ROM_PATH);
+    let rom_path = matches.value_of("rom").unwrap();
+
     let scale = value_t!(matches, "scale", f32).unwrap_or(4f32);
 
     let mut sdl = match SdlSystem::new(scale) {
@@ -198,6 +187,7 @@ fn main() {
         sdl.canvas
             .copy(&texture, None, Some(Rect::new(0, 0, 256, 240)))
             .unwrap();
+        sdl.canvas.set_clip_rect(Rect::new(0, 0, 256, 240));
         sdl.canvas.set_scale(scale, scale).unwrap();
         sdl.canvas.present();
     }
@@ -208,12 +198,22 @@ struct SdlSystem {
     event_pump: EventPump,
 
     texture_creator: TextureCreator<WindowContext>,
+    audio_device: AudioQueue<i16>,
 }
 
 impl SdlSystem {
     pub fn new(scale: f32) -> Result<SdlSystem, Error> {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
+        let audio_subsystem = sdl_context.audio().unwrap();
+
+        let spec = AudioSpecDesired {
+            freq: Some(44100),
+            channels: Some(1),
+            samples: Some(4),
+        };
+
+        let audio_device = audio_subsystem.open_queue::<i16, _>(None, &spec).unwrap();
 
         let window = video_subsystem
             .window(
@@ -234,6 +234,7 @@ impl SdlSystem {
             canvas,
             event_pump,
             texture_creator,
+            audio_device,
         })
     }
 }

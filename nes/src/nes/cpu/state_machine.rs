@@ -35,8 +35,6 @@ impl Tick for super::Cpu {
                 $self.ab = $self.sp | 0x100
             };
         }
-        debug_log!("executing opcode 0x{:X}", (self.state));
-        debug_log!("CPU state: {}", (self.debug_info()));
         match self.state {
             0x0 => {
                 read_ab!();

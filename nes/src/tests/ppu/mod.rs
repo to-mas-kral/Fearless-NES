@@ -69,14 +69,12 @@ hash_test!(
     437891936304612670
 );
 
-
 hash_test!(
     blargg_ppu_tests_2005_power_up_palette,
     "ppu/blargg_ppu_tests_2005.09.15b/power_up_palette.nes",
     180,
-    6750449166931430976
+    437891936304612670
 );
-
 
 hash_test!(
     blargg_ppu_tests_2005_sprite_ram,
@@ -85,14 +83,12 @@ hash_test!(
     437891936304612670
 );
 
-
 hash_test!(
     blargg_ppu_tests_2005_vbl_clear_time,
     "ppu/blargg_ppu_tests_2005.09.15b/vbl_clear_time.nes",
     180,
     437891936304612670
 );
-
 
 hash_test!(
     blargg_ppu_tests_2005_vram_access,

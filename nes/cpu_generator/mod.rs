@@ -84,8 +84,6 @@ impl Generator {
         s.push_str("macro_rules! read {($self:ident, $addr: expr) => {$self.read($addr)};}");
         s.push_str("macro_rules! read_ab {() => {read!(self, self.ab)};}");
         s.push_str("macro_rules! sp_to_ab {($self:ident) => {$self.ab = $self.sp | 0x100};}");
-        s.push_str("debug_log!(\"executing opcode 0x{:X}\", (self.state));");
-        s.push_str("debug_log!(\"CPU state: {}\", (self.debug_info()));");
         s.push_str("match self.state {");
 
         for (key, val) in self.state_machine.iter() {
