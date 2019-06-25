@@ -1,5 +1,4 @@
 #[allow(unused_variables, dead_code)]
-
 use super::Nes;
 
 static SAMPLE_FREQ: u32 = 40;

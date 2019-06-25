@@ -3,7 +3,7 @@ name = "fearless_nes"
 version = "0.1.0"
 authors = ["TomasKralCZ <tomas@kral.hk>"]
 edition = "2018"
-build = "build.rs"
+build = "src/nes/cpu/cpu_generator.rs"
 
 [build.dependencies]
 rustfmt = "*"
