@@ -1,5 +1,5 @@
 #![feature(test)]
-#![feature(nll)]
+//#![feature(nll)]
 
 pub mod nes;
 mod tests;

@@ -12,8 +12,9 @@ impl Tick for super::Cpu {
                 return;
             }
         }
-        macro_rules! cache_interrupts {($self:ident) => {self.cached_irq = self.irq_signal; self.cached_nmi = self.nmi_signal; /*self.irq_signal = false; self.nmi_signal = false;*/}};        macro_rules! check_dma {
-            ($self: ident) => {
+        macro_rules! cache_interrupts {($self:ident) => {self.cached_irq = self.irq_signal; self.cached_nmi = self.nmi_signal; /*self.irq_signal = false; self.nmi_signal = false;*/}};
+        macro_rules! check_dma {
+            ($self:ident) => {
                 if $self.dma.hijack_read {
                     self.dma.cycles = 1;
                     return;
@@ -21,7 +22,7 @@ impl Tick for super::Cpu {
             };
         }
         macro_rules! read {
-            ($self: ident, $addr: expr) => {
+            ($self:ident, $addr: expr) => {
                 $self.read($addr)
             };
         }
@@ -31,7 +32,7 @@ impl Tick for super::Cpu {
             };
         }
         macro_rules! sp_to_ab {
-            ($self: ident) => {
+            ($self:ident) => {
                 $self.ab = $self.sp | 0x100
             };
         }

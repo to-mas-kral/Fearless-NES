@@ -641,7 +641,7 @@ impl Ppu {
                     _ => (),
                 }
             }
-            0...239 => match self.xpos {
+            0..=239 => match self.xpos {
                 1 => {
                     self.fetch_bg();
                     self.draw_pixel();
@@ -680,7 +680,7 @@ impl Ppu {
                 }
                 _ => (),
             },
-            241...260 => self.vblank(),
+            241..=260 => self.vblank(),
             _ => (),
         }
     }

@@ -22,18 +22,36 @@ pub fn generate_cpu() {
     Command::new("rustfmt").args(&[out_path]).status().unwrap();
 }
 
-type Opcodes = Vec<Opcode>;
-type Opcode = (String, usize);
-
-#[derive(Debug, Clone)]
-pub struct ParsedInstruction {
+struct Node {
+    id: usize,
     code: String,
-    opcodes: Opcodes,
+    opcode: Option<usize>,
+    previous_nodes: Vec<Node>,
+}
+
+impl Node {
+    fn new_end_node(id: usize, code: String) -> Node {
+        Node {
+            id,
+            code,
+            previous_nodes: Vec::new(),
+            opcode: None,
+        }
+    }
+}
+
+struct EndNode {
+    id: usize,
+    code: String,
+    previous_nodes: Vec<Node>,
 }
 
 struct Generator {
     state: usize,
     state_machine: BTreeMap<(usize, Vec<usize>), String>,
+
+    graph: Vec<Node>,
+    node_counter: usize,
 }
 
 impl Generator {
@@ -41,6 +59,9 @@ impl Generator {
         Generator {
             state: 0x100,
             state_machine: BTreeMap::new(),
+
+            graph: Vec::new(),
+            node_counter: 0,
         }
     }
 
@@ -99,9 +120,9 @@ impl Generator {
     }
 
     pub fn generate_machine(&mut self) {
-        for (opcode, opinfo) in OPCODES.iter().enumerate() {
-            match opinfo.0 {
-                Timing::Implied => self.implied(opinfo.1, opcode),
+        for (opcode, (addressing_mode, code)) in OPCODES.iter().enumerate() {
+            match addressing_mode {
+                Timing::Implied => self.implied(code, opcode),
                 Timing::Rti => self.rti(opcode),
                 Timing::Rts => self.rts(opcode),
                 Timing::Jsr => self.jsr(opcode),
@@ -110,34 +131,34 @@ impl Generator {
                 Timing::Php => self.php(opcode),
                 Timing::Plp => self.plp(opcode),
                 Timing::Pla => self.pla(opcode),
-                Timing::Immediate => self.immediate(opinfo.1, opcode),
-                Timing::Accumulator => self.accumulator(opinfo.1, opcode),
-                Timing::ZeroPage => self.zero_page(opinfo.1, opcode),
-                Timing::ZeroPageX => self.zero_page_x(opinfo.1, opcode),
-                Timing::ZeroPageY => self.zero_page_y(opinfo.1, opcode),
-                Timing::Relative => self.relative(opinfo.1, opcode),
-                Timing::Absolute => self.absolute(opinfo.1, opcode),
-                Timing::AbsoluteX => self.absolute_x_or_y(opinfo.1, opcode, "x"),
-                Timing::AbsoluteY => self.absolute_x_or_y(opinfo.1, opcode, "y"),
+                Timing::Immediate => self.immediate(code, opcode),
+                Timing::Accumulator => self.accumulator(code, opcode),
+                Timing::ZeroPage => self.zero_page(code, opcode),
+                Timing::ZeroPageX => self.zero_page_x(code, opcode),
+                Timing::ZeroPageY => self.zero_page_y(code, opcode),
+                Timing::Relative => self.relative(code, opcode),
+                Timing::Absolute => self.absolute(code, opcode),
+                Timing::AbsoluteX => self.absolute_x_or_y(code, opcode, "x"),
+                Timing::AbsoluteY => self.absolute_x_or_y(code, opcode, "y"),
                 Timing::Indirect => self.indirect(opcode),
                 Timing::AbsoluteJmp => self.absolute_jmp(opcode),
-                Timing::IndirectX => self.indirect_x(opinfo.1, opcode),
-                Timing::IndirectY => self.indirect_y(opinfo.1, opcode),
-                Timing::ZeroPageRmw => self.zero_page_rmw(opinfo.1, opcode),
-                Timing::ZeroPageXRmw => self.zero_page_x_rmw(opinfo.1, opcode),
-                Timing::AbsoluteRmw => self.absolute_rmw(opinfo.1, opcode),
-                Timing::AbsoluteXRmw => self.absolute_x_rmw(opinfo.1, opcode),
-                Timing::ZeroPageSt => self.zero_page_st(opinfo.1, opcode),
-                Timing::ZeroPageXSt => self.zero_page_x_or_y_st(opinfo.1, opcode, "x"),
-                Timing::ZeroPageYSt => self.zero_page_x_or_y_st(opinfo.1, opcode, "y"),
-                Timing::AbsoluteSt => self.absolute_st(opinfo.1, opcode),
-                Timing::AbsoluteXSt => self.absolute_x_or_y_st(opinfo.1, opcode, "x"),
-                Timing::AbsoluteYSt => self.absolute_x_or_y_st(opinfo.1, opcode, "y"),
-                Timing::IndirectXSt => self.indirect_x_st(opinfo.1, opcode),
-                Timing::IndirectYSt => self.indirect_y_st(opinfo.1, opcode),
-                Timing::IndirectXIllegal => self.indirect_x_illegal(opinfo.1, opcode),
-                Timing::IndirectYIllegal => self.indirect_y_illegal(opinfo.1, opcode),
-                Timing::AbsoluteYIllegal => self.absolute_y_illegal(opinfo.1, opcode),
+                Timing::IndirectX => self.indirect_x(code, opcode),
+                Timing::IndirectY => self.indirect_y(code, opcode),
+                Timing::ZeroPageRmw => self.zero_page_rmw(code, opcode),
+                Timing::ZeroPageXRmw => self.zero_page_x_rmw(code, opcode),
+                Timing::AbsoluteRmw => self.absolute_rmw(code, opcode),
+                Timing::AbsoluteXRmw => self.absolute_x_rmw(code, opcode),
+                Timing::ZeroPageSt => self.zero_page_st(code, opcode),
+                Timing::ZeroPageXSt => self.zero_page_x_or_y_st(code, opcode, "x"),
+                Timing::ZeroPageYSt => self.zero_page_x_or_y_st(code, opcode, "y"),
+                Timing::AbsoluteSt => self.absolute_st(code, opcode),
+                Timing::AbsoluteXSt => self.absolute_x_or_y_st(code, opcode, "x"),
+                Timing::AbsoluteYSt => self.absolute_x_or_y_st(code, opcode, "y"),
+                Timing::IndirectXSt => self.indirect_x_st(code, opcode),
+                Timing::IndirectYSt => self.indirect_y_st(code, opcode),
+                Timing::IndirectXIllegal => self.indirect_x_illegal(code, opcode),
+                Timing::IndirectYIllegal => self.indirect_y_illegal(code, opcode),
+                Timing::AbsoluteYIllegal => self.absolute_y_illegal(code, opcode),
             };
         }
 
@@ -165,7 +186,26 @@ impl Generator {
         self.state_machine.insert((prev, vec![0x100]), s);
     }
 
+    fn add_end_node(&mut self, code: &str) -> usize {
+        for (id, node) in self.graph.iter().enumerate() {
+            if node.code == code {
+                return id;
+            }
+        }
+
+        self.graph
+            .push(Node::new_end_node(self.node_counter, code.to_string()));
+        self.node_counter += 1;
+        self.node_counter
+    }
+
+    fn add_middle_node(&mut self, _code: &str, _next_node: usize) -> usize {
+        0
+    }
+
     fn plp(&mut self, op: usize) {
+        let _next_node = self.add_end_node("self.check_interrupts(); read_ab!(); check_dma!(self); self.pull_status(self.db); self.ab = self.pc; self.state = 0x100;");
+
         self.add_entry(
             "read_ab!(); check_dma!(self); sp_to_ab!(self); self.state = <>;".to_string(),
             op,

@@ -1,3 +1,5 @@
+#[allow(unused_variables, dead_code)]
+
 use super::Nes;
 
 static SAMPLE_FREQ: u32 = 40;
@@ -118,7 +120,7 @@ impl Apu {
         self.sample_counter += 1;
         if self.sample_counter == SAMPLE_FREQ {
             self.sample_counter = 0;
-            let output = self.mixer();
+            let _output = self.mixer();
         }
     }
 
@@ -235,7 +237,7 @@ impl Apu {
     fn write_status(&mut self, val: u8) {
         self.dmc.irq_enable = false;
 
-        let d = val & 0x10 != 0;
+        let _d = val & 0x10 != 0;
         let n = val & 8 != 0;
         let t = val & 4 != 0;
         let p_2 = val & 2 != 0;
