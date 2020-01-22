@@ -10,8 +10,6 @@ members = [
 [profile.dev]
 opt-level = 3
 debug = true
-debug-assertions = false
-overflow-checks = false
 
 [profile.test]
 opt-level = 3
