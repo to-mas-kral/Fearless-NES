@@ -106,6 +106,8 @@ impl Nes {
             self.ppu.enable_writes();
         }
 
+        self.ppu_tick();
+
         self.cpu.tick();
         for _ in 0..3 {
             self.ppu.tick();

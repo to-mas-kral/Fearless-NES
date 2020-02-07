@@ -2332,8 +2332,9 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab =
-                    (((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF)) as usize;
+                self.ab = (((self.db as usize) << 8)
+                    | ((self.temp + self.y as usize) & 0xFF))
+                    as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x12A
                 } else {
@@ -2366,7 +2367,8 @@ impl Tick for super::Cpu {
             0x12D => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.state = 0x12E;
             }
             0x12E => {
@@ -2480,7 +2482,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x140
@@ -2507,7 +2510,8 @@ impl Tick for super::Cpu {
             0x141 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x142;
             }
@@ -2541,7 +2545,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.x as usize) < 0x100 {
                     0x148
@@ -2568,7 +2573,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.x as usize) < 0x100 {
                     0x14B
@@ -2595,7 +2601,8 @@ impl Tick for super::Cpu {
             0x14C => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x14D;
             }
@@ -2629,7 +2636,8 @@ impl Tick for super::Cpu {
             0x151 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x152;
             }
@@ -2939,8 +2947,9 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab =
-                    (((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF)) as usize;
+                self.ab = (((self.db as usize) << 8)
+                    | ((self.temp + self.y as usize) & 0xFF))
+                    as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x17F
                 } else {
@@ -2973,7 +2982,8 @@ impl Tick for super::Cpu {
             0x182 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.state = 0x183;
             }
             0x183 => {
@@ -3087,7 +3097,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x195
@@ -3114,7 +3125,8 @@ impl Tick for super::Cpu {
             0x196 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x197;
             }
@@ -3148,7 +3160,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.x as usize) < 0x100 {
                     0x19D
@@ -3175,7 +3188,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.x as usize) < 0x100 {
                     0x1A0
@@ -3202,7 +3216,8 @@ impl Tick for super::Cpu {
             0x1A1 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x1A2;
             }
@@ -3236,7 +3251,8 @@ impl Tick for super::Cpu {
             0x1A6 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x1A7;
             }
@@ -3531,8 +3547,9 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab =
-                    (((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF)) as usize;
+                self.ab = (((self.db as usize) << 8)
+                    | ((self.temp + self.y as usize) & 0xFF))
+                    as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x1D2
                 } else {
@@ -3565,7 +3582,8 @@ impl Tick for super::Cpu {
             0x1D5 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.state = 0x1D6;
             }
             0x1D6 => {
@@ -3679,7 +3697,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x1E8
@@ -3706,7 +3725,8 @@ impl Tick for super::Cpu {
             0x1E9 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x1EA;
             }
@@ -3740,7 +3760,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.x as usize) < 0x100 {
                     0x1F0
@@ -3767,7 +3788,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.x as usize) < 0x100 {
                     0x1F3
@@ -3794,7 +3816,8 @@ impl Tick for super::Cpu {
             0x1F4 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x1F5;
             }
@@ -3828,7 +3851,8 @@ impl Tick for super::Cpu {
             0x1F9 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x1FA;
             }
@@ -4146,8 +4170,9 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab =
-                    (((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF)) as usize;
+                self.ab = (((self.db as usize) << 8)
+                    | ((self.temp + self.y as usize) & 0xFF))
+                    as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x228
                 } else {
@@ -4180,7 +4205,8 @@ impl Tick for super::Cpu {
             0x22B => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.state = 0x22C;
             }
             0x22C => {
@@ -4294,7 +4320,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x23E
@@ -4321,7 +4348,8 @@ impl Tick for super::Cpu {
             0x23F => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x240;
             }
@@ -4355,7 +4383,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.x as usize) < 0x100 {
                     0x246
@@ -4382,7 +4411,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.x as usize) < 0x100 {
                     0x249
@@ -4409,7 +4439,8 @@ impl Tick for super::Cpu {
             0x24A => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x24B;
             }
@@ -4443,7 +4474,8 @@ impl Tick for super::Cpu {
             0x24F => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x250;
             }
@@ -4641,7 +4673,8 @@ impl Tick for super::Cpu {
             0x26B => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.state = 0x26C;
             }
             0x26C => {
@@ -4669,7 +4702,8 @@ impl Tick for super::Cpu {
             0x26F => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.state = 0x270;
             }
             0x270 => {
@@ -4745,7 +4779,8 @@ impl Tick for super::Cpu {
             0x27A => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x27B;
             }
@@ -4767,7 +4802,8 @@ impl Tick for super::Cpu {
             0x27D => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x27E;
             }
@@ -4789,7 +4825,8 @@ impl Tick for super::Cpu {
             0x280 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x281;
             }
@@ -4811,7 +4848,8 @@ impl Tick for super::Cpu {
             0x283 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x284;
             }
@@ -4833,7 +4871,8 @@ impl Tick for super::Cpu {
             0x286 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x287;
             }
@@ -4855,7 +4894,8 @@ impl Tick for super::Cpu {
             0x289 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x28A;
             }
@@ -5063,8 +5103,9 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab =
-                    (((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF)) as usize;
+                self.ab = (((self.db as usize) << 8)
+                    | ((self.temp + self.y as usize) & 0xFF))
+                    as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x2A5
                 } else {
@@ -5098,8 +5139,9 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab =
-                    (((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF)) as usize;
+                self.ab = (((self.db as usize) << 8)
+                    | ((self.temp + self.y as usize) & 0xFF))
+                    as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x2AA
                 } else {
@@ -5190,7 +5232,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x2B6
@@ -5218,7 +5261,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x2B9
@@ -5246,7 +5290,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.x as usize) < 0x100 {
                     0x2BC
@@ -5274,7 +5319,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.x as usize) < 0x100 {
                     0x2BF
@@ -5302,7 +5348,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x2C2
@@ -5330,7 +5377,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x2C5
@@ -5590,8 +5638,9 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab =
-                    (((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF)) as usize;
+                self.ab = (((self.db as usize) << 8)
+                    | ((self.temp + self.y as usize) & 0xFF))
+                    as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x2E9
                 } else {
@@ -5624,7 +5673,8 @@ impl Tick for super::Cpu {
             0x2EC => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.state = 0x2ED;
             }
             0x2ED => {
@@ -5738,7 +5788,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x2FF
@@ -5765,7 +5816,8 @@ impl Tick for super::Cpu {
             0x300 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x301;
             }
@@ -5799,7 +5851,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.x as usize) < 0x100 {
                     0x307
@@ -5826,7 +5879,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.x as usize) < 0x100 {
                     0x30A
@@ -5853,7 +5907,8 @@ impl Tick for super::Cpu {
             0x30B => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x30C;
             }
@@ -5887,7 +5942,8 @@ impl Tick for super::Cpu {
             0x310 => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x311;
             }
@@ -6154,8 +6210,9 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab =
-                    (((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF)) as usize;
+                self.ab = (((self.db as usize) << 8)
+                    | ((self.temp + self.y as usize) & 0xFF))
+                    as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x338
                 } else {
@@ -6188,7 +6245,8 @@ impl Tick for super::Cpu {
             0x33B => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.state = 0x33C;
             }
             0x33C => {
@@ -6302,7 +6360,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.y as usize) < 0x100 {
                     0x34E
@@ -6329,7 +6388,8 @@ impl Tick for super::Cpu {
             0x34F => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x350;
             }
@@ -6363,7 +6423,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.x as usize) < 0x100 {
                     0x356
@@ -6390,7 +6451,8 @@ impl Tick for super::Cpu {
                 cache_interrupts!(self);
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = if (self.temp + self.x as usize) < 0x100 {
                     0x359
@@ -6417,7 +6479,8 @@ impl Tick for super::Cpu {
             0x35A => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x35B;
             }
@@ -6451,7 +6514,8 @@ impl Tick for super::Cpu {
             0x35F => {
                 read_ab!();
                 check_dma!(self);
-                self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
+                self.ab =
+                    ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF);
                 self.pc = (self.pc as u16).wrapping_add(1) as usize;
                 self.state = 0x360;
             }

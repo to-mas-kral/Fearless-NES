@@ -248,8 +248,9 @@ impl Cpu {
     fn adc(&mut self, num: u8) {
         let a = self.a;
         let b = num;
-        let carry =
-            (u16::from(num) + u16::from(self.a) + (if self.c { 1 } else { 0 })) & (1 << 8) != 0;
+        let carry = (u16::from(num) + u16::from(self.a) + (if self.c { 1 } else { 0 }))
+            & (1 << 8)
+            != 0;
         let num: i8 = (num as i8).wrapping_add(if self.c { 1 } else { 0 });
         let num: i8 = (num as i8).wrapping_add(self.a as i8);
         self.a = num as u8;

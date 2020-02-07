@@ -82,9 +82,13 @@ impl Generator {
         s.push_str(
             "macro_rules! check_dma {($self:ident) => {if $self.dma.hijack_read {self.dma.cycles = 1; return; }}}",
         );
-        s.push_str("macro_rules! read {($self:ident, $addr: expr) => {$self.read($addr)};}");
+        s.push_str(
+            "macro_rules! read {($self:ident, $addr: expr) => {$self.read($addr)};}",
+        );
         s.push_str("macro_rules! read_ab {() => {read!(self, self.ab)};}");
-        s.push_str("macro_rules! sp_to_ab {($self:ident) => {$self.ab = $self.sp | 0x100};}");
+        s.push_str(
+            "macro_rules! sp_to_ab {($self:ident) => {$self.ab = $self.sp | 0x100};}",
+        );
         s.push_str("match self.state {");
 
         for (key, val) in self.state_machine.iter() {

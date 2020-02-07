@@ -21,7 +21,8 @@ macro_rules! blargg_test {
             let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
             let test_path = Path::new(&base_dir).join("src/tests/").join($path);
 
-            let mut nes = Nes::new(&test_path).expect("error when creating test NES instance");
+            let mut nes =
+                Nes::new(&test_path).expect("error when creating test NES instance");
 
             let mut test_running = false;
 
@@ -61,7 +62,8 @@ macro_rules! hash_test {
             let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
             let test_path = Path::new(&base_dir).join("src/tests/").join($path);
 
-            let mut nes = Nes::new(&test_path).expect("error when creating test NES instance");
+            let mut nes =
+                Nes::new(&test_path).expect("error when creating test NES instance");
 
             for _ in 0..$frames {
                 nes.run_one_frame();
@@ -86,7 +88,8 @@ fn nes_bencher(b: &mut Bencher) {
     let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let bench_path = Path::new(&base_dir).join("src/tests/SPRITE.NES");
 
-    let mut nes = Nes::new(&bench_path).expect("error when creating bencher NES instance");
+    let mut nes =
+        Nes::new(&bench_path).expect("error when creating bencher NES instance");
 
     b.iter(|| {
         nes.run_one_frame();

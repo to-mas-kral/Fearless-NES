@@ -2,14 +2,15 @@ use super::cartridge::Mirroring;
 use super::Nes;
 
 pub static PALETTE: [u8; 192] = [
-    84, 84, 84, 0, 30, 116, 8, 16, 144, 48, 0, 136, 68, 0, 100, 92, 0, 48, 84, 4, 0, 60, 24, 0, 32,
-    42, 0, 8, 58, 0, 0, 64, 0, 0, 60, 0, 0, 50, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 152, 150, 152, 8,
-    76, 196, 48, 50, 236, 92, 30, 228, 136, 20, 176, 160, 20, 100, 152, 34, 32, 120, 60, 0, 84, 90,
-    0, 40, 114, 0, 8, 124, 0, 0, 118, 40, 0, 102, 120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 236, 238, 236,
-    76, 154, 236, 120, 124, 236, 176, 98, 236, 228, 84, 236, 236, 88, 180, 236, 106, 100, 212, 136,
-    32, 160, 170, 0, 116, 196, 0, 76, 208, 32, 56, 204, 108, 56, 180, 204, 60, 60, 60, 0, 0, 0, 0,
-    0, 0, 236, 238, 236, 168, 204, 236, 188, 188, 236, 212, 178, 236, 236, 174, 236, 236, 174, 212,
-    236, 180, 176, 228, 196, 144, 204, 210, 120, 180, 222, 120, 168, 226, 144, 152, 226, 180, 160,
+    84, 84, 84, 0, 30, 116, 8, 16, 144, 48, 0, 136, 68, 0, 100, 92, 0, 48, 84, 4, 0, 60,
+    24, 0, 32, 42, 0, 8, 58, 0, 0, 64, 0, 0, 60, 0, 0, 50, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    152, 150, 152, 8, 76, 196, 48, 50, 236, 92, 30, 228, 136, 20, 176, 160, 20, 100, 152,
+    34, 32, 120, 60, 0, 84, 90, 0, 40, 114, 0, 8, 124, 0, 0, 118, 40, 0, 102, 120, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 236, 238, 236, 76, 154, 236, 120, 124, 236, 176, 98, 236, 228,
+    84, 236, 236, 88, 180, 236, 106, 100, 212, 136, 32, 160, 170, 0, 116, 196, 0, 76,
+    208, 32, 56, 204, 108, 56, 180, 204, 60, 60, 60, 0, 0, 0, 0, 0, 0, 236, 238, 236,
+    168, 204, 236, 188, 188, 236, 212, 178, 236, 236, 174, 236, 236, 174, 212, 236, 180,
+    176, 228, 196, 144, 204, 210, 120, 180, 222, 120, 168, 226, 144, 152, 226, 180, 160,
     214, 228, 160, 162, 160, 0, 0, 0, 0, 0, 0,
 ];
 
@@ -113,9 +114,9 @@ pub struct Ppu {
 impl Ppu {
     pub fn new() -> Ppu {
         let palettes = [
-            0x09, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x0D, 0x08, 0x10, 0x08, 0x24, 0x00, 0x00,
-            0x04, 0x2C, 0x09, 0x01, 0x34, 0x03, 0x00, 0x04, 0x00, 0x14, 0x08, 0x3A, 0x00, 0x02,
-            0x00, 0x20, 0x2C, 0x08,
+            0x09, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x0D, 0x08, 0x10, 0x08, 0x24, 0x00,
+            0x00, 0x04, 0x2C, 0x09, 0x01, 0x34, 0x03, 0x00, 0x04, 0x00, 0x14, 0x08, 0x3A,
+            0x00, 0x02, 0x00, 0x20, 0x2C, 0x08,
         ];
 
         Ppu {
@@ -513,7 +514,8 @@ impl Ppu {
             //TODO: add 2-3 cycle delay to the update
             self.vram_addr = self.temp_vram_addr;
         } else {
-            self.temp_vram_addr = (self.temp_vram_addr & !0xFF00) | ((val as usize & 0x3F) << 8);
+            self.temp_vram_addr =
+                (self.temp_vram_addr & !0xFF00) | ((val as usize & 0x3F) << 8);
         }
 
         self.write_toggle = !self.write_toggle;
@@ -845,7 +847,8 @@ impl Ppu {
 
         let index = self.secondary_oam[sprite_addr + 1];
         sprite.index = if self.sp_size == 8 {
-            (self.sp_pattern_table_addr as u16 | (u16::from(index) << 4)) + y_offset as u16
+            (self.sp_pattern_table_addr as u16 | (u16::from(index) << 4))
+                + y_offset as u16
         } else {
             if y_offset >= 8 {
                 y_offset += 8;
@@ -898,13 +901,15 @@ impl Ppu {
 
                 if !self.sprite_in_range
                     && (self.scanline >= self.oamdata_buffer as u16)
-                    && (self.scanline < (self.oamdata_buffer as u16 + self.sp_size as u16))
+                    && (self.scanline
+                        < (self.oamdata_buffer as u16 + self.sp_size as u16))
                 {
                     self.sprite_in_range = true;
                 }
 
                 if self.secondary_oam_addr < 0x20 {
-                    self.secondary_oam[self.secondary_oam_addr as usize] = self.oamdata_buffer;
+                    self.secondary_oam[self.secondary_oam_addr as usize] =
+                        self.oamdata_buffer;
 
                     if self.sprite_in_range {
                         //1a. If Y-coordinate is in range, copy remaining bytes of sprite
@@ -1018,8 +1023,8 @@ impl Ppu {
     #[inline]
     fn oam_refresh_bug(&mut self) {
         if self.oamaddr >= 8 && self.rendering_enabled {
-            self.oam[self.xpos as usize - 1] =
-                self.oam[(self.oamaddr as usize & 0xF8).wrapping_add(self.xpos as usize - 1)];
+            self.oam[self.xpos as usize - 1] = self.oam
+                [(self.oamaddr as usize & 0xF8).wrapping_add(self.xpos as usize - 1)];
         }
     }
 
@@ -1048,8 +1053,10 @@ impl Ppu {
         }
 
         let bg_index = if self.show_bg && self.xpos > self.bg_left_clip as u16 {
-            let tile_h_bit = ((self.shift_high << u16::from(self.x_fine_scroll)) & 0x8000) >> 14;
-            let tile_l_bit = ((self.shift_low << u16::from(self.x_fine_scroll)) & 0x8000) >> 15;
+            let tile_h_bit =
+                ((self.shift_high << u16::from(self.x_fine_scroll)) & 0x8000) >> 14;
+            let tile_l_bit =
+                ((self.shift_low << u16::from(self.x_fine_scroll)) & 0x8000) >> 15;
             let attribute = if self.x_fine_scroll as u16 + (self.xpos - 1 & 7) < 8 {
                 self.attribute & 0xC
             } else {
@@ -1070,7 +1077,8 @@ impl Ppu {
                 let shift = self.xpos as i32 - spr.x as i32 - 1;
                 if shift >= 0 && shift <= 7 {
                     let sp_color = if spr.horizontal_flip {
-                        ((spr.tile_low >> shift) & 1) | (((spr.tile_high >> shift) & 1) << 1)
+                        ((spr.tile_low >> shift) & 1)
+                            | (((spr.tile_high >> shift) & 1) << 1)
                     } else {
                         (((spr.tile_low << shift) & 0x80) >> 7)
                             | (((spr.tile_high << shift) & 0x80) >> 6)
