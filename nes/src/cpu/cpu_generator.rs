@@ -67,10 +67,10 @@ impl Generator {
 
         let mut s = String::new();
 
-        s.push_str("use super::Tick;");
-        s.push_str("impl Tick for super::Nes {");
+        s.push_str("use super::Nes;");
+        s.push_str("impl Nes {");
         s.push_str("#[allow(unused_variables)]");
-        s.push_str("fn cpu_tick(&mut self) {");
+        s.push_str("pub fn cpu_tick(&mut self) {");
         s.push_str("if self.cpu.halt {return}");
         s.push_str("self.cpu.odd_cycle = !self.cpu.odd_cycle;");
         s.push_str(

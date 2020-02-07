@@ -1,6 +1,5 @@
 #![feature(test)]
 
-//pub mod nes;
 mod tests;
 
 #[macro_export]
@@ -12,7 +11,6 @@ macro_rules! nes {
 }
 
 pub mod cpu;
-use self::cpu::Tick;
 
 pub mod apu;
 pub mod cartridge;

@@ -2,10 +2,6 @@ use super::Nes;
 
 mod state_machine;
 
-pub trait Tick {
-    fn cpu_tick(&mut self);
-}
-
 enum InterruptType {
     Nmi,
     Irq,

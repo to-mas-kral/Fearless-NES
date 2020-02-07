@@ -1,7 +1,7 @@
-use super::Tick;
-impl Tick for super::Nes {
+use super::Nes;
+impl Nes {
     #[allow(unused_variables)]
-    fn cpu_tick(&mut self) {
+    pub fn cpu_tick(&mut self) {
         if self.cpu.halt {
             return;
         }
