@@ -6,8 +6,8 @@ extern crate sdl2;
 
 use clap::{App, Arg};
 
-use sdl2::audio::AudioQueue;
-use sdl2::audio::AudioSpecDesired;
+//use sdl2::audio::AudioQueue;
+//use sdl2::audio::AudioSpecDesired;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
@@ -24,8 +24,8 @@ use std::path::Path;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use fearless_nes::nes::controller;
-use fearless_nes::nes::ppu::PALETTE;
+use fearless_nes::controller;
+use fearless_nes::ppu::PALETTE;
 
 fn main() {
     let matches = App::new("Fearless-NES")
@@ -67,7 +67,7 @@ fn main() {
         .create_texture_streaming(PixelFormatEnum::RGB24, 256, 240)
         .unwrap();
 
-    let mut nes = match fearless_nes::nes::Nes::new(Path::new(rom_path)) {
+    let mut nes = match fearless_nes::Nes::new(Path::new(rom_path)) {
         Ok(nes) => nes,
         Err(e) => {
             println!("{:?}", e);
@@ -77,10 +77,6 @@ fn main() {
 
     //Update new pointer
     let ptr: *mut _ = &mut nes;
-
-    nes.cpu.nes = ptr;
-    nes.ppu.nes = ptr;
-    nes.apu.nes = ptr;
     nes.mapper.update_nes_ptr(ptr);
 
     let mut pause = false;
@@ -198,22 +194,22 @@ struct SdlSystem {
     event_pump: EventPump,
 
     texture_creator: TextureCreator<WindowContext>,
-    audio_device: AudioQueue<i16>,
+    //audio_device: AudioQueue<i16>,
 }
 
 impl SdlSystem {
     pub fn new(scale: f32) -> Result<SdlSystem, Error> {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
-        let audio_subsystem = sdl_context.audio().unwrap();
+        //let audio_subsystem = sdl_context.audio().unwrap();
 
-        let spec = AudioSpecDesired {
+        /* let spec = AudioSpecDesired {
             freq: Some(44100),
             channels: Some(1),
             samples: Some(4),
-        };
+        }; */
 
-        let audio_device = audio_subsystem.open_queue::<i16, _>(None, &spec).unwrap();
+        //let audio_device = audio_subsystem.open_queue::<i16, _>(None, &spec).unwrap();
 
         let window = video_subsystem
             .window(
@@ -234,13 +230,13 @@ impl SdlSystem {
             canvas,
             event_pump,
             texture_creator,
-            audio_device,
+            //audio_device,
         })
     }
 }
 
 #[inline]
-fn buffer_to_texture(nes: &fearless_nes::nes::Nes, texture: &mut Texture) {
+fn buffer_to_texture(nes: &fearless_nes::Nes, texture: &mut Texture) {
     texture
         .with_lock(None, |buffer: &mut [u8], pitch: usize| {
             for y in 0..240 {

@@ -16,8 +16,6 @@ pub struct Apu {
 
     pulse_table: [f32; 31],
     tnd_table: [f32; 203],
-
-    pub nes: *mut Nes,
 }
 
 impl Apu {
@@ -42,89 +40,89 @@ impl Apu {
             dmc: Dmc::new(),
             frame_counter: FrameCounter::new(),
 
-            nes: 0 as *mut Nes,
-
             pulse_table,
             tnd_table,
         }
     }
+}
 
+impl Nes {
     #[inline]
-    pub fn tick(&mut self) {
-        self.pulse_1.clock();
-        self.pulse_2.clock();
+    pub fn apu_tick(&mut self) {
+        self.apu.pulse_1.clock();
+        self.apu.pulse_2.clock();
 
-        if self.frame_counter.odd_cycle {
-            self.cycles += 1;
+        if self.apu.frame_counter.odd_cycle {
+            self.apu.cycles += 1;
 
-            if self.frame_counter.mode {
-                match self.cycles {
+            if self.apu.frame_counter.mode {
+                match self.apu.cycles {
                     //TODO: clock envelopes and sweeps
                     3728 => {}
                     7456 => {
-                        self.pulse_1.frame_clock();
-                        self.pulse_2.frame_clock();
+                        self.apu.pulse_1.frame_clock();
+                        self.apu.pulse_2.frame_clock();
 
-                        self.noise.length_counter.clock();
-                        self.triangle.length_counter.clock();
+                        self.apu.noise.length_counter.clock();
+                        self.apu.triangle.length_counter.clock();
                     }
                     11185 => {}
                     18640 => {
-                        self.pulse_1.frame_clock();
-                        self.pulse_2.frame_clock();
+                        self.apu.pulse_1.frame_clock();
+                        self.apu.pulse_2.frame_clock();
 
-                        self.noise.length_counter.clock();
-                        self.triangle.length_counter.clock();
-                        self.cycles = 0
+                        self.apu.noise.length_counter.clock();
+                        self.apu.triangle.length_counter.clock();
+                        self.apu.cycles = 0
                     }
                     _ => (),
                 }
             } else {
-                match self.cycles {
+                match self.apu.cycles {
                     //TODO: clock envelopes and sweeps
                     //0 => {
-                    //    if !self.frame_counter.irq_inhibit {
+                    //    if !self.apu.frame_counter.irq_inhibit {
                     //        nes!(self.nes).cpu.irq_signal = true;
                     //    }
                     //}
                     3728 => {}
                     7456 => {
-                        self.pulse_1.frame_clock();
-                        self.pulse_2.frame_clock();
+                        self.apu.pulse_1.frame_clock();
+                        self.apu.pulse_2.frame_clock();
 
-                        self.noise.length_counter.clock();
-                        self.triangle.length_counter.clock();
+                        self.apu.noise.length_counter.clock();
+                        self.apu.triangle.length_counter.clock();
                     }
                     11185 => {}
                     14914 => {
-                        self.pulse_1.frame_clock();
-                        self.pulse_2.frame_clock();
+                        self.apu.pulse_1.frame_clock();
+                        self.apu.pulse_2.frame_clock();
 
-                        self.noise.length_counter.clock();
-                        self.triangle.length_counter.clock();
+                        self.apu.noise.length_counter.clock();
+                        self.apu.triangle.length_counter.clock();
 
-                        //if !self.frame_counter.irq_inhibit {
+                        //if !self.apu.frame_counter.irq_inhibit {
                         //    nes!(self.nes).cpu.irq_signal = true;
                         //}
 
-                        self.cycles = 0
+                        self.apu.cycles = 0
                     }
                     _ => (),
                 }
             }
         }
 
-        self.frame_counter.odd_cycle = !self.frame_counter.odd_cycle;
+        self.apu.frame_counter.odd_cycle = !self.apu.frame_counter.odd_cycle;
 
-        self.sample_counter += 1;
-        if self.sample_counter == SAMPLE_FREQ {
-            self.sample_counter = 0;
-            let _output = self.mixer();
+        self.apu.sample_counter += 1;
+        if self.apu.sample_counter == SAMPLE_FREQ {
+            self.apu.sample_counter = 0;
+            let _output = self.apu_mixer();
         }
     }
 
     #[inline]
-    fn mixer(&mut self) -> f32 {
+    fn apu_mixer(&mut self) -> f32 {
         //The APU mixer formulas can be efficiently implemented using two lookup tables: a 31-entry table
         //for the two pulse channels and a 203-entry table for the remaining channels (due to the approximation
         //of tnd_out, the numerators are adjusted slightly to preserve the normalized output range).
@@ -141,47 +139,47 @@ impl Apu {
         //
         //tnd_out = tnd_table [3 * triangle + 2 * noise + dmc]
 
-        let pulse_1 = self.pulse_1.output() as usize;
-        let pulse_2 = self.pulse_2.output() as usize;
-        let pulse_out = self.pulse_table[pulse_1 + pulse_2];
+        let pulse_1 = self.apu.pulse_1.output() as usize;
+        let pulse_2 = self.apu.pulse_2.output() as usize;
+        let pulse_out = self.apu.pulse_table[pulse_1 + pulse_2];
 
         let triangle = 0;
         let noise = 0;
         let dmc = 0;
-        let tnd_out = self.tnd_table[3 * triangle + 2 * noise + dmc];
+        let tnd_out = self.apu.tnd_table[3 * triangle + 2 * noise + dmc];
 
         pulse_out + tnd_out
     }
 
     #[inline]
-    pub fn write_reg(&mut self, addr: usize, val: u8) {
+    pub fn apu_write_reg(&mut self, addr: usize, val: u8) {
         match addr {
-            0x4000 => self.pulse_1.set_dlcv(val),
-            0x4001 => self.pulse_1.set_epns(val),
-            0x4002 => self.pulse_1.set_t(val),
-            0x4003 => self.pulse_1.set_lt(val),
-            0x4004 => self.pulse_2.set_dlcv(val),
-            0x4005 => self.pulse_2.set_epns(val),
-            0x4006 => self.pulse_2.set_t(val),
-            0x4007 => self.pulse_2.set_lt(val),
-            0x4008 => self.triangle.set_c(val),
-            0x400A => self.triangle.set_tl(val),
-            0x400B => self.triangle.set_l(val),
-            0x400C => self.noise.set_lcn(val),
-            0x400E => self.noise.set_lp(val),
-            0x400F => self.noise.set_l(val),
-            0x4010 => self.dmc.set_ilf(val),
-            0x4011 => self.dmc.set_d(val),
-            0x4012 => self.dmc.set_a(val),
-            0x4013 => self.dmc.set_l(val),
-            0x4015 => self.write_status(val),
+            0x4000 => self.apu.pulse_1.set_dlcv(val),
+            0x4001 => self.apu.pulse_1.set_epns(val),
+            0x4002 => self.apu.pulse_1.set_t(val),
+            0x4003 => self.apu.pulse_1.set_lt(val),
+            0x4004 => self.apu.pulse_2.set_dlcv(val),
+            0x4005 => self.apu.pulse_2.set_epns(val),
+            0x4006 => self.apu.pulse_2.set_t(val),
+            0x4007 => self.apu.pulse_2.set_lt(val),
+            0x4008 => self.apu.triangle.set_c(val),
+            0x400A => self.apu.triangle.set_tl(val),
+            0x400B => self.apu.triangle.set_l(val),
+            0x400C => self.apu.noise.set_lcn(val),
+            0x400E => self.apu.noise.set_lp(val),
+            0x400F => self.apu.noise.set_l(val),
+            0x4010 => self.apu.dmc.set_ilf(val),
+            0x4011 => self.apu.dmc.set_d(val),
+            0x4012 => self.apu.dmc.set_a(val),
+            0x4013 => self.apu.dmc.set_l(val),
+            0x4015 => self.apu_write_status(val),
             0x4017 => {
-                self.frame_counter.set_mi(val);
+                self.apu.frame_counter.set_mi(val);
                 if val & 0x80 != 0 {
-                    self.pulse_1.frame_clock();
-                    self.pulse_2.frame_clock();
+                    self.apu.pulse_1.frame_clock();
+                    self.apu.pulse_2.frame_clock();
 
-                    self.noise.length_counter.clock();
+                    self.apu.noise.length_counter.clock();
                 }
             }
             _ => (),
@@ -194,35 +192,35 @@ impl Apu {
     //Reading this register clears the frame interrupt flag (but not the DMC interrupt flag).
     //If an interrupt flag was set at the same moment of the read, it will read back as 1 but it will not be cleared.
     #[inline]
-    pub fn read_status(&mut self) -> u8 {
+    pub fn apu_read_status(&mut self) -> u8 {
         let mut result = 0;
-        if self.pulse_1.length_counter.counter > 0 {
+        if self.apu.pulse_1.length_counter.counter > 0 {
             result |= 1;
         }
 
-        if self.pulse_2.length_counter.counter > 0 {
+        if self.apu.pulse_2.length_counter.counter > 0 {
             result |= 2;
         }
 
-        if self.triangle.length_counter.counter > 0 {
+        if self.apu.triangle.length_counter.counter > 0 {
             result |= 4;
         }
 
-        if self.noise.length_counter.counter > 0 {
+        if self.apu.noise.length_counter.counter > 0 {
             result |= 8;
         }
 
         //TODO: set DMC active bit
 
-        if self.frame_counter.irq_inhibit {
+        if self.apu.frame_counter.irq_inhibit {
             result |= 0x40;
         }
 
-        if self.dmc.irq_enable {
+        if self.apu.dmc.irq_enable {
             result |= 0x80;
         }
 
-        self.frame_counter.irq_inhibit = false;
+        self.apu.frame_counter.irq_inhibit = false;
 
         result
     }
@@ -233,8 +231,8 @@ impl Apu {
     //If the DMC bit is set, the DMC sample will be restarted only if its bytes remaining is 0. If there are bits remaining in the 1-byte sample buffer, these will finish playing before the next sample is fetched.
     //Writing to this register clears the DMC interrupt flag.
     #[inline]
-    fn write_status(&mut self, val: u8) {
-        self.dmc.irq_enable = false;
+    fn apu_write_status(&mut self, val: u8) {
+        self.apu.dmc.irq_enable = false;
 
         let _d = val & 0x10 != 0;
         let n = val & 8 != 0;
@@ -245,25 +243,25 @@ impl Apu {
         //TODO: manage DMC
 
         if !n {
-            self.noise.volume = 0;
-            self.noise.length_counter.counter = 0;
+            self.apu.noise.volume = 0;
+            self.apu.noise.length_counter.counter = 0;
         }
-        self.noise.length_counter.enabled = n;
+        self.apu.noise.length_counter.enabled = n;
 
         if !t {
-            self.triangle.length_counter.counter = 0;
+            self.apu.triangle.length_counter.counter = 0;
         }
-        self.triangle.length_counter.enabled = t;
+        self.apu.triangle.length_counter.enabled = t;
 
         if !p_2 {
-            self.pulse_2.length_counter.counter = 0;
+            self.apu.pulse_2.length_counter.counter = 0;
         }
-        self.pulse_2.length_counter.enabled = p_2;
+        self.apu.pulse_2.length_counter.enabled = p_2;
 
         if !p_1 {
-            self.pulse_1.length_counter.counter = 0;
+            self.apu.pulse_1.length_counter.counter = 0;
         }
-        self.pulse_1.length_counter.enabled = p_1;
+        self.apu.pulse_1.length_counter.enabled = p_1;
     }
 }
 
@@ -278,9 +276,9 @@ impl Apu {
 //3     1 1 1 1 1 1 0 0         1 0 0 1 1 1 1 1 (25% negated)
 
 static DUTY_SEQUENCE: [bool; 0x20] = [
-    false, false, false, false, false, false, false, true, false, false, false, false, false,
-    false, true, true, false, false, false, false, true, true, true, true, true, true, true, true,
-    true, true, false, false,
+    false, false, false, false, false, false, false, true, false, false, false, false,
+    false, false, true, true, false, false, false, false, true, true, true, true, true,
+    true, true, true, true, true, false, false,
 ];
 
 //The pulse channels produce a variable-width pulse signal, controlled by volume, envelope, length, and sweep units.
@@ -297,8 +295,7 @@ struct Pulse {
 
     sweep: Sweep,
     length_counter: LengthCounter,
-
-    enabled: bool,
+    //enabled: bool,
 }
 
 impl Pulse {
@@ -310,8 +307,7 @@ impl Pulse {
 
             sweep: Sweep::new(adder_mode),
             length_counter: LengthCounter::new(),
-
-            enabled: false,
+            //enabled: false,
         }
     }
 
@@ -449,9 +445,9 @@ impl Triangle {
     }
 }
 
-static PERIOD_NOISE: [u16; 0x10] = [
-    4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068,
-];
+//static PERIOD_NOISE: [u16; 0x10] = [
+//    4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068,
+//];
 
 //$400C   --LC NNNN   Loop envelope/disable length counter, constant volume, envelope period/volume
 //$400E   L--- PPPP   Loop noise, noise period
@@ -580,8 +576,8 @@ impl FrameCounter {
 }
 
 static LENGTH_TABLE: [u8; 0x20] = [
-    10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14, 12, 26, 14, 12, 16, 24, 18, 48, 20, 96, 22,
-    192, 24, 72, 26, 16, 28, 32, 30,
+    10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14, 12, 26, 14, 12, 16, 24, 18, 48, 20,
+    96, 22, 192, 24, 72, 26, 16, 28, 32, 30,
 ];
 
 struct LengthCounter {

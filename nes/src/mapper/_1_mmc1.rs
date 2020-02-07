@@ -175,7 +175,9 @@ impl Mapper for Mmc1 {
 
     fn cpu_read(&mut self, addr: usize) -> Option<u8> {
         match addr {
-            0x6000..=0x7FFF if self.enable_ram => Some(self.cartridge.prg_ram[addr - 0x6000]),
+            0x6000..=0x7FFF if self.enable_ram => {
+                Some(self.cartridge.prg_ram[addr - 0x6000])
+            }
             0x8000..=0xBFFF => Some(self.cartridge.prg_rom[self.prg_1 + (addr - 0x8000)]),
             0xC000..=0xFFFF => Some(self.cartridge.prg_rom[self.prg_2 + (addr - 0xC000)]),
             _ => None,
@@ -184,7 +186,9 @@ impl Mapper for Mmc1 {
 
     fn cpu_write(&mut self, addr: usize, val: u8) {
         match addr {
-            0x6000..=0x7FFF if self.enable_ram => self.cartridge.prg_ram[addr - 0x6000] = val,
+            0x6000..=0x7FFF if self.enable_ram => {
+                self.cartridge.prg_ram[addr - 0x6000] = val
+            }
             0x8000..=0xFFFF => {
                 //When the CPU writes to the serial port on consecutive cycles, the MMC1 ignores
                 //all writes but the first. This happens when the 6502 executes read-modify-write
