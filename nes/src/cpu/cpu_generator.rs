@@ -13,7 +13,7 @@ use self::opcodes::{Timing, OPCODES};
 pub fn main() {
     println!("cargo:rerun-if-changed=self");
     let out_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let out_path = Path::new(&out_dir).join("src/nes/cpu/state_machine.rs");
+    let out_path = Path::new(&out_dir).join("src/cpu/state_machine.rs");
 
     let mut generator = Generator::new();
     generator.generate_machine();

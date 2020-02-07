@@ -1051,7 +1051,7 @@ impl Ppu {
             let tile_h_bit = ((self.shift_high << u16::from(self.x_fine_scroll)) & 0x8000) >> 14;
             let tile_l_bit = ((self.shift_low << u16::from(self.x_fine_scroll)) & 0x8000) >> 15;
             let attribute = if self.x_fine_scroll as u16 + (self.xpos - 1 & 7) < 8 {
-                (self.attribute & 0xC)
+                self.attribute & 0xC
             } else {
                 (self.attribute & 0x30) >> 2
             };

@@ -4,7 +4,7 @@ extern crate test;
 use std::env;
 use std::path::Path;
 
-use super::nes::Nes;
+use super::Nes;
 
 use self::test::Bencher;
 

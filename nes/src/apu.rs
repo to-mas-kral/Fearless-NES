@@ -298,7 +298,7 @@ struct Pulse {
     sweep: Sweep,
     length_counter: LengthCounter,
 
-    enabled: bool,
+    //enabled: bool,
 }
 
 impl Pulse {
@@ -311,7 +311,7 @@ impl Pulse {
             sweep: Sweep::new(adder_mode),
             length_counter: LengthCounter::new(),
 
-            enabled: false,
+            //enabled: false,
         }
     }
 
@@ -449,9 +449,9 @@ impl Triangle {
     }
 }
 
-static PERIOD_NOISE: [u16; 0x10] = [
-    4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068,
-];
+//static PERIOD_NOISE: [u16; 0x10] = [
+//    4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068,
+//];
 
 //$400C   --LC NNNN   Loop envelope/disable length counter, constant volume, envelope period/volume
 //$400E   L--- PPPP   Loop noise, noise period
