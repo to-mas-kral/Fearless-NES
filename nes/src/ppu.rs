@@ -107,8 +107,6 @@ pub struct Ppu {
     emphasize_red: bool,
     emphasize_green: bool,
     emphasize_blue: bool,
-
-    pub nes: *mut Nes,
 }
 
 impl Ppu {
@@ -183,60 +181,60 @@ impl Ppu {
             emphasize_red: false,
             emphasize_green: false,
             emphasize_blue: false,
-
-            nes: 0 as *mut Nes,
         }
     }
+}
 
+impl Nes {
     //TODO: latch decay ?
     //TODO: open bus masks
     #[inline]
-    pub fn read_reg(&mut self, addr: usize) -> u8 {
+    pub fn ppu_read_reg(&mut self, addr: usize) -> u8 {
         match addr & 7 {
             0 | 1 | 3 | 5 | 6 => (),
-            2 => self.read_ppustatus(),
-            4 => self.read_oamdata(),
-            7 => self.read_ppudata(),
+            2 => self.ppu_read_ppustatus(),
+            4 => self.ppu_read_oamdata(),
+            7 => self.ppu_read_ppudata(),
             _ => unreachable!(),
         };
 
-        self.latch
+        self.ppu.latch
     }
 
     #[inline]
-    pub fn write_reg(&mut self, addr: usize, val: u8) {
-        self.latch = val;
+    pub fn ppu_write_reg(&mut self, addr: usize, val: u8) {
+        self.ppu.latch = val;
         match addr & 7 {
-            0 if !self.ignore_writes => self.write_ppuctrl(),
-            1 if !self.ignore_writes => self.write_ppumask(),
-            3 => self.write_oamaddr(),
-            4 => self.write_oamdata(),
-            5 if !self.ignore_writes => self.write_ppuscroll(),
-            6 if !self.ignore_writes => self.write_ppuaddr(),
-            7 => self.write_ppudata(),
+            0 if !self.ppu.ignore_writes => self.ppu_write_ppuctrl(),
+            1 if !self.ppu.ignore_writes => self.ppu_write_ppumask(),
+            3 => self.ppu_write_oamaddr(),
+            4 => self.ppu_write_oamdata(),
+            5 if !self.ppu.ignore_writes => self.ppu_write_ppuscroll(),
+            6 if !self.ppu.ignore_writes => self.ppu_write_ppuaddr(),
+            7 => self.ppu_write_ppudata(),
             _ => (),
         }
     }
 
     #[inline]
-    pub fn enable_writes(&mut self) {
-        self.ignore_writes = false;
+    pub fn ppu_enable_writes(&mut self) {
+        self.ppu.ignore_writes = false;
     }
 
     #[inline]
-    fn write(&mut self, mut addr: usize, val: u8) {
+    fn ppu_write(&mut self, mut addr: usize, val: u8) {
         addr &= 0x3FFF;
         match addr {
-            0..=0x1FFF => nes!(self.nes).mapper.write_chr(addr, val),
-            0x2000..=0x3EFF => self.write_nametable(addr & 0xFFF, val),
-            0x3F00..=0x3FFF => self.palette_write(addr, val),
+            0..=0x1FFF => self.mapper.write_chr(addr, val),
+            0x2000..=0x3EFF => self.ppu_write_nametable(addr & 0xFFF, val),
+            0x3F00..=0x3FFF => self.ppu_palette_write(addr, val),
             _ => unreachable!(),
         }
     }
 
     #[inline]
-    fn write_nametable(&mut self, addr: usize, val: u8) {
-        let mapper = &mut nes!(self.nes).mapper;
+    fn ppu_write_nametable(&mut self, addr: usize, val: u8) {
+        let mapper = &mut self.mapper;
         match mapper.mirroring() {
             Mirroring::Vertical => match addr {
                 0..=0x3FF => {
@@ -296,22 +294,22 @@ impl Ppu {
     }
 
     #[inline]
-    fn read(&mut self, mut addr: usize) -> u8 {
+    fn ppu_read(&mut self, mut addr: usize) -> u8 {
         addr &= 0x3FFF;
         match addr {
-            0..=0x1FFF => nes!(self.nes).mapper.read_chr(addr),
-            0x2000..=0x3EFF => self.read_nametable(addr & 0xFFF),
-            0x3F00..=0x3FFF => self.palette_read(addr),
+            0..=0x1FFF => self.mapper.read_chr(addr),
+            0x2000..=0x3EFF => self.ppu_read_nametable(addr & 0xFFF),
+            0x3F00..=0x3FFF => self.ppu_palette_read(addr),
             _ => unreachable!(),
         }
     }
 
     #[inline]
-    fn read_nametable(&mut self, addr: usize) -> u8 {
-        let mapper = &mut nes!(self.nes).mapper;
+    fn ppu_read_nametable(&mut self, addr: usize) -> u8 {
+        let mapper = &mut self.mapper;
         match mapper.mirroring() {
-            Mirroring::Vertical => nes!(self.nes).mapper.read_nametable(addr),
-            Mirroring::Horizontal => nes!(self.nes).mapper.read_nametable(addr),
+            Mirroring::Vertical => self.mapper.read_nametable(addr),
+            Mirroring::Horizontal => self.mapper.read_nametable(addr),
             Mirroring::SingleScreenLow => match addr {
                 0..=0x3FF => mapper.read_nametable(addr),
                 0x400..=0x7FF => mapper.read_nametable(addr - 0x400),
@@ -332,41 +330,41 @@ impl Ppu {
     }
 
     #[inline]
-    fn palette_write(&mut self, mut addr: usize, mut val: u8) {
+    fn ppu_palette_write(&mut self, mut addr: usize, mut val: u8) {
         addr &= 0x1F;
         val &= 0x3F;
 
         match addr {
             0x0 | 0x10 => {
-                self.palettes[0] = val;
-                self.palettes[0x10] = val;
+                self.ppu.palettes[0] = val;
+                self.ppu.palettes[0x10] = val;
             }
             0x4 | 0x14 => {
-                self.palettes[0x4] = val;
-                self.palettes[0x14] = val;
+                self.ppu.palettes[0x4] = val;
+                self.ppu.palettes[0x14] = val;
             }
             0x8 | 0x18 => {
-                self.palettes[0x8] = val;
-                self.palettes[0x18] = val;
+                self.ppu.palettes[0x8] = val;
+                self.ppu.palettes[0x18] = val;
             }
             0xC | 0x1C => {
-                self.palettes[0xC] = val;
-                self.palettes[0x1C] = val;
+                self.ppu.palettes[0xC] = val;
+                self.ppu.palettes[0x1C] = val;
             }
-            _ => self.palettes[addr] = val,
+            _ => self.ppu.palettes[addr] = val,
         }
     }
 
     #[inline]
-    fn palette_read(&mut self, mut addr: usize) -> u8 {
+    fn ppu_palette_read(&mut self, mut addr: usize) -> u8 {
         addr &= 0x1F;
         if addr == 0x10 || addr == 0x14 || addr == 0x18 || addr == 0x1C {
             addr &= !0x10;
         }
 
-        let mut index = self.palettes[addr];
+        let mut index = self.ppu.palettes[addr];
 
-        if self.greyscale {
+        if self.ppu.greyscale {
             index &= 0x30;
         }
 
@@ -382,29 +380,29 @@ impl Ppu {
     //    P -- 01000000 -- PPU master/slave select (0: read backdrop from EXT pins; 1: output color on EXT pins)
     //    V -- 10000000 -- Execute NMI on vblank
     #[inline]
-    fn write_ppuctrl(&mut self) {
+    fn ppu_write_ppuctrl(&mut self) {
         //TODO: bit 0 bus conflict
-        let val = self.latch;
-        self.temp_vram_addr &= !0xC00;
-        self.temp_vram_addr |= ((val as usize) & 3) << 10;
+        let val = self.ppu.latch;
+        self.ppu.temp_vram_addr &= !0xC00;
+        self.ppu.temp_vram_addr |= ((val as usize) & 3) << 10;
 
-        self.nt_base_addr = match val & 0b11 {
+        self.ppu.nt_base_addr = match val & 0b11 {
             0 => 0x2000,
             1 => 0x2400,
             2 => 0x2800,
             3 => 0x2C00,
             _ => unreachable!(),
         };
-        self.addr_increment = if val & (1 << 2) == 0 { 1 } else { 32 };
-        self.sp_pattern_table_addr = if val & (1 << 3) == 0 { 0 } else { 0x1000 };
-        self.bg_pattern_table_addr = if val & (1 << 4) == 0 { 0 } else { 0x1000 };
-        self.sp_size = if val & (1 << 5) == 0 { 8 } else { 16 };
+        self.ppu.addr_increment = if val & (1 << 2) == 0 { 1 } else { 32 };
+        self.ppu.sp_pattern_table_addr = if val & (1 << 3) == 0 { 0 } else { 0x1000 };
+        self.ppu.bg_pattern_table_addr = if val & (1 << 4) == 0 { 0 } else { 0x1000 };
+        self.ppu.sp_size = if val & (1 << 5) == 0 { 8 } else { 16 };
 
         //if self.nmi_on_vblank && val & (1 << 7) == 0 && self.scanline == 241 {
         //    println!("disabling NMI, cycle {:?}", self.xpos);
         //}
 
-        self.nmi_on_vblank = val & (1 << 7) != 0;
+        self.ppu.nmi_on_vblank = val & (1 << 7) != 0;
     }
 
     //Ppumask
@@ -417,17 +415,17 @@ impl Ppu {
     //    G -- 01000000 -- Emphasize green
     //    B -- 10000000 -- Emphasize blue
     #[inline]
-    fn write_ppumask(&mut self) {
-        let val = self.latch;
-        self.greyscale = val & 1 != 0;
-        self.bg_left_clip = if val & (1 << 1) != 0 { 0 } else { 8 };
-        self.sp_left_clip = if val & (1 << 2) != 0 { 0 } else { 8 };
-        self.show_bg = val & (1 << 3) != 0;
-        self.show_sp = val & (1 << 4) != 0;
-        self.emphasize_red = val & (1 << 5) != 0;
-        self.emphasize_green = val & (1 << 6) != 0;
-        self.emphasize_blue = val & (1 << 7) != 0;
-        self.rendering_enabled = self.show_bg || self.show_sp;
+    fn ppu_write_ppumask(&mut self) {
+        let val = self.ppu.latch;
+        self.ppu.greyscale = val & 1 != 0;
+        self.ppu.bg_left_clip = if val & (1 << 1) != 0 { 0 } else { 8 };
+        self.ppu.sp_left_clip = if val & (1 << 2) != 0 { 0 } else { 8 };
+        self.ppu.show_bg = val & (1 << 3) != 0;
+        self.ppu.show_sp = val & (1 << 4) != 0;
+        self.ppu.emphasize_red = val & (1 << 5) != 0;
+        self.ppu.emphasize_green = val & (1 << 6) != 0;
+        self.ppu.emphasize_blue = val & (1 << 7) != 0;
+        self.ppu.rendering_enabled = self.ppu.show_bg || self.ppu.show_sp;
     }
 
     //Ppustatus
@@ -435,10 +433,10 @@ impl Ppu {
     //    S -- 01000000 -- Sprite 0 hit
     //    V -- 10000000 -- Vertical blank has started (0: not in vblank; 1: in vblank)
     #[inline]
-    fn read_ppustatus(&mut self) {
-        self.write_toggle = false;
-        self.latch = self.ppustatus;
-        self.ppustatus &= 0x7F;
+    fn ppu_read_ppustatus(&mut self) {
+        self.ppu.write_toggle = false;
+        self.ppu.latch = self.ppu.ppustatus;
+        self.ppu.ppustatus &= 0x7F;
 
         //Reading $2002 within a few PPU clocks of when VBL is set results in special-case behavior.
         //Reading one PPU clock before reads it as clear and never sets the flag or generates
@@ -449,136 +447,139 @@ impl Ppu {
         //    println!("reading ppustatus, cycle: {:?}", self.xpos);
         //}
 
-        if self.scanline == 241 && (self.xpos == 2 || self.xpos == 3) {
-            self.latch |= 0x80;
-            nes!(self.nes).cpu.nmi_signal = false;
-            self.prev_nmi = true;
-        } else if self.scanline == 241 && self.xpos == 1 {
-            self.latch &= 0x7F;
-            nes!(self.nes).cpu.nmi_signal = false;
+        if self.ppu.scanline == 241 && (self.ppu.xpos == 2 || self.ppu.xpos == 3) {
+            self.ppu.latch |= 0x80;
+            self.cpu.nmi_signal = false;
+            self.ppu.prev_nmi = true;
+        } else if self.ppu.scanline == 241 && self.ppu.xpos == 1 {
+            self.ppu.latch &= 0x7F;
+            self.cpu.nmi_signal = false;
             //self.prev_nmi = false;
-            self.suppress_nmi = true;
+            self.ppu.suppress_nmi = true;
         }
     }
 
     #[inline]
-    fn write_oamaddr(&mut self) {
-        self.oamaddr = self.latch;
+    fn ppu_write_oamaddr(&mut self) {
+        self.ppu.oamaddr = self.ppu.latch;
     }
 
     #[inline]
-    fn read_oamdata(&mut self) {
-        if self.scanline <= 239 && self.rendering_enabled {
-            self.latch = self.oamdata_buffer;
+    fn ppu_read_oamdata(&mut self) {
+        if self.ppu.scanline <= 239 && self.ppu.rendering_enabled {
+            self.ppu.latch = self.ppu.oamdata_buffer;
         } else {
-            self.latch = self.oam[self.oamaddr as usize];
+            self.ppu.latch = self.ppu.oam[self.ppu.oamaddr as usize];
         }
     }
 
     #[inline]
-    fn write_oamdata(&mut self) {
-        if self.rendering_enabled && (self.scanline <= 239 || self.scanline == 261) {
-            self.oamaddr = self.oamaddr.wrapping_add(4);
+    fn ppu_write_oamdata(&mut self) {
+        if self.ppu.rendering_enabled
+            && (self.ppu.scanline <= 239 || self.ppu.scanline == 261)
+        {
+            self.ppu.oamaddr = self.ppu.oamaddr.wrapping_add(4);
         } else {
-            let val = if self.oamaddr & 3 == 2 {
-                self.latch & 0xE3
+            let val = if self.ppu.oamaddr & 3 == 2 {
+                self.ppu.latch & 0xE3
             } else {
-                self.latch
+                self.ppu.latch
             };
 
-            self.oam[self.oamaddr as usize] = val;
-            self.oamaddr = self.oamaddr.wrapping_add(1);
+            self.ppu.oam[self.ppu.oamaddr as usize] = val;
+            self.ppu.oamaddr = self.ppu.oamaddr.wrapping_add(1);
         }
     }
 
     #[inline]
-    fn write_ppuscroll(&mut self) {
-        let val = self.latch;
-        if self.write_toggle {
-            self.temp_vram_addr = (self.temp_vram_addr & !0x73E0)
+    fn ppu_write_ppuscroll(&mut self) {
+        let val = self.ppu.latch;
+        if self.ppu.write_toggle {
+            self.ppu.temp_vram_addr = (self.ppu.temp_vram_addr & !0x73E0)
                 | ((val as usize & 0xF8) << 2)
                 | ((val as usize & 7) << 12);
         } else {
-            self.temp_vram_addr = (self.temp_vram_addr & !0x1F) | (val as usize >> 3);
-            self.x_fine_scroll = val & 7;
+            self.ppu.temp_vram_addr =
+                (self.ppu.temp_vram_addr & !0x1F) | (val as usize >> 3);
+            self.ppu.x_fine_scroll = val & 7;
         }
 
-        self.write_toggle = !self.write_toggle;
+        self.ppu.write_toggle = !self.ppu.write_toggle;
     }
 
     #[inline]
-    fn write_ppuaddr(&mut self) {
-        let val = self.latch;
-        if self.write_toggle {
-            self.temp_vram_addr = (self.temp_vram_addr & !0xFF) | val as usize;
+    fn ppu_write_ppuaddr(&mut self) {
+        let val = self.ppu.latch;
+        if self.ppu.write_toggle {
+            self.ppu.temp_vram_addr = (self.ppu.temp_vram_addr & !0xFF) | val as usize;
             //TODO: add 2-3 cycle delay to the update
-            self.vram_addr = self.temp_vram_addr;
+            self.ppu.vram_addr = self.ppu.temp_vram_addr;
         } else {
-            self.temp_vram_addr =
-                (self.temp_vram_addr & !0xFF00) | ((val as usize & 0x3F) << 8);
+            self.ppu.temp_vram_addr =
+                (self.ppu.temp_vram_addr & !0xFF00) | ((val as usize & 0x3F) << 8);
         }
 
-        self.write_toggle = !self.write_toggle;
+        self.ppu.write_toggle = !self.ppu.write_toggle;
     }
 
     #[inline]
-    fn read_ppudata(&mut self) {
-        self.latch = self.read_buffer;
-        self.read_buffer = self.read(self.vram_addr);
+    fn ppu_read_ppudata(&mut self) {
+        self.ppu.latch = self.ppu.read_buffer;
+        self.ppu.read_buffer = self.ppu_read(self.ppu.vram_addr);
 
-        if (self.vram_addr & 0x3FFF) >= 0x3F00 {
-            self.latch = self.palette_read(self.vram_addr);
-            self.read_buffer = nes!(self.nes)
+        if (self.ppu.vram_addr & 0x3FFF) >= 0x3F00 {
+            self.ppu.latch = self.ppu_palette_read(self.ppu.vram_addr);
+            self.ppu.read_buffer = self
                 .mapper
-                .read_nametable((self.vram_addr & 0x3FFF) - 0x3000);
+                .read_nametable((self.ppu.vram_addr & 0x3FFF) - 0x3000);
         }
 
-        if self.rendering_enabled && self.scanline < 240 {
-            self.coarse_x_increment();
-            self.y_increment();
+        if self.ppu.rendering_enabled && self.ppu.scanline < 240 {
+            self.ppu_coarse_x_increment();
+            self.ppu_y_increment();
         } else {
             //TODO: trigger some memory read
-            self.vram_addr += self.addr_increment;
+            self.ppu.vram_addr += self.ppu.addr_increment;
         }
     }
 
     #[inline]
-    fn write_ppudata(&mut self) {
-        self.write(self.vram_addr, self.latch);
+    fn ppu_write_ppudata(&mut self) {
+        self.ppu_write(self.ppu.vram_addr, self.ppu.latch);
 
-        if self.rendering_enabled && self.scanline < 240 {
-            self.coarse_x_increment();
-            self.y_increment();
+        if self.ppu.rendering_enabled && self.ppu.scanline < 240 {
+            self.ppu_coarse_x_increment();
+            self.ppu_y_increment();
         } else {
             //TODO: trigger some memory read
-            self.vram_addr += self.addr_increment;
+            self.ppu.vram_addr += self.ppu.addr_increment;
         };
     }
 
     #[inline]
-    fn attr_table_addr(&self) -> usize {
+    fn ppu_attr_table_addr(&self) -> usize {
         0x23C0
-            | (self.vram_addr & 0xC00)
-            | ((self.vram_addr >> 4) & 0x38)
-            | ((self.vram_addr >> 2) & 7)
+            | (self.ppu.vram_addr & 0xC00)
+            | ((self.ppu.vram_addr >> 4) & 0x38)
+            | ((self.ppu.vram_addr >> 2) & 7)
     }
 
     #[inline]
-    fn nametable_addr(&self) -> usize {
-        0x2000 | (self.vram_addr & 0xFFF)
+    fn ppu_nametable_addr(&self) -> usize {
+        0x2000 | (self.ppu.vram_addr & 0xFFF)
     }
 
     #[inline]
-    pub fn tick(&mut self) {
-        self.scanline_tick();
+    pub fn ppu_tick(&mut self) {
+        self.ppu_scanline_tick();
 
-        self.xpos += 1;
-        if self.xpos > 340 {
-            self.xpos = 0;
-            self.scanline += 1;
+        self.ppu.xpos += 1;
+        if self.ppu.xpos > 340 {
+            self.ppu.xpos = 0;
+            self.ppu.scanline += 1;
 
-            if self.scanline > 261 {
-                self.scanline = 0;
+            if self.ppu.scanline > 261 {
+                self.ppu.scanline = 0;
             }
         }
     }
@@ -587,126 +588,127 @@ impl Ppu {
     //http://wiki.nesdev.com/w/index.php/PPU_scrolling#Tile_and_attribute_fetching
     //https://wiki.nesdev.com/w/images/d/d1/Ntsc_timing.png
     #[inline]
-    fn scanline_tick(&mut self) {
-        match self.scanline {
+    fn ppu_scanline_tick(&mut self) {
+        match self.ppu.scanline {
             261 => {
-                match self.xpos {
+                match self.ppu.xpos {
                     1 => {
-                        self.ppustatus &= !0xE0;
-                        self.fetch_bg();
-                        self.oam_refresh_bug();
+                        self.ppu.ppustatus &= !0xE0;
+                        self.ppu_fetch_bg();
+                        self.ppu_oam_refresh_bug();
                     }
                     2..=256 => {
-                        self.fetch_bg();
-                        if self.xpos == 256 {
-                            self.y_increment();
+                        self.ppu_fetch_bg();
+                        if self.ppu.xpos == 256 {
+                            self.ppu_y_increment();
                         }
-                        if self.xpos < 9 {
-                            self.oam_refresh_bug();
+                        if self.ppu.xpos < 9 {
+                            self.ppu_oam_refresh_bug();
                         }
                     }
                     257 => {
-                        self.t_to_v();
-                        self.fetch_sprites();
+                        self.ppu_t_to_v();
+                        self.ppu_fetch_sprites();
                     }
-                    258..=279 => self.fetch_sprites(),
+                    258..=279 => self.ppu_fetch_sprites(),
                     280..=304 => {
-                        self.v_from_t();
-                        self.fetch_sprites();
+                        self.ppu_v_from_t();
+                        self.ppu_fetch_sprites();
                     }
-                    305..=320 => self.fetch_sprites(),
+                    305..=320 => self.ppu_fetch_sprites(),
                     321 => {
-                        self.fetch_bg();
-                        self.shift_tile_registers();
+                        self.ppu_fetch_bg();
+                        self.ppu_shift_tile_registers();
                     }
                     322..=336 => {
-                        self.fetch_bg();
-                        self.shift_tile_registers();
+                        self.ppu_fetch_bg();
+                        self.ppu_shift_tile_registers();
                     }
                     337 => {
-                        self.read(self.nametable_addr());
+                        self.ppu_read(self.ppu_nametable_addr());
                     }
                     339 => {
-                        self.sprite_cache = [false; 0x101];
-                        nes!(self.nes).frame_ready = true;
-                        self.read(self.nametable_addr());
+                        self.ppu.sprite_cache = [false; 0x101];
+                        self.frame_ready = true;
+                        self.ppu_read(self.ppu_nametable_addr());
 
                         //The skipped tick is implemented by jumping directly from (339, 261)
                         //to (0, 0), meaning the last tick of the last NT fetch takes place at (0, 0)
                         //on odd frames replacing the idle tick
-                        if self.odd_frame & self.rendering_enabled {
-                            self.xpos = 340;
+                        if self.ppu.odd_frame & self.ppu.rendering_enabled {
+                            self.ppu.xpos = 340;
                         }
 
-                        self.odd_frame = !self.odd_frame;
+                        self.ppu.odd_frame = !self.ppu.odd_frame;
                     }
                     _ => (),
                 }
             }
-            0..=239 => match self.xpos {
+            0..=239 => match self.ppu.xpos {
                 1 => {
-                    self.fetch_bg();
-                    self.draw_pixel();
-                    self.secondary_oam = [0xFF; 0x20];
+                    self.ppu_fetch_bg();
+                    self.ppu_draw_pixel();
+                    self.ppu.secondary_oam = [0xFF; 0x20];
                 }
                 2..=256 => {
-                    self.shift_tile_registers();
-                    self.fetch_bg();
+                    self.ppu_shift_tile_registers();
+                    self.ppu_fetch_bg();
 
-                    if self.xpos >= 65 {
-                        self.sprite_evaluation();
+                    if self.ppu.xpos >= 65 {
+                        self.ppu_sprite_evaluation();
 
-                        if self.xpos == 256 {
-                            self.y_increment();
+                        if self.ppu.xpos == 256 {
+                            self.ppu_y_increment();
                         }
                     }
 
-                    self.draw_pixel();
+                    self.ppu_draw_pixel();
                 }
                 257 => {
-                    self.t_to_v();
-                    self.shift_tile_registers();
-                    self.fetch_sprites();
+                    self.ppu_t_to_v();
+                    self.ppu_shift_tile_registers();
+                    self.ppu_fetch_sprites();
                 }
-                258..=320 => self.fetch_sprites(),
+                258..=320 => self.ppu_fetch_sprites(),
                 321 => {
-                    self.fetch_bg();
-                    self.shift_tile_registers();
+                    self.ppu_fetch_bg();
+                    self.ppu_shift_tile_registers();
                 }
                 322..=336 => {
-                    self.fetch_bg();
-                    self.shift_tile_registers();
+                    self.ppu_fetch_bg();
+                    self.ppu_shift_tile_registers();
                 }
                 337 | 339 => {
-                    self.read(self.nametable_addr());
+                    self.ppu_read(self.ppu_nametable_addr());
                 }
                 _ => (),
             },
-            241..=260 => self.vblank(),
+            241..=260 => self.ppu_vblank(),
             _ => (),
         }
     }
 
     #[inline]
-    fn vblank(&mut self) {
-        match (self.scanline, self.xpos) {
+    fn ppu_vblank(&mut self) {
+        match (self.ppu.scanline, self.ppu.xpos) {
             (241, 0) => (),
             (241, 1) => {
-                if !self.suppress_nmi {
-                    self.ppustatus |= 0x80;
+                if !self.ppu.suppress_nmi {
+                    self.ppu.ppustatus |= 0x80;
                 }
 
-                if self.nmi_on_vblank && !self.suppress_nmi {
-                    nes!(self.nes).cpu.nmi_signal = true;
-                    self.prev_nmi = true;
+                if self.ppu.nmi_on_vblank && !self.ppu.suppress_nmi {
+                    self.cpu.nmi_signal = true;
+                    self.ppu.prev_nmi = true;
                 } else {
-                    self.prev_nmi = true;
+                    self.ppu.prev_nmi = true;
                 }
 
-                self.suppress_nmi = false;
+                self.ppu.suppress_nmi = false;
             }
             _ => {
-                let current_nmi = self.nmi_on_vblank && ((self.ppustatus & 0x80) != 0);
+                let current_nmi =
+                    self.ppu.nmi_on_vblank && ((self.ppu.ppustatus & 0x80) != 0);
 
                 //if self.scanline == 241 && self.xpos < 9 {
                 //    println!(
@@ -715,14 +717,14 @@ impl Ppu {
                 //    );
                 //}
 
-                match (self.prev_nmi, current_nmi) {
+                match (self.ppu.prev_nmi, current_nmi) {
                     (true, true) => (),
                     (true, false) => (), //nes!(self.nes).cpu.nmi_signal = false
-                    (false, true) => nes!(self.nes).cpu.nmi_signal = true,
+                    (false, true) => self.cpu.nmi_signal = true,
                     (false, false) => (), //nes!(self.nes).cpu.nmi_signal = false,
                 }
 
-                self.prev_nmi = current_nmi;
+                self.ppu.prev_nmi = current_nmi;
             }
         }
     }
@@ -754,100 +756,101 @@ impl Ppu {
     //||| ++-------------- nametable select
     //+++----------------- fine Y scroll
     #[inline]
-    fn fetch_bg(&mut self) {
-        if self.rendering_enabled {
-            match self.xpos & 7 {
+    fn ppu_fetch_bg(&mut self) {
+        if self.ppu.rendering_enabled {
+            match self.ppu.xpos & 7 {
                 0 => {
-                    self.coarse_x_increment();
+                    self.ppu_coarse_x_increment();
                 }
                 1 => {
-                    self.shift_attrbutes();
+                    self.ppu_shift_attrbutes();
 
-                    self.shift_low |= u16::from(self.tile_lb);
-                    self.shift_high |= u16::from(self.tile_hb);
+                    self.ppu.shift_low |= u16::from(self.ppu.tile_lb);
+                    self.ppu.shift_high |= u16::from(self.ppu.tile_hb);
 
-                    self.nametable_byte = self.read(self.nametable_addr());
+                    self.ppu.nametable_byte = self.ppu_read(self.ppu_nametable_addr());
                 }
                 //The 2-bit 1-of-4 selector" is used to shift the attribute byte right
                 //by 0, 2, 4, or 6 bits depending on bit 4 of the X and Y pixel position.
                 //Roughly: if (v & 0x40) attrbyte >>= 4; if (v & 0x02) attrbyte >>= 2.
                 3 => {
-                    let shift = ((self.vram_addr >> 4) & 4) | (self.vram_addr & 2);
-                    let attr = (self.read(self.attr_table_addr()) >> shift) & 3;
-                    self.attribute |= attr << 6;
+                    let shift =
+                        ((self.ppu.vram_addr >> 4) & 4) | (self.ppu.vram_addr & 2);
+                    let attr = (self.ppu_read(self.ppu_attr_table_addr()) >> shift) & 3;
+                    self.ppu.attribute |= attr << 6;
                 }
                 5 => {
-                    self.tile_addr = (usize::from(self.nametable_byte) << 4)
-                        | (self.vram_addr >> 12)
-                        | self.bg_pattern_table_addr;
-                    self.tile_lb = self.read(self.tile_addr);
+                    self.ppu.tile_addr = (usize::from(self.ppu.nametable_byte) << 4)
+                        | (self.ppu.vram_addr >> 12)
+                        | self.ppu.bg_pattern_table_addr;
+                    self.ppu.tile_lb = self.ppu_read(self.ppu.tile_addr);
                 }
-                7 => self.tile_hb = self.read(self.tile_addr + 8),
+                7 => self.ppu.tile_hb = self.ppu_read(self.ppu.tile_addr + 8),
                 _ => (),
             }
         }
     }
 
     #[inline]
-    fn fetch_sprites(&mut self) {
-        if self.xpos == 257 {
-            self.sprite_cache = [false; 0x101];
-            self.sprite_index = 0;
+    fn ppu_fetch_sprites(&mut self) {
+        if self.ppu.xpos == 257 {
+            self.ppu.sprite_cache = [false; 0x101];
+            self.ppu.sprite_index = 0;
         }
 
-        if self.rendering_enabled {
-            self.oamaddr = 0;
-            match (self.xpos - 1) & 7 {
+        if self.ppu.rendering_enabled {
+            self.ppu.oamaddr = 0;
+            match (self.ppu.xpos - 1) & 7 {
                 0 => {
-                    self.read(self.nametable_addr());
+                    self.ppu_read(self.ppu_nametable_addr());
                 }
                 2 => {
-                    self.read(self.attr_table_addr());
+                    self.ppu_read(self.ppu_attr_table_addr());
                 }
-                3 => self.load_sprite(),
+                3 => self.ppu_load_sprite(),
                 _ => (),
             };
         }
     }
 
     #[inline]
-    fn load_sprite(&mut self) {
-        if self.sprite_index >= self.sprite_count {
+    fn ppu_load_sprite(&mut self) {
+        if self.ppu.sprite_index >= self.ppu.sprite_count {
             return;
         }
 
-        let sprite_addr = 4 * self.sprite_index as usize;
-        let sprite = &mut self.sprite_buffer[self.sprite_index as usize];
-        sprite.y = self.secondary_oam[sprite_addr];
-        sprite.x = self.secondary_oam[sprite_addr + 3];
+        let sprite_addr = 4 * self.ppu.sprite_index as usize;
+        let sprite = &mut self.ppu.sprite_buffer[self.ppu.sprite_index as usize];
+        sprite.y = self.ppu.secondary_oam[sprite_addr];
+        sprite.x = self.ppu.secondary_oam[sprite_addr + 3];
 
         for i in 1..9 {
             if sprite.x as usize + i < 257 {
-                self.sprite_cache[sprite.x as usize + i] = true;
+                self.ppu.sprite_cache[sprite.x as usize + i] = true;
             }
         }
 
-        let attributes = self.secondary_oam[sprite_addr + 2];
+        let attributes = self.ppu.secondary_oam[sprite_addr + 2];
         sprite.vertical_flip = attributes & 0x80 != 0;
         sprite.horizontal_flip = attributes & 0x40 != 0;
         sprite.priority = attributes & 0x20 != 0;
         sprite.palette = ((attributes & 3) << 2) | 0x10;
 
-        let scanline = if self.scanline == 261 {
+        let scanline = if self.ppu.scanline == 261 {
             -1
         } else {
-            self.scanline as i16
+            self.ppu.scanline as i16
         };
 
         let mut y_offset = if sprite.vertical_flip {
-            (self.sp_size - 1) as i16 - (scanline - sprite.y as i16)
+            (self.ppu.sp_size - 1) as i16 - (scanline - sprite.y as i16)
         } else {
             scanline - sprite.y as i16
         };
 
-        let index = self.secondary_oam[sprite_addr + 1];
-        sprite.index = if self.sp_size == 8 {
-            (self.sp_pattern_table_addr as u16 | (u16::from(index) << 4))
+        let index = self.ppu.secondary_oam[sprite_addr + 1];
+        sprite.index = if self.ppu.sp_size == 8 {
+            (self.ppu.sp_pattern_table_addr as u16 | (u16::from(index) << 4))
                 + y_offset as u16
         } else {
             if y_offset >= 8 {
@@ -859,138 +862,140 @@ impl Ppu {
         };
 
         let index = sprite.index as usize;
-        self.sprite_buffer[self.sprite_index as usize].tile_low = self.read(index);
-        self.sprite_buffer[self.sprite_index as usize].tile_high = self.read(index + 8);
+        self.ppu.sprite_buffer[self.ppu.sprite_index as usize].tile_low =
+            self.ppu_read(index);
+        self.ppu.sprite_buffer[self.ppu.sprite_index as usize].tile_high =
+            self.ppu_read(index + 8);
 
-        self.sprite_index = (self.sprite_index + 1) & 7;
+        self.ppu.sprite_index = (self.ppu.sprite_index + 1) & 7;
     }
 
     //http://wiki.nesdev.com/w/index.php/PPU_sprite_evaluation
     #[inline]
-    fn sprite_evaluation(&mut self) {
-        if !self.rendering_enabled {
+    fn ppu_sprite_evaluation(&mut self) {
+        if !self.ppu.rendering_enabled {
             return;
         }
 
-        if self.xpos == 65 {
-            self.sprite_eval_count = 0;
-            self.oamdata_buffer = 0;
-            self.sprite_fetch_step = 0;
-            self.secondary_oam_addr = 0;
-            self.sprite_0_added = false;
-            self.sprite_in_range = false;
-            self.oam_copy_done = false;
-        } else if self.xpos == 256 {
-            self.sprite_0_visible = self.sprite_0_added;
-            self.sprite_count = self.secondary_oam_addr >> 2;
+        if self.ppu.xpos == 65 {
+            self.ppu.sprite_eval_count = 0;
+            self.ppu.oamdata_buffer = 0;
+            self.ppu.sprite_fetch_step = 0;
+            self.ppu.secondary_oam_addr = 0;
+            self.ppu.sprite_0_added = false;
+            self.ppu.sprite_in_range = false;
+            self.ppu.oam_copy_done = false;
+        } else if self.ppu.xpos == 256 {
+            self.ppu.sprite_0_visible = self.ppu.sprite_0_added;
+            self.ppu.sprite_count = self.ppu.secondary_oam_addr >> 2;
         }
 
-        if self.xpos & 1 != 0 {
-            self.oamdata_buffer = self.oam[self.oamaddr as usize];
+        if self.ppu.xpos & 1 != 0 {
+            self.ppu.oamdata_buffer = self.ppu.oam[self.ppu.oamaddr as usize];
         } else {
-            if self.oam_copy_done {
-                self.sprite_eval_count = (self.sprite_eval_count + 1) & 0x3F;
-                if self.secondary_oam_addr >= 0x20 {
-                    self.oamdata_buffer =
-                        self.secondary_oam[self.secondary_oam_addr as usize & 0x1F];
+            if self.ppu.oam_copy_done {
+                self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
+                if self.ppu.secondary_oam_addr >= 0x20 {
+                    self.ppu.oamdata_buffer =
+                        self.ppu.secondary_oam[self.ppu.secondary_oam_addr as usize & 0x1F];
                 }
             } else {
                 //1. Starting at n = 0, read a sprite's Y-coordinate (OAM[n][0], copying it
                 //to the next open slot in secondary OAM (unless 8 sprites have been
                 //found, in which case the write is ignored).
 
-                if !self.sprite_in_range
-                    && (self.scanline >= self.oamdata_buffer as u16)
-                    && (self.scanline
-                        < (self.oamdata_buffer as u16 + self.sp_size as u16))
+                if !self.ppu.sprite_in_range
+                    && (self.ppu.scanline >= self.ppu.oamdata_buffer as u16)
+                    && (self.ppu.scanline
+                        < (self.ppu.oamdata_buffer as u16 + self.ppu.sp_size as u16))
                 {
-                    self.sprite_in_range = true;
+                    self.ppu.sprite_in_range = true;
                 }
 
-                if self.secondary_oam_addr < 0x20 {
-                    self.secondary_oam[self.secondary_oam_addr as usize] =
-                        self.oamdata_buffer;
+                if self.ppu.secondary_oam_addr < 0x20 {
+                    self.ppu.secondary_oam[self.ppu.secondary_oam_addr as usize] =
+                        self.ppu.oamdata_buffer;
 
-                    if self.sprite_in_range {
+                    if self.ppu.sprite_in_range {
                         //1a. If Y-coordinate is in range, copy remaining bytes of sprite
                         //data (OAM[n][1] thru OAM[n][3]) into secondary OAM.
-                        self.secondary_oam_addr += 1;
-                        self.sprite_fetch_step += 1;
+                        self.ppu.secondary_oam_addr += 1;
+                        self.ppu.sprite_fetch_step += 1;
 
-                        if self.sprite_eval_count == 0 {
-                            self.sprite_0_added = true;
+                        if self.ppu.sprite_eval_count == 0 {
+                            self.ppu.sprite_0_added = true;
                         }
 
-                        if self.sprite_fetch_step == 4 {
-                            self.sprite_in_range = false;
-                            self.sprite_fetch_step = 0;
-                            self.sprite_eval_count = (self.sprite_eval_count + 1) & 0x3F;
-                            if self.sprite_eval_count == 0 {
-                                self.oam_copy_done = true;
+                        if self.ppu.sprite_fetch_step == 4 {
+                            self.ppu.sprite_in_range = false;
+                            self.ppu.sprite_fetch_step = 0;
+                            self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
+                            if self.ppu.sprite_eval_count == 0 {
+                                self.ppu.oam_copy_done = true;
                             }
                         }
                     } else {
-                        self.sprite_eval_count = (self.sprite_eval_count + 1) & 0x3F;
-                        if self.sprite_eval_count == 0 {
-                            self.oam_copy_done = true;
+                        self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
+                        if self.ppu.sprite_eval_count == 0 {
+                            self.ppu.oam_copy_done = true;
                         }
                     }
                 } else {
-                    self.oamdata_buffer =
-                        self.secondary_oam[self.secondary_oam_addr as usize & 0x1F];
+                    self.ppu.oamdata_buffer =
+                        self.ppu.secondary_oam[self.ppu.secondary_oam_addr as usize & 0x1F];
 
-                    if self.sprite_in_range {
-                        self.ppustatus |= 0x20;
-                        self.sprite_fetch_step += 1;
-                        if self.sprite_fetch_step == 4 {
-                            self.sprite_eval_count = (self.sprite_eval_count + 1) & 0x3F;
-                            self.sprite_fetch_step = 0;
+                    if self.ppu.sprite_in_range {
+                        self.ppu.ppustatus |= 0x20;
+                        self.ppu.sprite_fetch_step += 1;
+                        if self.ppu.sprite_fetch_step == 4 {
+                            self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
+                            self.ppu.sprite_fetch_step = 0;
                         }
                     } else {
-                        self.sprite_eval_count = (self.sprite_eval_count + 1) & 0x3F;
-                        self.sprite_fetch_step = (self.sprite_fetch_step + 1) & 3;
+                        self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
+                        self.ppu.sprite_fetch_step = (self.ppu.sprite_fetch_step + 1) & 3;
 
-                        if self.sprite_eval_count == 0 {
-                            self.oam_copy_done = true;
+                        if self.ppu.sprite_eval_count == 0 {
+                            self.ppu.oam_copy_done = true;
                         }
                     }
                 }
             }
-            self.oamaddr = 4 * self.sprite_eval_count + self.sprite_fetch_step;
+            self.ppu.oamaddr = 4 * self.ppu.sprite_eval_count + self.ppu.sprite_fetch_step;
         }
     }
 
     //Taken from: http://wiki.nesdev.com/w/index.php/PPU_scrolling
     #[inline]
-    fn y_increment(&mut self) {
-        if self.rendering_enabled {
-            if (self.vram_addr & 0x7000) != 0x7000 {
-                self.vram_addr += 0x1000;
+    fn ppu_y_increment(&mut self) {
+        if self.ppu.rendering_enabled {
+            if (self.ppu.vram_addr & 0x7000) != 0x7000 {
+                self.ppu.vram_addr += 0x1000;
             } else {
-                self.vram_addr &= !0x7000;
-                let mut y = (self.vram_addr & 0x3E0) >> 5;
+                self.ppu.vram_addr &= !0x7000;
+                let mut y = (self.ppu.vram_addr & 0x3E0) >> 5;
                 if y == 29 {
                     y = 0;
-                    self.vram_addr ^= 0x800;
+                    self.ppu.vram_addr ^= 0x800;
                 } else if y == 31 {
                     y = 0;
                 } else {
                     y += 1;
                 }
 
-                self.vram_addr = (self.vram_addr & !0x3E0) | (y << 5);
+                self.ppu.vram_addr = (self.ppu.vram_addr & !0x3E0) | (y << 5);
             }
         }
     }
 
     //Taken from: http://wiki.nesdev.com/w/index.php/PPU_scrolling
     #[inline]
-    fn coarse_x_increment(&mut self) {
-        if (self.vram_addr & 0x1F) == 31 {
-            self.vram_addr &= !0x1F;
-            self.vram_addr ^= 0x400
+    fn ppu_coarse_x_increment(&mut self) {
+        if (self.ppu.vram_addr & 0x1F) == 31 {
+            self.ppu.vram_addr &= !0x1F;
+            self.ppu.vram_addr ^= 0x400
         } else {
-            self.vram_addr += 1;
+            self.ppu.vram_addr += 1;
         }
     }
 
@@ -998,9 +1003,9 @@ impl Ppu {
     //If rendering is enabled, the PPU copies all bits related to horizontal position from t to v:
     //v: ....F.. ...EDCBA = t: ....F.. ...EDCBA
     #[inline]
-    fn t_to_v(&mut self) {
-        if self.rendering_enabled {
-            self.vram_addr = (self.vram_addr & !0x41F) | (self.temp_vram_addr & 0x41F);
+    fn ppu_t_to_v(&mut self) {
+        if self.ppu.rendering_enabled {
+            self.ppu.vram_addr = (self.ppu.vram_addr & !0x41F) | (self.ppu.temp_vram_addr & 0x41F);
         }
     }
 
@@ -1010,9 +1015,9 @@ impl Ppu {
     //vertical bits from t to v from dots 280 to 304, completing the full initialization of v from t:
     //v: IHGF.ED CBA..... = t: IHGF.ED CBA.....
     #[inline]
-    fn v_from_t(&mut self) {
-        if self.rendering_enabled {
-            self.vram_addr = (self.vram_addr & !0x7BE0) | (self.temp_vram_addr & 0x7BE0);
+    fn ppu_v_from_t(&mut self) {
+        if self.ppu.rendering_enabled {
+            self.ppu.vram_addr = (self.ppu.vram_addr & !0x7BE0) | (self.ppu.temp_vram_addr & 0x7BE0);
         }
     }
 
@@ -1021,60 +1026,60 @@ impl Ppu {
     //first 8 bytes of OAM to be overwritten by the 8 bytes beginning at OAMADDR & $F8
     //before sprite evaluation begins.
     #[inline]
-    fn oam_refresh_bug(&mut self) {
-        if self.oamaddr >= 8 && self.rendering_enabled {
-            self.oam[self.xpos as usize - 1] = self.oam
-                [(self.oamaddr as usize & 0xF8).wrapping_add(self.xpos as usize - 1)];
+    fn ppu_oam_refresh_bug(&mut self) {
+        if self.ppu.oamaddr >= 8 && self.ppu.rendering_enabled {
+            self.ppu.oam[self.ppu.xpos as usize - 1] = self.ppu.oam
+                [(self.ppu.oamaddr as usize & 0xF8).wrapping_add(self.ppu.xpos as usize - 1)];
         }
     }
 
     #[inline]
-    fn shift_tile_registers(&mut self) {
-        self.shift_low <<= 1;
-        self.shift_high <<= 1;
+    fn ppu_shift_tile_registers(&mut self) {
+        self.ppu.shift_low <<= 1;
+        self.ppu.shift_high <<= 1;
     }
 
     #[inline]
-    fn shift_attrbutes(&mut self) {
-        self.attribute >>= 2;
+    fn ppu_shift_attrbutes(&mut self) {
+        self.ppu.attribute >>= 2;
     }
 
     #[inline]
-    fn draw_pixel(&mut self) {
-        let addr = (usize::from(self.scanline) << 8) + usize::from(self.xpos - 1);
-        let color_index = self.pixel_color();
-        self.output_buffer[addr] = self.palettes[color_index];
+    fn ppu_draw_pixel(&mut self) {
+        let addr = (usize::from(self.ppu.scanline) << 8) + usize::from(self.ppu.xpos - 1);
+        let color_index = self.ppu_pixel_color();
+        self.ppu.output_buffer[addr] = self.ppu.palettes[color_index];
     }
 
     #[inline]
-    fn pixel_color(&mut self) -> usize {
-        if !self.rendering_enabled && (self.vram_addr & 0x3F00) == 0x3F00 {
-            return self.vram_addr & 0x1F;
+    fn ppu_pixel_color(&mut self) -> usize {
+        if !self.ppu.rendering_enabled && (self.ppu.vram_addr & 0x3F00) == 0x3F00 {
+            return self.ppu.vram_addr & 0x1F;
         }
 
-        let bg_index = if self.show_bg && self.xpos > self.bg_left_clip as u16 {
+        let bg_index = if self.ppu.show_bg && self.ppu.xpos > self.ppu.bg_left_clip as u16 {
             let tile_h_bit =
-                ((self.shift_high << u16::from(self.x_fine_scroll)) & 0x8000) >> 14;
+                ((self.ppu.shift_high << u16::from(self.ppu.x_fine_scroll)) & 0x8000) >> 14;
             let tile_l_bit =
-                ((self.shift_low << u16::from(self.x_fine_scroll)) & 0x8000) >> 15;
-            let attribute = if self.x_fine_scroll as u16 + (self.xpos - 1 & 7) < 8 {
-                self.attribute & 0xC
+                ((self.ppu.shift_low << u16::from(self.ppu.x_fine_scroll)) & 0x8000) >> 15;
+            let attribute = if self.ppu.x_fine_scroll as u16 + (self.ppu.xpos - 1 & 7) < 8 {
+                self.ppu.attribute & 0xC
             } else {
-                (self.attribute & 0x30) >> 2
+                (self.ppu.attribute & 0x30) >> 2
             };
             (attribute as u16 | tile_h_bit | tile_l_bit) as usize
         } else {
             0
         };
 
-        if self.sprite_cache[self.xpos as usize]
-            && self.scanline != 1
-            && self.show_sp
-            && self.xpos > self.sp_left_clip as u16
+        if self.ppu.sprite_cache[self.ppu.xpos as usize]
+            && self.ppu.scanline != 1
+            && self.ppu.show_sp
+            && self.ppu.xpos > self.ppu.sp_left_clip as u16
         {
-            for i in 0..self.sprite_count {
-                let spr = &mut self.sprite_buffer[i as usize];
-                let shift = self.xpos as i32 - spr.x as i32 - 1;
+            for i in 0..self.ppu.sprite_count {
+                let spr = &mut self.ppu.sprite_buffer[i as usize];
+                let shift = self.ppu.xpos as i32 - spr.x as i32 - 1;
                 if shift >= 0 && shift <= 7 {
                     let sp_color = if spr.horizontal_flip {
                         ((spr.tile_low >> shift) & 1)
@@ -1085,13 +1090,13 @@ impl Ppu {
                     };
 
                     if sp_color != 0 {
-                        if self.sprite_0_visible
+                        if self.ppu.sprite_0_visible
                             && i == 0
                             && bg_index != 0
-                            && self.xpos != 256
-                            && self.ppustatus & 0x40 == 0
+                            && self.ppu.xpos != 256
+                            && self.ppu.ppustatus & 0x40 == 0
                         {
-                            self.ppustatus |= 0x40;
+                            self.ppu.ppustatus |= 0x40;
                         }
 
                         if bg_index == 0 || !spr.priority {

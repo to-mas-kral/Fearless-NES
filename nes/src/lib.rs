@@ -40,9 +40,7 @@ pub struct Nes {
 impl Nes {
     pub fn new(rom_path: &Path) -> Result<Nes, NesError> {
         let mut rom = File::open(rom_path)?;
-
         let cartridge = cartridge::parse_rom(&mut rom)?;
-
         let mapper = mapper::create_mapper(cartridge)?;
 
         let ppu = ppu::Ppu::new();
@@ -63,15 +61,10 @@ impl Nes {
             cycle_count: 0,
         };
 
-        //Update new pointer
         let ptr: *mut _ = &mut nes;
-
-        nes.cpu.nes = ptr;
-        nes.ppu.nes = ptr;
-        nes.apu.nes = ptr;
         nes.mapper.update_nes_ptr(ptr);
 
-        nes.cpu.gen_reset();
+        nes.cpu_gen_reset();
         for _ in 0..6 {
             nes.run_one_cycle();
         }
@@ -92,28 +85,19 @@ impl Nes {
 
     pub fn run_one_cycle(&mut self) {
         let ptr: *mut Nes = self;
-        if ptr != self.cpu.nes || ptr != self.ppu.nes || ptr != self.apu.nes {
-            let ptr: *mut Nes = self;
-
-            self.cpu.nes = ptr;
-            self.ppu.nes = ptr;
-            self.apu.nes = ptr;
-            self.mapper.update_nes_ptr(ptr);
-        }
+        self.mapper.update_nes_ptr(ptr);
 
         self.cycle_count += 1;
         if self.cycle_count == 29658 {
-            self.ppu.enable_writes();
+            self.ppu_enable_writes();
         }
 
-        self.ppu_tick();
-
-        self.cpu.tick();
+        self.cpu_tick();
         for _ in 0..3 {
-            self.ppu.tick();
+            self.ppu_tick();
         }
 
-        self.apu.tick();
+        self.apu_tick();
     }
 }
 

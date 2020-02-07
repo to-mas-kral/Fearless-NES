@@ -68,28 +68,28 @@ impl Generator {
         let mut s = String::new();
 
         s.push_str("use super::Tick;");
-        s.push_str("impl Tick for super::Cpu {");
+        s.push_str("impl Tick for super::Nes {");
         s.push_str("#[allow(unused_variables)]");
-        s.push_str("fn tick(&mut self) {");
-        s.push_str("if self.halt {return}");
-        s.push_str("self.odd_cycle = !self.odd_cycle;");
+        s.push_str("fn cpu_tick(&mut self) {");
+        s.push_str("if self.cpu.halt {return}");
+        s.push_str("self.cpu.odd_cycle = !self.cpu.odd_cycle;");
         s.push_str(
-            "if self.dma.oam || self.dma.dmc { self.dma(); if self.dma.cycles != 0 {return;} }",
+            "if self.cpu.dma.oam || self.cpu.dma.dmc { self.cpu_dma(); if self.cpu.dma.cycles != 0 {return;} }",
         );
         s.push_str(
-            "macro_rules! cache_interrupts {($self:ident) => {self.cached_irq = self.irq_signal; self.cached_nmi = self.nmi_signal; /*self.irq_signal = false; self.nmi_signal = false;*/}};",
+            "macro_rules! cache_interrupts {($self:ident) => {self.cpu.cached_irq = self.cpu.irq_signal; self.cpu.cached_nmi = self.cpu.nmi_signal; /*self.irq_signal = false; self.nmi_signal = false;*/}};",
         );
         s.push_str(
-            "macro_rules! check_dma {($self:ident) => {if $self.dma.hijack_read {self.dma.cycles = 1; return; }}}",
+            "macro_rules! check_dma {($self:ident) => {if $self.cpu.dma.hijack_read {self.cpu.dma.cycles = 1; return; }}}",
         );
         s.push_str(
-            "macro_rules! read {($self:ident, $addr: expr) => {$self.read($addr)};}",
+            "macro_rules! read {($self:ident, $addr: expr) => {$self.cpu_read($addr)};}",
         );
-        s.push_str("macro_rules! read_ab {() => {read!(self, self.ab)};}");
+        s.push_str("macro_rules! read_ab {() => {read!(self, self.cpu.ab)};}");
         s.push_str(
-            "macro_rules! sp_to_ab {($self:ident) => {$self.ab = $self.sp | 0x100};}",
+            "macro_rules! sp_to_ab {($self:ident) => {$self.cpu.ab = $self.cpu.sp | 0x100};}",
         );
-        s.push_str("match self.state {");
+        s.push_str("match self.cpu.state {");
 
         for (key, val) in self.state_machine.iter() {
             let st = format!("0x{:X} => {{ {} }},", key.0, val);
@@ -146,7 +146,7 @@ impl Generator {
             };
         }
 
-        let fetch_next = String::from("cache_interrupts!(self); let int = if self.take_interrupt {0} else {1}; read_ab!(); check_dma!(self); self.state = u16::from(int * self.db); self.pc = (self.pc as u16).wrapping_add(int as u16) as usize; self.ab = self.pc");
+        let fetch_next = String::from("cache_interrupts!(self); let int = if self.cpu.take_interrupt {0} else {1}; read_ab!(); check_dma!(self); self.cpu.state = u16::from(int * self.cpu.db); self.cpu.pc = (self.cpu.pc as u16).wrapping_add(int as u16) as usize; self.cpu.ab = self.cpu.pc");
         self.state_machine.insert((0x100, vec![0]), fetch_next);
     }
 
@@ -172,113 +172,113 @@ impl Generator {
 
     fn plp(&mut self, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); sp_to_ab!(self); self.state = <>;".to_string(),
+            "read_ab!(); check_dma!(self); sp_to_ab!(self); self.cpu.state = <>;".to_string(),
             op,
         );
         self.add_middle(
-            "cache_interrupts!(self); read_ab!(); check_dma!(self); self.sp = (self.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.state = <>;"
+            "cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.cpu.state = <>;"
                 .to_string(),
         );
         self.add_exit(
-            "self.check_interrupts(); read_ab!();  check_dma!(self); self.pull_status(self.db); self.ab = self.pc; self.state = 0x100;"
+            "self.cpu_check_interrupts(); read_ab!(); check_dma!(self); self.cpu_pull_status(self.cpu.db); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;"
                 .to_string(),
         );
     }
 
     fn pla(&mut self, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); sp_to_ab!(self); self.state = <>;".to_string(),
+            "read_ab!(); check_dma!(self); sp_to_ab!(self); self.cpu.state = <>;".to_string(),
             op,
         );
         self.add_middle(
-            "cache_interrupts!(self); read_ab!(); check_dma!(self); self.sp = (self.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.state = <>;"
+            "cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.cpu.state = <>;"
                 .to_string(),
         );
-        self.add_exit("self.check_interrupts(); read_ab!(); check_dma!(self); self.lda(self.db); self.ab = self.pc; self.state = 0x100".to_string());
+        self.add_exit("self.cpu_check_interrupts(); read_ab!(); check_dma!(self); self.cpu_lda(self.cpu.db); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100".to_string());
     }
 
     fn php(&mut self, op: usize) {
         self.add_entry(
-            "cache_interrupts!(self); read_ab!(); check_dma!(self); sp_to_ab!(self); self.sp = (self.sp as u8).wrapping_sub(1) as usize; self.state = <>;"
+            "cache_interrupts!(self); read_ab!(); check_dma!(self); sp_to_ab!(self); self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1) as usize; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
         self.add_exit(
-            "self.check_interrupts(); self.push_status(true); self.ab = self.pc; self.state = 0x100;"
+            "self.cpu_check_interrupts(); self.cpu_push_status(true); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;"
                 .to_string(),
         );
     }
 
     fn pha(&mut self, op: usize) {
         self.add_entry(
-            "cache_interrupts!(self); read_ab!(); check_dma!(self); sp_to_ab!(self); self.sp = (self.sp as u8).wrapping_sub(1) as usize; self.state = <>;"
+            "cache_interrupts!(self); read_ab!(); check_dma!(self); sp_to_ab!(self); self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1) as usize; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
         self.add_exit(
-            "self.check_interrupts(); self.write(self.ab, self.a); self.ab = self.pc; self.state = 0x100;"
+            "self.cpu_check_interrupts(); self.cpu_write(self.cpu.ab, self.cpu.a); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;"
                 .to_string(),
         );
     }
 
     fn jsr(&mut self, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; sp_to_ab!(self); self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; sp_to_ab!(self); self.cpu.state = <>;"
                 .to_string(),
             op,
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.sp = (self.sp as u8).wrapping_sub(1) as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1) as usize; self.cpu.state = <>;"
                 .to_string(),
         );
-        self.add_middle("self.write(self.ab, (self.pc >> 8) as u8); sp_to_ab!(self); self.sp = (self.sp as u8).wrapping_sub(1) as usize; self.state = <>;".to_string());
-        self.add_middle("cache_interrupts!(self); self.write(self.ab, (self.pc & 0xFF) as u8); self.ab = self.pc; self.state = <>;".to_string());
-        self.add_exit("self.check_interrupts(); read_ab!(); check_dma!(self); self.pc = ((self.db as usize) << 8) | self.temp; check_dma!(self); self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_middle("self.cpu_write(self.cpu.ab, (self.cpu.pc >> 8) as u8); sp_to_ab!(self); self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1) as usize; self.cpu.state = <>;".to_string());
+        self.add_middle("cache_interrupts!(self); self.cpu_write(self.cpu.ab, (self.cpu.pc & 0xFF) as u8); self.cpu.ab = self.cpu.pc; self.cpu.state = <>;".to_string());
+        self.add_exit("self.cpu_check_interrupts(); read_ab!(); check_dma!(self); self.cpu.pc = ((self.cpu.db as usize) << 8) | self.cpu.temp; check_dma!(self); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;".to_string());
     }
 
     fn brk(&mut self, op: usize) {
-        self.add_entry("read_ab!(); check_dma!(self); let int = if self.take_interrupt {0} else {1}; self.pc += int; sp_to_ab!(self); self.sp = (self.sp as u8).wrapping_sub(1) as usize; self.state = <>;".to_string(), op);
-        self.add_middle("if !(self.take_interrupt && self.reset_signal) {self.write(self.ab, (self.pc >> 8) as u8);} sp_to_ab!(self); self.sp = (self.sp as u8).wrapping_sub(1) as usize; self.state = <>;".to_string());
-        self.add_middle("if !(self.take_interrupt && self.reset_signal) {self.write(self.ab, (self.pc & 0xFF) as u8);} sp_to_ab!(self); self.sp = (self.sp as u8).wrapping_sub(1) as usize; self.state = <>;".to_string());
-        self.add_middle("if !(self.take_interrupt && self.reset_signal) {self.push_status(true);} self.ab = self.interrupt_address(); self.take_interrupt = false; self.interrupt_type = super::InterruptType::None; self.state = <>;".to_string());
+        self.add_entry("read_ab!(); check_dma!(self); let int = if self.cpu.take_interrupt {0} else {1}; self.cpu.pc += int; sp_to_ab!(self); self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1) as usize; self.cpu.state = <>;".to_string(), op);
+        self.add_middle("if !(self.cpu.take_interrupt && self.cpu.reset_signal) {self.cpu_write(self.cpu.ab, (self.cpu.pc >> 8) as u8);} sp_to_ab!(self); self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1) as usize; self.cpu.state = <>;".to_string());
+        self.add_middle("if !(self.cpu.take_interrupt && self.cpu.reset_signal) {self.cpu_write(self.cpu.ab, (self.cpu.pc & 0xFF) as u8);} sp_to_ab!(self); self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1) as usize; self.cpu.state = <>;".to_string());
+        self.add_middle("if !(self.cpu.take_interrupt && self.cpu.reset_signal) {self.cpu_push_status(true);} self.cpu.ab = self.cpu_interrupt_address(); self.cpu.take_interrupt = false; self.cpu.interrupt_type = super::InterruptType::None; self.cpu.state = <>;".to_string());
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.ab += 1; self.i = true; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.ab += 1; self.cpu.i = true; self.cpu.state = <>;"
                 .to_string(),
         );
-        self.add_exit("read_ab!(); check_dma!(self); self.pc = ((self.db as usize) << 8) | self.temp; self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_exit("read_ab!(); check_dma!(self); self.cpu.pc = ((self.cpu.db as usize) << 8) | self.cpu.temp; self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;".to_string());
     }
 
     fn rti(&mut self, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); sp_to_ab!(self); self.state = <>;".to_string(),
+            "read_ab!(); check_dma!(self); sp_to_ab!(self); self.cpu.state = <>;".to_string(),
             op,
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.sp = (self.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.state = <>;".to_string(),
+            "read_ab!(); check_dma!(self); self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.cpu.state = <>;".to_string(),
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.pull_status(self.db); self.sp = (self.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.state = <>;".to_string(),
+            "read_ab!(); check_dma!(self); self.cpu_pull_status(self.cpu.db); self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.cpu.state = <>;".to_string(),
         );
-        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); self.temp = self.db as usize; self.sp = (self.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.state = <>;".to_string());
-        self.add_exit("self.check_interrupts(); read_ab!(); check_dma!(self); self.pc = ((self.db as usize) << 8) | self.temp; self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.cpu.state = <>;".to_string());
+        self.add_exit("self.cpu_check_interrupts(); read_ab!(); check_dma!(self); self.cpu.pc = ((self.cpu.db as usize) << 8) | self.cpu.temp; self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;".to_string());
     }
 
     fn rts(&mut self, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); sp_to_ab!(self); self.state = <>;".to_string(),
+            "read_ab!(); check_dma!(self); sp_to_ab!(self); self.cpu.state = <>;".to_string(),
             op,
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.sp = (self.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.state = <>".to_string(),
+            "read_ab!(); check_dma!(self); self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.cpu.state = <>".to_string(),
         );
-        self.add_middle("read_ab!(); check_dma!(self); self.temp = self.db as usize; self.sp = (self.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.state = <>;".to_string());
-        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); self.pc = ((self.db as usize) << 8) | self.temp; self.ab = self.pc; self.state = <>;".to_string());
-        self.add_exit("self.check_interrupts(); read_ab!(); check_dma!(self); self.pc = (self.pc as u16).wrapping_add(1) as usize; self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_middle("read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.cpu.state = <>;".to_string());
+        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.pc = ((self.cpu.db as usize) << 8) | self.cpu.temp; self.cpu.ab = self.cpu.pc; self.cpu.state = <>;".to_string());
+        self.add_exit("self.cpu_check_interrupts(); read_ab!(); check_dma!(self); self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;".to_string());
     }
 
     fn implied(&mut self, i_code: &str, op: usize) {
         let code = format!(
-            "self.check_interrupts(); read_ab!(); check_dma!(self); {} self.state = 0x100;",
+            "self.cpu_check_interrupts(); read_ab!(); check_dma!(self); {} self.cpu.state = 0x100;",
             i_code
         );
         self.add_single(code, op);
@@ -286,7 +286,7 @@ impl Generator {
 
     fn immediate(&mut self, i_code: &str, op: usize) {
         let code = format!(
-            "self.check_interrupts(); read_ab!(); check_dma!(self); let val = self.db; {} self.pc = (self.pc as u16).wrapping_add(1) as usize; self.ab = self.pc; self.state = 0x100;",
+            "self.cpu_check_interrupts(); read_ab!(); check_dma!(self); let val = self.cpu.db; {} self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;",
             i_code
         );
         self.add_single(code, op);
@@ -294,7 +294,7 @@ impl Generator {
 
     fn accumulator(&mut self, i_code: &str, op: usize) {
         let code = format!(
-            "self.check_interrupts(); read_ab!(); check_dma!(self); {} self.state = 0x100;",
+            "self.cpu_check_interrupts(); read_ab!(); check_dma!(self); {} self.cpu.state = 0x100;",
             i_code
         );
         self.add_single(code, op);
@@ -302,10 +302,10 @@ impl Generator {
 
     fn zero_page(&mut self, i_code: &str, op: usize) {
         let cycle_0 = String::from(
-            "cache_interrupts!(self); read_ab!(); check_dma!(self); self.ab = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;",
+            "cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;",
         );
         let cycle_1 = format!(
-            "self.check_interrupts(); read_ab!(); check_dma!(self); let val = self.db; {} self.ab = self.pc; self.state = 0x100;",
+            "self.cpu_check_interrupts(); read_ab!(); check_dma!(self); let val = self.cpu.db; {} self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;",
             i_code
         );
 
@@ -315,11 +315,11 @@ impl Generator {
 
     fn zero_page_x(&mut self, i_code: &str, op: usize) {
         let cycle_0 = String::from(
-            "read_ab!(); check_dma!(self); self.ab = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;",
+            "read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;",
         );
-        let cycle_1 = String::from("cache_interrupts!(self); read_ab!(); check_dma!(self); self.ab = (self.ab + self.x as usize) & 0xFF; self.state = <>;");
+        let cycle_1 = String::from("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.ab = (self.cpu.ab + self.cpu.x as usize) & 0xFF; self.cpu.state = <>;");
         let cycle_2 = format!(
-            "self.check_interrupts(); read_ab!(); check_dma!(self); let val = self.db; {} self.ab = self.pc; self.state = 0x100;",
+            "self.cpu_check_interrupts(); read_ab!(); check_dma!(self); let val = self.cpu.db; {} self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;",
             i_code
         );
 
@@ -330,11 +330,11 @@ impl Generator {
 
     fn zero_page_y(&mut self, i_code: &str, op: usize) {
         let cycle_0 = String::from(
-            "read_ab!(); check_dma!(self); self.ab = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;",
+            "read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;",
         );
-        let cycle_1 = String::from("cache_interrupts!(self); read_ab!(); check_dma!(self); self.ab = (self.ab + self.y as usize) & 0xFF; self.state = <>;");
+        let cycle_1 = String::from("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.ab = (self.cpu.ab + self.cpu.y as usize) & 0xFF; self.cpu.state = <>;");
         let cycle_2 = format!(
-            "self.check_interrupts(); read_ab!(); check_dma!(self); let val = self.db; {} self.ab = self.pc; self.state = 0x100;",
+            "self.cpu_check_interrupts(); read_ab!(); check_dma!(self); let val = self.cpu.db; {} self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;",
             i_code
         );
 
@@ -344,23 +344,23 @@ impl Generator {
     }
 
     fn relative(&mut self, i_code: &str, op: usize) {
-        self.add_entry(format!("self.check_interrupts(); read_ab!(); check_dma!(self); self.temp = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.ab = self.pc; self.state = if {} {{<>}} else {{0x100}}", i_code), op);
-        self.add_middle("cache_interrupts!(self); self.take_interrupt = false; read_ab!(); check_dma!(self); self.take_branch(); self.ab = self.pc; self.state = if self.temp != 0 {<>} else {0x100};".to_string());
+        self.add_entry(format!("self.cpu_check_interrupts(); read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.ab = self.cpu.pc; self.cpu.state = if {} {{<>}} else {{0x100}}", i_code), op);
+        self.add_middle("cache_interrupts!(self); self.cpu.take_interrupt = false; read_ab!(); check_dma!(self); self.cpu_take_branch(); self.cpu.ab = self.cpu.pc; self.cpu.state = if self.cpu.temp != 0 {<>} else {0x100};".to_string());
         self.add_exit(
-            "self.check_interrupts(); read_ab!(); check_dma!(self); self.ab = self.pc; self.state = 0x100"
+            "self.cpu_check_interrupts(); read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100"
                 .to_string(),
         );
     }
 
     fn absolute(&mut self, i_code: &str, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.ab = self.pc; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.ab = self.cpu.pc; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
-        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); self.ab = ((self.db as usize) << 8) | self.temp; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>".to_string());
+        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.ab = ((self.cpu.db as usize) << 8) | self.cpu.temp; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>".to_string());
         self.add_exit(format!(
-            "self.check_interrupts(); read_ab!(); check_dma!(self); let val = self.db; {} self.ab = self.pc; self.state = 0x100",
+            "self.cpu_check_interrupts(); read_ab!(); check_dma!(self); let val = self.cpu.db; {} self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100",
             i_code
         ));
     }
@@ -368,16 +368,16 @@ impl Generator {
     fn absolute_x_or_y(&mut self, i_code: &str, op: usize, reg: &str) {
         let cycle_1_state = self.update_state();
         let cycle_0 = String::from(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.ab = self.pc; self.state = <>;",
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.ab = self.cpu.pc; self.cpu.state = <>;",
         );
 
         let cycle_2_state = self.update_state();
         let cycle_3_state = self.update_state();
-        let cycle_1 = format!("cache_interrupts!(self); read_ab!(); check_dma!(self); self.ab = ((self.db as usize) << 8) | ((self.temp + self.{} as usize) & 0xFF); self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = if (self.temp + self.{} as usize) < 0x100 {{?<>}} else {{<>}};", reg, reg);
+        let cycle_1 = format!("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.ab = ((self.cpu.db as usize) << 8) | ((self.cpu.temp + self.cpu.{} as usize) & 0xFF); self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = if (self.cpu.temp + self.cpu.{} as usize) < 0x100 {{?<>}} else {{<>}};", reg, reg);
         let cycle_2 =
-            String::from("cache_interrupts!(self); read_ab!(); check_dma!(self); self.ab = (self.ab as u16).wrapping_add(0x100) as usize; self.state = <>");
+            String::from("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100) as usize; self.cpu.state = <>");
         let cycle_3 = format!(
-            "self.check_interrupts(); read_ab!(); check_dma!(self); let val = self.db; {} self.ab = self.pc; self.state = 0x100;",
+            "self.cpu_check_interrupts(); read_ab!(); check_dma!(self); let val = self.cpu.db; {} self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;",
             i_code
         );
 
@@ -393,39 +393,39 @@ impl Generator {
 
     fn indirect(&mut self, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.ab = self.pc; self.state = <>"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.ab = self.cpu.pc; self.cpu.state = <>"
                 .to_string(),
             op,
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.ab = ((self.db as usize) << 8) | self.temp; self.state = <>"
+            "read_ab!(); check_dma!(self); self.cpu.ab = ((self.cpu.db as usize) << 8) | self.cpu.temp; self.cpu.state = <>"
                 .to_string(),
         );
-        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); self.temp = self.db as usize; self.ab = (self.ab & 0xFF00) | ((self.ab + 1) & 0xFF); self.state = <>".to_string());
-        self.add_exit("self.check_interrupts(); read_ab!(); check_dma!(self); self.pc = ((self.db as usize) << 8) | self.temp; self.ab = self.pc; self.state = 0x100".to_string());
+        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.ab = (self.cpu.ab & 0xFF00) | ((self.cpu.ab + 1) & 0xFF); self.cpu.state = <>".to_string());
+        self.add_exit("self.cpu_check_interrupts(); read_ab!(); check_dma!(self); self.cpu.pc = ((self.cpu.db as usize) << 8) | self.cpu.temp; self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100".to_string());
     }
 
     fn absolute_jmp(&mut self, op: usize) {
-        self.add_entry("cache_interrupts!(self); read_ab!(); check_dma!(self); self.temp = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.ab = self.pc; self.state = <>".to_string(), op);
-        self.add_exit("self.check_interrupts(); read_ab!(); check_dma!(self); self.pc = ((self.db as usize) << 8) | self.temp; self.ab = self.pc; self.state = 0x100".to_string());
+        self.add_entry("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.ab = self.cpu.pc; self.cpu.state = <>".to_string(), op);
+        self.add_exit("self.cpu_check_interrupts(); read_ab!(); check_dma!(self); self.cpu.pc = ((self.cpu.db as usize) << 8) | self.cpu.temp; self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100".to_string());
     }
 
     fn indirect_x(&mut self, i_code: &str, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.ab = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>"
+            "read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>"
                 .to_string(),
             op,
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.ab = (self.ab + self.x as usize) & 0xFF; self.state = <>".to_string(),
+            "read_ab!(); check_dma!(self); self.cpu.ab = (self.cpu.ab + self.cpu.x as usize) & 0xFF; self.cpu.state = <>".to_string(),
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.ab = (self.cpu.ab + 1) & 0xFF; self.cpu.state = <>"
                 .to_string(),
         );
-        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); self.ab = ((self.db as usize) << 8) | self.temp; self.state = <>;".to_string());
+        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.ab = ((self.cpu.db as usize) << 8) | self.cpu.temp; self.cpu.state = <>;".to_string());
         self.add_exit(format!(
-            "self.check_interrupts(); read_ab!(); check_dma!(self); let val = self.db; {} self.ab = self.pc; self.state = 0x100",
+            "self.cpu_check_interrupts(); read_ab!(); check_dma!(self); let val = self.cpu.db; {} self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100",
             i_code
         ));
     }
@@ -433,20 +433,20 @@ impl Generator {
     fn indirect_y(&mut self, i_code: &str, op: usize) {
         let cycle_1_state = self.update_state();
         let cycle_0 = String::from(
-            "read_ab!(); check_dma!(self); self.ab = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;",
+            "read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;",
         );
 
         let cycle_2_state = self.update_state();
-        let cycle_1 = String::from("read_ab!(); check_dma!(self); self.temp = self.db as usize; self.ab = (self.ab + 1usize) & 0xFF; self.state = <>;");
+        let cycle_1 = String::from("read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.ab = (self.cpu.ab + 1usize) & 0xFF; self.cpu.state = <>;");
 
         let cycle_3_state = self.update_state();
         let cycle_4_state = self.update_state();
-        let cycle_2 = String::from("cache_interrupts!(self); read_ab!(); check_dma!(self); self.ab = (((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF)) as usize; self.state = if (self.temp + self.y as usize) < 0x100 {?<>} else {<>};");
-        let cycle_3 = String::from("cache_interrupts!(self); read_ab!(); check_dma!(self); self.ab = (self.ab as u16).wrapping_add(0x100) as usize; self.state = <>;");
+        let cycle_2 = String::from("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.ab = (((self.cpu.db as usize) << 8) | ((self.cpu.temp + self.cpu.y as usize) & 0xFF)) as usize; self.cpu.state = if (self.cpu.temp + self.cpu.y as usize) < 0x100 {?<>} else {<>};");
+        let cycle_3 = String::from("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100) as usize; self.cpu.state = <>;");
 
         self.state += 1;
         let cycle_4 = format!(
-            "self.check_interrupts(); read_ab!(); check_dma!(self); let val = self.db; {} self.ab = self.pc; self.state = 0x100;",
+            "self.cpu_check_interrupts(); read_ab!(); check_dma!(self); let val = self.cpu.db; {} self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;",
             i_code
         );
 
@@ -464,226 +464,226 @@ impl Generator {
 
     fn zero_page_rmw(&mut self, i_code: &str, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.ab = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.state = <>;"
                 .to_string(),
         );
-        self.add_middle(format!("cache_interrupts!(self); self.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
-        self.add_exit("self.check_interrupts(); self.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_middle(format!("cache_interrupts!(self); self.cpu_write(self.cpu.ab, self.cpu.temp as u8); let val = self.cpu.temp as u8; {} self.cpu.state = <>;", i_code));
+        self.add_exit("self.cpu_check_interrupts(); self.cpu_write(self.cpu.ab, self.cpu.temp as u8); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;".to_string());
     }
 
     fn zero_page_x_rmw(&mut self, i_code: &str, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.ab = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.ab = (self.ab + self.x as usize) & 0xFF; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.ab = (self.cpu.ab + self.cpu.x as usize) & 0xFF; self.cpu.state = <>;"
                 .to_string(),
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.state = <>;"
                 .to_string(),
         );
-        self.add_middle(format!("cache_interrupts!(self); self.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
-        self.add_exit("self.check_interrupts(); self.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_middle(format!("cache_interrupts!(self); self.cpu_write(self.cpu.ab, self.cpu.temp as u8); let val = self.cpu.temp as u8; {} self.cpu.state = <>;", i_code));
+        self.add_exit("self.cpu_check_interrupts(); self.cpu_write(self.cpu.ab, self.cpu.temp as u8); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;".to_string());
     }
 
     fn absolute_rmw(&mut self, i_code: &str, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.ab = self.pc; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.ab = self.cpu.pc; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.ab = ((self.db as usize) << 8) | self.temp; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.ab = ((self.cpu.db as usize) << 8) | self.cpu.temp; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;"
                 .to_string(),
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.state = <>;"
                 .to_string(),
         );
-        self.add_middle(format!("cache_interrupts!(self); self.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
-        self.add_exit("self.check_interrupts(); self.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string())
+        self.add_middle(format!("cache_interrupts!(self); self.cpu_write(self.cpu.ab, self.cpu.temp as u8); let val = self.cpu.temp as u8; {} self.cpu.state = <>;", i_code));
+        self.add_exit("self.cpu_check_interrupts(); self.cpu_write(self.cpu.ab, self.cpu.temp as u8); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;".to_string())
     }
 
     fn absolute_x_rmw(&mut self, i_code: &str, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.ab = self.pc; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.ab = self.cpu.pc; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
-        self.add_middle("read_ab!(); check_dma!(self); self.ab = ((self.db as usize) << 8) | ((self.temp + self.x as usize) & 0xFF); self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;".to_string());
-        self.add_middle("read_ab!(); check_dma!(self); if (self.temp + self.x as usize) >= 0x100 {self.ab = (self.ab as u16).wrapping_add(0x100) as usize}; self.state = <>;".to_string());
+        self.add_middle("read_ab!(); check_dma!(self); self.cpu.ab = ((self.cpu.db as usize) << 8) | ((self.cpu.temp + self.cpu.x as usize) & 0xFF); self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;".to_string());
+        self.add_middle("read_ab!(); check_dma!(self); if (self.cpu.temp + self.cpu.x as usize) >= 0x100 {self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100) as usize}; self.cpu.state = <>;".to_string());
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.state = <>;"
                 .to_string(),
         );
-        self.add_middle(format!("cache_interrupts!(self); self.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
-        self.add_exit("self.check_interrupts(); self.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_middle(format!("cache_interrupts!(self); self.cpu_write(self.cpu.ab, self.cpu.temp as u8); let val = self.cpu.temp as u8; {} self.cpu.state = <>;", i_code));
+        self.add_exit("self.cpu_check_interrupts(); self.cpu_write(self.cpu.ab, self.cpu.temp as u8); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;".to_string());
     }
 
     fn zero_page_st(&mut self, i_code: &str, op: usize) {
         self.add_entry(
-            "cache_interrupts!(self); read_ab!(); check_dma!(self); self.ab = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;"
+            "cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
         self.add_exit(format!(
-            "self.check_interrupts(); {} self.ab = self.pc; self.state = 0x100;",
+            "self.cpu_check_interrupts(); {} self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;",
             i_code
         ));
     }
 
     fn zero_page_x_or_y_st(&mut self, i_code: &str, op: usize, reg: &str) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.ab = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
-        self.add_middle(format!("cache_interrupts!(self); read_ab!(); check_dma!(self); self.ab = (self.ab + self.{} as usize) & 0xFF; self.state = <>;", reg));
+        self.add_middle(format!("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.ab = (self.cpu.ab + self.cpu.{} as usize) & 0xFF; self.cpu.state = <>;", reg));
         self.add_exit(format!(
-            "self.check_interrupts(); {} self.ab = self.pc; self.state = 0x100;",
+            "self.cpu_check_interrupts(); {} self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;",
             i_code
         ));
     }
 
     fn absolute_st(&mut self, i_code: &str, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.ab = self.pc; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.ab = self.cpu.pc; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
-        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); self.ab = ((self.db as usize) << 8) | self.temp; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>".to_string());
+        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.ab = ((self.cpu.db as usize) << 8) | self.cpu.temp; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>".to_string());
         self.add_exit(format!(
-            "self.check_interrupts(); {} self.ab = self.pc; self.state = <>;",
+            "self.cpu_check_interrupts(); {} self.cpu.ab = self.cpu.pc; self.cpu.state = <>;",
             i_code
         ));
     }
 
     fn absolute_x_or_y_st(&mut self, i_code: &str, op: usize, reg: &str) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.ab = self.pc; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.ab = self.cpu.pc; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
-        self.add_middle(format!("read_ab!(); check_dma!(self); self.ab = ((self.db as usize) << 8) | ((self.temp + self.{} as usize) & 0xFF); self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;", reg));
-        self.add_middle(format!("cache_interrupts!(self); read_ab!(); check_dma!(self); if (self.temp + self.{} as usize) >= 0x100 {{self.ab = (self.ab as u16).wrapping_add(0x100) as usize}}; self.state = <>;", reg));
+        self.add_middle(format!("read_ab!(); check_dma!(self); self.cpu.ab = ((self.cpu.db as usize) << 8) | ((self.cpu.temp + self.cpu.{} as usize) & 0xFF); self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;", reg));
+        self.add_middle(format!("cache_interrupts!(self); read_ab!(); check_dma!(self); if (self.cpu.temp + self.cpu.{} as usize) >= 0x100 {{self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100) as usize}}; self.cpu.state = <>;", reg));
         self.add_exit(format!(
-            "self.check_interrupts(); {} self.ab = self.pc; self.state = 0x100;",
+            "self.cpu_check_interrupts(); {} self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;",
             i_code
         ));
     }
 
     fn indirect_x_st(&mut self, i_code: &str, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.ab = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.ab = (self.ab + self.x as usize) & 0xFF; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.ab = (self.cpu.ab + self.cpu.x as usize) & 0xFF; self.cpu.state = <>;"
                 .to_string(),
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.ab = (self.cpu.ab + 1) & 0xFF; self.cpu.state = <>;"
                 .to_string(),
         );
-        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); self.ab = ((self.db as usize) << 8) | self.temp; self.state = <>;".to_string());
+        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.ab = ((self.cpu.db as usize) << 8) | self.cpu.temp; self.cpu.state = <>;".to_string());
         self.add_exit(format!(
-            "self.check_interrupts(); {} self.ab = self.pc; self.state = 0x100;",
+            "self.cpu_check_interrupts(); {} self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;",
             i_code
         ));
     }
 
     fn indirect_y_st(&mut self, i_code: &str, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.ab = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.ab = (self.cpu.ab + 1) & 0xFF; self.cpu.state = <>;"
                 .to_string(),
         );
-        self.add_middle("read_ab!(); check_dma!(self); self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF); self.state = <>;".to_string());
-        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); if self.temp + self.y as usize >= 0x100 {self.ab = (self.ab as u16).wrapping_add(0x100) as usize;} self.state = <>;".to_string());
+        self.add_middle("read_ab!(); check_dma!(self); self.cpu.ab = ((self.cpu.db as usize) << 8) | ((self.cpu.temp + self.cpu.y as usize) & 0xFF); self.cpu.state = <>;".to_string());
+        self.add_middle("cache_interrupts!(self); read_ab!(); check_dma!(self); if self.cpu.temp + self.cpu.y as usize >= 0x100 {self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100) as usize;} self.cpu.state = <>;".to_string());
         self.add_exit(format!(
-            "self.check_interrupts(); {} self.ab = self.pc; self.state = 0x100;",
+            "self.cpu_check_interrupts(); {} self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;",
             i_code
         ));
     }
 
     fn indirect_x_illegal(&mut self, i_code: &str, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.ab = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.ab = (self.ab + self.x as usize) & 0xFF; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.ab = (self.cpu.ab + self.cpu.x as usize) & 0xFF; self.cpu.state = <>;"
                 .to_string(),
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.ab = (self.cpu.ab + 1) & 0xFF; self.cpu.state = <>;"
                 .to_string(),
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.ab = ((self.db as usize) << 8) | self.temp; self.state = <>;".to_string(),
+            "read_ab!(); check_dma!(self); self.cpu.ab = ((self.cpu.db as usize) << 8) | self.cpu.temp; self.cpu.state = <>;".to_string(),
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.state = <>;"
                 .to_string(),
         );
-        self.add_middle(format!("cache_interrupts!(self); self.write(self.ab, self.temp as u8); let val = self.temp as u8; {} self.state = <>;", i_code));
-        self.add_exit("self.check_interrupts(); self.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_middle(format!("cache_interrupts!(self); self.cpu_write(self.cpu.ab, self.cpu.temp as u8); let val = self.cpu.temp as u8; {} self.cpu.state = <>;", i_code));
+        self.add_exit("self.cpu_check_interrupts(); self.cpu_write(self.cpu.ab, self.cpu.temp as u8); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;".to_string());
     }
 
     fn indirect_y_illegal(&mut self, i_code: &str, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.ab = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.ab = (self.ab + 1) & 0xFF; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.ab = (self.cpu.ab + 1) & 0xFF; self.cpu.state = <>;"
                 .to_string(),
         );
-        self.add_middle("read_ab!(); check_dma!(self); self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF); self.state = <>;".to_string());
-        self.add_middle("read_ab!(); check_dma!(self); if (self.temp + self.y as usize) >= 0x100 {self.ab = (self.ab as u16).wrapping_add(0x100) as usize}; self.state = <>;".to_string());
+        self.add_middle("read_ab!(); check_dma!(self); self.cpu.ab = ((self.cpu.db as usize) << 8) | ((self.cpu.temp + self.cpu.y as usize) & 0xFF); self.cpu.state = <>;".to_string());
+        self.add_middle("read_ab!(); check_dma!(self); if (self.cpu.temp + self.cpu.y as usize) >= 0x100 {self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100) as usize}; self.cpu.state = <>;".to_string());
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.state = <>;"
                 .to_string(),
         );
         self.add_middle(format!(
-            "cache_interrupts!(self); self.write(self.ab, self.temp as u8); {} self.state = <>;",
+            "cache_interrupts!(self); self.cpu_write(self.cpu.ab, self.cpu.temp as u8); {} self.cpu.state = <>;",
             i_code
         ));
-        self.add_exit("self.check_interrupts(); self.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_exit("self.cpu_check_interrupts(); self.cpu_write(self.cpu.ab, self.cpu.temp as u8); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;".to_string());
     }
 
     fn absolute_y_illegal(&mut self, i_code: &str, op: usize) {
         self.add_entry(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.pc = (self.pc as u16).wrapping_add(1) as usize; self.ab = self.pc; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.ab = self.cpu.pc; self.cpu.state = <>;"
                 .to_string(),
             op,
         );
-        self.add_middle("read_ab!(); check_dma!(self); self.ab = ((self.db as usize) << 8) | ((self.temp + self.y as usize) & 0xFF); self.pc = (self.pc as u16).wrapping_add(1) as usize; self.state = <>;".to_string());
-        self.add_middle("read_ab!(); check_dma!(self); if (self.temp + self.y as usize) >= 0x100 {self.ab = (self.ab as u16).wrapping_add(0x100) as usize;}; self.state = <>;".to_string());
+        self.add_middle("read_ab!(); check_dma!(self); self.cpu.ab = ((self.cpu.db as usize) << 8) | ((self.cpu.temp + self.cpu.y as usize) & 0xFF); self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize; self.cpu.state = <>;".to_string());
+        self.add_middle("read_ab!(); check_dma!(self); if (self.cpu.temp + self.cpu.y as usize) >= 0x100 {self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100) as usize;}; self.cpu.state = <>;".to_string());
         self.add_middle(
-            "read_ab!(); check_dma!(self); self.temp = self.db as usize; self.state = <>;"
+            "read_ab!(); check_dma!(self); self.cpu.temp = self.cpu.db as usize; self.cpu.state = <>;"
                 .to_string(),
         );
         self.add_middle(format!(
-            "cache_interrupts!(self); self.write(self.ab, self.temp as u8); {} self.state = <>;",
+            "cache_interrupts!(self); self.cpu_write(self.cpu.ab, self.cpu.temp as u8); {} self.cpu.state = <>;",
             i_code
         ));
-        self.add_exit("self.check_interrupts(); self.write(self.ab, self.temp as u8); self.ab = self.pc; self.state = 0x100;".to_string());
+        self.add_exit("self.cpu_check_interrupts(); self.cpu_write(self.cpu.ab, self.cpu.temp as u8); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;".to_string());
     }
 
     fn update_state(&mut self) -> usize {

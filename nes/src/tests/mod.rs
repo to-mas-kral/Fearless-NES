@@ -32,7 +32,7 @@ macro_rules! blargg_test {
                     nes.run_one_cycle();
                 }
 
-                let test_state = nes.cpu.peek(0x6000);
+                let test_state = nes.cpu_peek(0x6000);
                 if test_state == 0x80 {
                     test_running = true;
                 }
@@ -44,8 +44,8 @@ macro_rules! blargg_test {
 
             let mut s = String::new();
             let mut p: usize = 0x6004;
-            while nes.cpu.peek(p) != 0 {
-                s.push(nes.cpu.peek(p) as char);
+            while nes.cpu_peek(p) != 0 {
+                s.push(nes.cpu_peek(p) as char);
                 p += 1;
             }
 
@@ -87,6 +87,32 @@ mod ppu;
 fn nes_bencher(b: &mut Bencher) {
     let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let bench_path = Path::new(&base_dir).join("src/tests/SPRITE.NES");
+
+    let mut nes =
+        Nes::new(&bench_path).expect("error when creating bencher NES instance");
+
+    b.iter(|| {
+        nes.run_one_frame();
+    });
+}
+
+#[bench]
+fn test_bencher_1(b: &mut Bencher) {
+    let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let bench_path = Path::new(&base_dir).join("src/tests/ppu/scanline/scanline.nes");
+
+    let mut nes =
+        Nes::new(&bench_path).expect("error when creating bencher NES instance");
+
+    b.iter(|| {
+        nes.run_one_frame();
+    });
+}
+
+#[bench]
+fn test_bencher_2(b: &mut Bencher) {
+    let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let bench_path = Path::new(&base_dir).join("src/tests/cpu/blargg_instr/all_instrs.nes");
 
     let mut nes =
         Nes::new(&bench_path).expect("error when creating bencher NES instance");
