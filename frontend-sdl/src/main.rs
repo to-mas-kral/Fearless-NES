@@ -75,10 +75,6 @@ fn main() {
         }
     };
 
-    //Update new pointer
-    let ptr: *mut _ = &mut nes;
-    nes.mapper.update_nes_ptr(ptr);
-
     let mut pause = false;
 
     'running: loop {
@@ -169,11 +165,12 @@ fn main() {
         if !pause {
             nes.run_one_frame();
         }
-        buffer_to_texture(&nes, &mut texture);
         let end = Instant::now();
+        buffer_to_texture(&nes, &mut texture);
 
         let elapsed = end.duration_since(start);
         let expected = Duration::from_millis(16);
+        println!("Emulating a frame took {:?} milliseconds", elapsed);
 
         if let Some(d) = expected.checked_sub(elapsed) {
             thread::sleep(d);

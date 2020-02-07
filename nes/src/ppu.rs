@@ -225,7 +225,7 @@ impl Nes {
     fn ppu_write(&mut self, mut addr: usize, val: u8) {
         addr &= 0x3FFF;
         match addr {
-            0..=0x1FFF => self.mapper.write_chr(addr, val),
+            0..=0x1FFF => (self.mapper.write_chr)(self, addr, val),
             0x2000..=0x3EFF => self.ppu_write_nametable(addr & 0xFFF, val),
             0x3F00..=0x3FFF => self.ppu_palette_write(addr, val),
             _ => unreachable!(),
@@ -234,61 +234,60 @@ impl Nes {
 
     #[inline]
     fn ppu_write_nametable(&mut self, addr: usize, val: u8) {
-        let mapper = &mut self.mapper;
-        match mapper.mirroring() {
+        match self.mapper.mirroring {
             Mirroring::Vertical => match addr {
                 0..=0x3FF => {
-                    mapper.write_nametable(addr, val);
-                    mapper.write_nametable(addr + 0x800, val);
+                    (self.mapper.write_nametable)(self, addr, val);
+                    (self.mapper.write_nametable)(self, addr + 0x800, val);
                 }
                 0x400..=0x7FF => {
-                    mapper.write_nametable(addr, val);
-                    mapper.write_nametable(addr + 0x800, val);
+                    (self.mapper.write_nametable)(self, addr, val);
+                    (self.mapper.write_nametable)(self, addr + 0x800, val);
                 }
                 0x800..=0xBFF => {
-                    mapper.write_nametable(addr, val);
-                    mapper.write_nametable(addr - 0x400, val);
+                    (self.mapper.write_nametable)(self, addr, val);
+                    (self.mapper.write_nametable)(self, addr - 0x400, val);
                 }
                 0xC00..=0xFFF => {
-                    mapper.write_nametable(addr, val);
-                    mapper.write_nametable(addr - 0x800, val);
+                    (self.mapper.write_nametable)(self, addr, val);
+                    (self.mapper.write_nametable)(self, addr - 0x800, val);
                 }
                 _ => unreachable!(),
             },
             Mirroring::Horizontal => match addr {
                 0..=0x3FF => {
-                    mapper.write_nametable(addr, val);
-                    mapper.write_nametable(addr + 0x400, val);
+                    (self.mapper.write_nametable)(self, addr, val);
+                    (self.mapper.write_nametable)(self, addr + 0x400, val);
                 }
                 0x400..=0x7FF => {
-                    mapper.write_nametable(addr, val);
-                    mapper.write_nametable(addr - 0x400, val);
+                    (self.mapper.write_nametable)(self, addr, val);
+                    (self.mapper.write_nametable)(self, addr - 0x400, val);
                 }
                 0x800..=0xBFF => {
-                    mapper.write_nametable(addr, val);
-                    mapper.write_nametable(addr + 0x400, val);
+                    (self.mapper.write_nametable)(self, addr, val);
+                    (self.mapper.write_nametable)(self, addr + 0x400, val);
                 }
                 0xC00..=0xFFF => {
-                    mapper.write_nametable(addr, val);
-                    mapper.write_nametable(addr - 0x400, val);
+                    (self.mapper.write_nametable)(self, addr, val);
+                    (self.mapper.write_nametable)(self, addr - 0x400, val);
                 }
                 _ => unreachable!(),
             },
             Mirroring::SingleScreenLow => match addr {
-                0..=0x3FF => mapper.write_nametable(addr, val),
-                0x400..=0x7FF => mapper.write_nametable(addr - 0x400, val),
-                0x800..=0xBFF => mapper.write_nametable(addr - 0x800, val),
-                0xC00..=0xFFF => mapper.write_nametable(addr - 0xC00, val),
+                0..=0x3FF => (self.mapper.write_nametable)(self, addr, val),
+                0x400..=0x7FF => (self.mapper.write_nametable)(self, addr - 0x400, val),
+                0x800..=0xBFF => (self.mapper.write_nametable)(self, addr - 0x800, val),
+                0xC00..=0xFFF => (self.mapper.write_nametable)(self, addr - 0xC00, val),
                 _ => unreachable!(),
             },
             Mirroring::SingleScreenHigh => match addr {
-                0..=0x3FF => mapper.write_nametable(addr + 0x400, val),
-                0x400..=0x7FF => mapper.write_nametable(addr, val),
-                0x800..=0xBFF => mapper.write_nametable(addr - 0x400, val),
-                0xC00..=0xFFF => mapper.write_nametable(addr - 0x800, val),
+                0..=0x3FF => (self.mapper.write_nametable)(self, addr + 0x400, val),
+                0x400..=0x7FF => (self.mapper.write_nametable)(self, addr, val),
+                0x800..=0xBFF => (self.mapper.write_nametable)(self, addr - 0x400, val),
+                0xC00..=0xFFF => (self.mapper.write_nametable)(self, addr - 0x800, val),
                 _ => unreachable!(),
             },
-            Mirroring::FourScreen => mapper.write_nametable(addr, val),
+            Mirroring::FourScreen => (self.mapper.write_nametable)(self, addr, val),
             m => unimplemented!("{:?} mirroring is unimplemented", m),
         }
     }
@@ -297,7 +296,7 @@ impl Nes {
     fn ppu_read(&mut self, mut addr: usize) -> u8 {
         addr &= 0x3FFF;
         match addr {
-            0..=0x1FFF => self.mapper.read_chr(addr),
+            0..=0x1FFF => (self.mapper.read_chr)(self, addr),
             0x2000..=0x3EFF => self.ppu_read_nametable(addr & 0xFFF),
             0x3F00..=0x3FFF => self.ppu_palette_read(addr),
             _ => unreachable!(),
@@ -307,24 +306,24 @@ impl Nes {
     #[inline]
     fn ppu_read_nametable(&mut self, addr: usize) -> u8 {
         let mapper = &mut self.mapper;
-        match mapper.mirroring() {
-            Mirroring::Vertical => self.mapper.read_nametable(addr),
-            Mirroring::Horizontal => self.mapper.read_nametable(addr),
+        match mapper.mirroring {
+            Mirroring::Vertical => (self.mapper.read_nametable)(self, addr),
+            Mirroring::Horizontal => (self.mapper.read_nametable)(self, addr),
             Mirroring::SingleScreenLow => match addr {
-                0..=0x3FF => mapper.read_nametable(addr),
-                0x400..=0x7FF => mapper.read_nametable(addr - 0x400),
-                0x800..=0xBFF => mapper.read_nametable(addr - 0x800),
-                0xC00..=0xFFF => mapper.read_nametable(addr - 0xC00),
+                0..=0x3FF => (mapper.read_nametable)(self, addr),
+                0x400..=0x7FF => (mapper.read_nametable)(self, addr - 0x400),
+                0x800..=0xBFF => (mapper.read_nametable)(self, addr - 0x800),
+                0xC00..=0xFFF => (mapper.read_nametable)(self, addr - 0xC00),
                 _ => unreachable!(),
             },
             Mirroring::SingleScreenHigh => match addr {
-                0..=0x3FF => mapper.read_nametable(addr + 0x400),
-                0x400..=0x7FF => mapper.read_nametable(addr),
-                0x800..=0xBFF => mapper.read_nametable(addr - 0x400),
-                0xC00..=0xFFF => mapper.read_nametable(addr - 0x800),
+                0..=0x3FF => (mapper.read_nametable)(self, addr + 0x400),
+                0x400..=0x7FF => (mapper.read_nametable)(self, addr),
+                0x800..=0xBFF => (mapper.read_nametable)(self, addr - 0x400),
+                0xC00..=0xFFF => (mapper.read_nametable)(self, addr - 0x800),
                 _ => unreachable!(),
             },
-            Mirroring::FourScreen => mapper.read_nametable(addr),
+            Mirroring::FourScreen => (mapper.read_nametable)(self, addr),
             m => unimplemented!("{:?} mirroring is unimplemented", m),
         }
     }
@@ -529,9 +528,10 @@ impl Nes {
 
         if (self.ppu.vram_addr & 0x3FFF) >= 0x3F00 {
             self.ppu.latch = self.ppu_palette_read(self.ppu.vram_addr);
-            self.ppu.read_buffer = self
-                .mapper
-                .read_nametable((self.ppu.vram_addr & 0x3FFF) - 0x3000);
+            self.ppu.read_buffer = (self.mapper.read_nametable)(
+                self,
+                (self.ppu.vram_addr & 0x3FFF) - 0x3000,
+            );
         }
 
         if self.ppu.rendering_enabled && self.ppu.scanline < 240 {
@@ -896,8 +896,8 @@ impl Nes {
             if self.ppu.oam_copy_done {
                 self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
                 if self.ppu.secondary_oam_addr >= 0x20 {
-                    self.ppu.oamdata_buffer =
-                        self.ppu.secondary_oam[self.ppu.secondary_oam_addr as usize & 0x1F];
+                    self.ppu.oamdata_buffer = self.ppu.secondary_oam
+                        [self.ppu.secondary_oam_addr as usize & 0x1F];
                 }
             } else {
                 //1. Starting at n = 0, read a sprite's Y-coordinate (OAM[n][0], copying it
@@ -929,30 +929,34 @@ impl Nes {
                         if self.ppu.sprite_fetch_step == 4 {
                             self.ppu.sprite_in_range = false;
                             self.ppu.sprite_fetch_step = 0;
-                            self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
+                            self.ppu.sprite_eval_count =
+                                (self.ppu.sprite_eval_count + 1) & 0x3F;
                             if self.ppu.sprite_eval_count == 0 {
                                 self.ppu.oam_copy_done = true;
                             }
                         }
                     } else {
-                        self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
+                        self.ppu.sprite_eval_count =
+                            (self.ppu.sprite_eval_count + 1) & 0x3F;
                         if self.ppu.sprite_eval_count == 0 {
                             self.ppu.oam_copy_done = true;
                         }
                     }
                 } else {
-                    self.ppu.oamdata_buffer =
-                        self.ppu.secondary_oam[self.ppu.secondary_oam_addr as usize & 0x1F];
+                    self.ppu.oamdata_buffer = self.ppu.secondary_oam
+                        [self.ppu.secondary_oam_addr as usize & 0x1F];
 
                     if self.ppu.sprite_in_range {
                         self.ppu.ppustatus |= 0x20;
                         self.ppu.sprite_fetch_step += 1;
                         if self.ppu.sprite_fetch_step == 4 {
-                            self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
+                            self.ppu.sprite_eval_count =
+                                (self.ppu.sprite_eval_count + 1) & 0x3F;
                             self.ppu.sprite_fetch_step = 0;
                         }
                     } else {
-                        self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
+                        self.ppu.sprite_eval_count =
+                            (self.ppu.sprite_eval_count + 1) & 0x3F;
                         self.ppu.sprite_fetch_step = (self.ppu.sprite_fetch_step + 1) & 3;
 
                         if self.ppu.sprite_eval_count == 0 {
@@ -961,7 +965,8 @@ impl Nes {
                     }
                 }
             }
-            self.ppu.oamaddr = 4 * self.ppu.sprite_eval_count + self.ppu.sprite_fetch_step;
+            self.ppu.oamaddr =
+                4 * self.ppu.sprite_eval_count + self.ppu.sprite_fetch_step;
         }
     }
 
@@ -1005,7 +1010,8 @@ impl Nes {
     #[inline]
     fn ppu_t_to_v(&mut self) {
         if self.ppu.rendering_enabled {
-            self.ppu.vram_addr = (self.ppu.vram_addr & !0x41F) | (self.ppu.temp_vram_addr & 0x41F);
+            self.ppu.vram_addr =
+                (self.ppu.vram_addr & !0x41F) | (self.ppu.temp_vram_addr & 0x41F);
         }
     }
 
@@ -1017,7 +1023,8 @@ impl Nes {
     #[inline]
     fn ppu_v_from_t(&mut self) {
         if self.ppu.rendering_enabled {
-            self.ppu.vram_addr = (self.ppu.vram_addr & !0x7BE0) | (self.ppu.temp_vram_addr & 0x7BE0);
+            self.ppu.vram_addr =
+                (self.ppu.vram_addr & !0x7BE0) | (self.ppu.temp_vram_addr & 0x7BE0);
         }
     }
 
@@ -1028,8 +1035,9 @@ impl Nes {
     #[inline]
     fn ppu_oam_refresh_bug(&mut self) {
         if self.ppu.oamaddr >= 8 && self.ppu.rendering_enabled {
-            self.ppu.oam[self.ppu.xpos as usize - 1] = self.ppu.oam
-                [(self.ppu.oamaddr as usize & 0xF8).wrapping_add(self.ppu.xpos as usize - 1)];
+            self.ppu.oam[self.ppu.xpos as usize - 1] =
+                self.ppu.oam[(self.ppu.oamaddr as usize & 0xF8)
+                    .wrapping_add(self.ppu.xpos as usize - 1)];
         }
     }
 
@@ -1057,12 +1065,16 @@ impl Nes {
             return self.ppu.vram_addr & 0x1F;
         }
 
-        let bg_index = if self.ppu.show_bg && self.ppu.xpos > self.ppu.bg_left_clip as u16 {
-            let tile_h_bit =
-                ((self.ppu.shift_high << u16::from(self.ppu.x_fine_scroll)) & 0x8000) >> 14;
-            let tile_l_bit =
-                ((self.ppu.shift_low << u16::from(self.ppu.x_fine_scroll)) & 0x8000) >> 15;
-            let attribute = if self.ppu.x_fine_scroll as u16 + (self.ppu.xpos - 1 & 7) < 8 {
+        let bg_index = if self.ppu.show_bg && self.ppu.xpos > self.ppu.bg_left_clip as u16
+        {
+            let tile_h_bit = ((self.ppu.shift_high << u16::from(self.ppu.x_fine_scroll))
+                & 0x8000)
+                >> 14;
+            let tile_l_bit = ((self.ppu.shift_low << u16::from(self.ppu.x_fine_scroll))
+                & 0x8000)
+                >> 15;
+            let attribute = if self.ppu.x_fine_scroll as u16 + (self.ppu.xpos - 1 & 7) < 8
+            {
                 self.ppu.attribute & 0xC
             } else {
                 (self.ppu.attribute & 0x30) >> 2

@@ -166,7 +166,7 @@ impl Nes {
             }
             0x4017..=0x401F => self.cpu.open_bus,
             0x4020..=0xFFFF => {
-                if let Some(val) = self.mapper.cpu_read(index) {
+                if let Some(val) = (self.mapper.cpu_read)(self, index) {
                     val
                 } else {
                     self.cpu.open_bus
@@ -192,7 +192,7 @@ impl Nes {
             0x4016 => self.controller.write_reg(val),
             0x4017 => self.apu_write_reg(index, val),
             0x4018..=0x401F => (),
-            0x4020..=0xFFFF => self.mapper.cpu_write(index, val),
+            0x4020..=0xFFFF => (self.mapper.cpu_write)(self, index, val),
             _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
         }
     }
@@ -201,7 +201,7 @@ impl Nes {
     pub fn cpu_peek(&mut self, index: usize) -> u8 {
         match index {
             0..=0x1FFF => self.cpu.ram[index & 0x7FF],
-            0x4020..=0xFFFF => self.mapper.cpu_peek(index),
+            0x4020..=0xFFFF => (self.mapper.cpu_peek)(self, index),
             _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
         }
     }

@@ -2,14 +2,6 @@
 
 mod tests;
 
-#[macro_export]
-macro_rules! nes {
-    ($ptr:expr) => {{
-        let ret = unsafe { &mut *$ptr };
-        ret
-    }};
-}
-
 pub mod cpu;
 
 pub mod apu;
@@ -17,6 +9,8 @@ pub mod cartridge;
 pub mod controller;
 pub mod mapper;
 pub mod ppu;
+
+use mapper::Mapper;
 
 use std::fs::File;
 use std::io;
@@ -27,7 +21,7 @@ pub struct Nes {
     pub ppu: ppu::Ppu,
     pub apu: apu::Apu,
 
-    pub mapper: Box<dyn mapper::Mapper>,
+    pub mapper: Mapper,
 
     pub controller: controller::Controller,
 
@@ -39,28 +33,19 @@ impl Nes {
     pub fn new(rom_path: &Path) -> Result<Nes, NesError> {
         let mut rom = File::open(rom_path)?;
         let cartridge = cartridge::parse_rom(&mut rom)?;
-        let mapper = mapper::create_mapper(cartridge)?;
-
-        let ppu = ppu::Ppu::new();
-        let apu = apu::Apu::new();
-        let cpu = cpu::Cpu::new();
-
-        let controller = controller::Controller::new();
 
         let mut nes = Nes {
-            cpu,
-            ppu,
-            apu,
+            cpu: cpu::Cpu::new(),
+            ppu: ppu::Ppu::new(),
+            apu: apu::Apu::new(),
 
-            mapper,
-            controller,
+            mapper: Nes::initialize_mapper(cartridge),
+
+            controller: controller::Controller::new(),
 
             frame_ready: false,
             cycle_count: 0,
         };
-
-        let ptr: *mut _ = &mut nes;
-        nes.mapper.update_nes_ptr(ptr);
 
         nes.cpu_gen_reset();
         for _ in 0..6 {
@@ -82,9 +67,6 @@ impl Nes {
     }
 
     pub fn run_one_cycle(&mut self) {
-        let ptr: *mut Nes = self;
-        self.mapper.update_nes_ptr(ptr);
-
         self.cycle_count += 1;
         if self.cycle_count == 29658 {
             self.ppu_enable_writes();
