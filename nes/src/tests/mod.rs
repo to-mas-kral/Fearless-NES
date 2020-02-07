@@ -72,7 +72,7 @@ macro_rules! hash_test {
             let mut hasher = DefaultHasher::new();
 
             for addr in 0..0xFFF {
-                hasher.write_u8(nes.mapper.read_nametable(addr));
+                hasher.write_u8((nes.mapper.read_nametable)(&mut nes, addr));
             }
 
             assert_eq!(hasher.finish(), $hash);
