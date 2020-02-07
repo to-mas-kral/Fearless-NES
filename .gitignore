@@ -2,3 +2,5 @@
 **/*.rs.bk
 *.log
 Cargo.lock
+.vscode
+Nintendo/
