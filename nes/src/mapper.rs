@@ -4,18 +4,18 @@ use super::Nes;
 
 mod _0_nrom;
 mod _1_mmc1;
-//mod _2_uxrom;
-//mod _3_cnrom;
-//mod _7_axrom;
+mod _2_uxrom;
+mod _3_cnrom;
+mod _7_axrom;
 
 impl Nes {
     pub fn initialize_mapper(cartridge: Cartridge) -> Mapper {
         match cartridge.header.mapper {
             0 => Nes::_0_nrom_initialize(cartridge),
             1 => Nes::_1_mmc1_initialize(cartridge),
-            //2 => Ok(Box::new(_2_uxrom::Uxrom::new(cartridge))),
-            //3 => Ok(Box::new(_3_cnrom::Cnrom::new(cartridge))),
-            //7 => Ok(Box::new(_7_axrom::Axrom::new(cartridge))),
+            2 => Nes::_2_uxrom_initialize(cartridge),
+            3 => Nes::_3_cnrom_initialize(cartridge),
+            7 => Nes::_7_axrom_initialize(cartridge),
             _ => {
                 panic!("mapper number {} is unsupported", cartridge.header.mapper);
                 //Err(NesError::UnsupportedMapper)

@@ -185,12 +185,12 @@ fn main() {
         sdl.canvas.present();
     }
 
-    println!("ram_counter: {}", nes.cpu.ram_counter);
+    /* println!("ram_counter: {}", nes.cpu.ram_counter);
     println!("ppu_counter: {}", nes.cpu.ppu_counter);
     println!("open_bus_counter: {}", nes.cpu.open_bus_counter);
     println!("controller_counter: {}", nes.cpu.controller_counter);
     println!("mapper_counter: {}", nes.cpu.mapper_counter);
-    println!("apu_counter: {}", nes.cpu.apu_counter);
+    println!("apu_counter: {}", nes.cpu.apu_counter); */
 }
 
 struct SdlSystem {
