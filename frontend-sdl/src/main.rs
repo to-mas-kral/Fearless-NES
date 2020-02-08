@@ -170,7 +170,7 @@ fn main() {
 
         let elapsed = end.duration_since(start);
         let expected = Duration::from_millis(16);
-        println!("Emulating a frame took {:?} milliseconds", elapsed);
+        //println!("Emulating a frame took {:?} milliseconds", elapsed);
 
         if let Some(d) = expected.checked_sub(elapsed) {
             thread::sleep(d);
@@ -184,6 +184,13 @@ fn main() {
         sdl.canvas.set_scale(scale, scale).unwrap();
         sdl.canvas.present();
     }
+
+    println!("ram_counter: {}", nes.cpu.ram_counter);
+    println!("ppu_counter: {}", nes.cpu.ppu_counter);
+    println!("open_bus_counter: {}", nes.cpu.open_bus_counter);
+    println!("controller_counter: {}", nes.cpu.controller_counter);
+    println!("mapper_counter: {}", nes.cpu.mapper_counter);
+    println!("apu_counter: {}", nes.cpu.apu_counter);
 }
 
 struct SdlSystem {

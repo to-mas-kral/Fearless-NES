@@ -29,7 +29,7 @@ impl Nes {
         mapper.chr_mask = chr_mask;
         mapper.enable_ram = false;
 
-        mapper.nt_ram = [0; 0x1000];
+        mapper.nt_ram = vec![0; 0x1000];
 
         mapper.ignore_write = 0;
 

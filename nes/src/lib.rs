@@ -47,6 +47,9 @@ impl Nes {
             cycle_count: 0,
         };
 
+        use std::mem::size_of;
+        println!("Size of Nes in bytes: {}", size_of::<Nes>());
+
         nes.cpu_gen_reset();
         for _ in 0..6 {
             nes.run_one_cycle();

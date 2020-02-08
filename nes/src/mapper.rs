@@ -40,7 +40,7 @@ pub struct Mapper {
     pub chr_1: usize,
     pub chr_2: usize,
 
-    pub nt_ram: [u8; 0x1000],
+    pub nt_ram: Vec<u8>,
 
     pub mirroring: Mirroring,
 
@@ -78,7 +78,7 @@ impl Mapper {
             chr_1: 0,
             chr_2: 0,
 
-            nt_ram: [0; 0x1000],
+            nt_ram: vec![0; 0x1000],
 
             mirroring: Mirroring::Obscure,
 

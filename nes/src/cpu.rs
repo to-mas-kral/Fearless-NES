@@ -62,7 +62,7 @@ pub struct Cpu {
     take_interrupt: bool,
     interrupt_type: InterruptType,
 
-    ram: [u8; 0x800],
+    ram: Vec<u8>,
     dma: Dma,
 }
 
@@ -98,7 +98,7 @@ impl Cpu {
             take_interrupt: false,
             interrupt_type: InterruptType::None,
 
-            ram: [0; 0x800],
+            ram: vec![0; 0x800],
             dma: Dma::new(),
             open_bus: 0,
         }
@@ -158,13 +158,12 @@ impl Nes {
         self.cpu.open_bus = match index {
             0..=0x1FFF => self.cpu.ram[index & 0x7FF],
             0x2000..=0x3FFF => self.ppu_read_reg(index),
-            0x4000..=0x4014 => self.cpu.open_bus,
+            0x4000..=0x4014 | 0x4017..=0x401F => self.cpu.open_bus,
             0x4015 => self.apu_read_status(),
             0x4016 => {
                 let tmp = self.controller.read_reg();
                 (self.cpu.open_bus & 0xE0) | tmp
             }
-            0x4017..=0x401F => self.cpu.open_bus,
             0x4020..=0xFFFF => {
                 if let Some(val) = (self.mapper.cpu_read)(self, index) {
                     val
@@ -172,7 +171,7 @@ impl Nes {
                     self.cpu.open_bus
                 }
             }
-            _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
+            _ => unreachable!("memory access into unmapped address: 0x{:X}", index),
         };
 
         self.cpu.db = self.cpu.open_bus;

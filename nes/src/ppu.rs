@@ -49,7 +49,7 @@ pub struct Ppu {
     suppress_nmi: bool,
     prev_nmi: bool,
 
-    pub oam: [u8; 0x100],
+    pub oam: Vec<u8>,
     secondary_oam: [u8; 0x20],
     palettes: [u8; 0x20],
 
@@ -65,7 +65,7 @@ pub struct Ppu {
 
     sprite_index: u8,
     sprite_buffer: [Sprite; 8],
-    sprite_cache: [bool; 0x101],
+    sprite_cache: Vec<bool>,
 
     vram_addr: usize,
     temp_vram_addr: usize,
@@ -127,7 +127,7 @@ impl Ppu {
             scanline: 0,
             odd_frame: false,
 
-            oam: [0; 0x100],
+            oam: vec![0; 0x100],
             secondary_oam: [0; 0x20],
             palettes,
 
@@ -143,7 +143,7 @@ impl Ppu {
 
             sprite_index: 0,
             sprite_buffer: [Sprite::new(); 8],
-            sprite_cache: [false; 0x101],
+            sprite_cache: vec![false; 0x101],
 
             nametable_byte: 0,
             attribute: 0,
@@ -628,7 +628,7 @@ impl Nes {
                         self.ppu_read(self.ppu_nametable_addr());
                     }
                     339 => {
-                        self.ppu.sprite_cache = [false; 0x101];
+                        self.ppu.sprite_cache = vec![false; 0x101];
                         self.frame_ready = true;
                         self.ppu_read(self.ppu_nametable_addr());
 
@@ -794,7 +794,7 @@ impl Nes {
     #[inline]
     fn ppu_fetch_sprites(&mut self) {
         if self.ppu.xpos == 257 {
-            self.ppu.sprite_cache = [false; 0x101];
+            self.ppu.sprite_cache = vec![false; 0x101];
             self.ppu.sprite_index = 0;
         }
 

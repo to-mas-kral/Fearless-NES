@@ -14,7 +14,7 @@ impl Nes {
         };
 
         mapper.prg_2 = prg_2;
-        mapper.nt_ram = [0; 0x1000];
+        mapper.nt_ram = vec![0; 0x1000];
         mapper.mirroring = mapper.cartridge.header.mirroring;
 
         mapper.cpu_read = Nes::_0_nrom_cpu_read;
