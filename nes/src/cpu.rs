@@ -52,7 +52,7 @@ pub struct Cpu {
     pub ab: usize, //Address bus
     db: u8,        //Data bus
     temp: usize,
-    open_bus: u8,
+    pub open_bus: u8,
 
     cached_irq: bool,
     pub irq_signal: bool,
@@ -156,21 +156,15 @@ impl Nes {
     #[inline]
     pub fn cpu_read(&mut self, index: usize) {
         self.cpu.open_bus = match index {
+            0x4020..=0xFFFF => (self.mapper.cpu_read)(self, index),
             0..=0x1FFF => self.cpu.ram[index & 0x7FF],
             0x2000..=0x3FFF => self.ppu_read_reg(index),
             0x4000..=0x4014 | 0x4017..=0x401F => self.cpu.open_bus,
-            0x4015 => self.apu_read_status(),
             0x4016 => {
                 let tmp = self.controller.read_reg();
                 (self.cpu.open_bus & 0xE0) | tmp
             }
-            0x4020..=0xFFFF => {
-                if let Some(val) = (self.mapper.cpu_read)(self, index) {
-                    val
-                } else {
-                    self.cpu.open_bus
-                }
-            }
+            0x4015 => self.apu_read_status(),
             _ => unreachable!("memory access into unmapped address: 0x{:X}", index),
         };
 

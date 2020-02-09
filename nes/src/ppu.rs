@@ -590,37 +590,77 @@ impl Nes {
     #[inline]
     fn ppu_scanline_tick(&mut self) {
         match self.ppu.scanline {
+            0..=239 => match self.ppu.xpos {
+                2..=256 => {
+                    self.ppu_shift_tile_registers();
+                    self.ppu_fetch_bg();
+
+                    if self.ppu.xpos >= 65 {
+                        self.ppu_sprite_evaluation();
+
+                        if self.ppu.xpos == 256 {
+                            self.ppu_y_increment();
+                        }
+                    }
+
+                    self.ppu_draw_pixel();
+                }
+                322..=336 => {
+                    self.ppu_fetch_bg();
+                    self.ppu_shift_tile_registers();
+                }
+                258..=320 => self.ppu_fetch_sprites(),
+                1 => {
+                    self.ppu_fetch_bg();
+                    self.ppu_draw_pixel();
+                    self.ppu.secondary_oam = [0xFF; 0x20];
+                }
+                257 => {
+                    self.ppu_t_to_v();
+                    self.ppu_shift_tile_registers();
+                    self.ppu_fetch_sprites();
+                }
+                321 => {
+                    self.ppu_fetch_bg();
+                    self.ppu_shift_tile_registers();
+                }
+                337 | 339 => {
+                    self.ppu_read(self.ppu_nametable_addr());
+                }
+                _ => (),
+            },
+            241..=260 => self.ppu_vblank(),
             261 => {
                 match self.ppu.xpos {
+                    2..=256 => {
+                        self.ppu_fetch_bg();
+                        if self.ppu.xpos < 9 {
+                            self.ppu_oam_refresh_bug();
+                        }
+                        if self.ppu.xpos == 256 {
+                            self.ppu_y_increment();
+                        }
+                    }
+                    280..=304 => {
+                        self.ppu_v_from_t();
+                        self.ppu_fetch_sprites();
+                    }
+                    258..=279 => self.ppu_fetch_sprites(),
+                    305..=320 => self.ppu_fetch_sprites(),
+                    322..=336 => {
+                        self.ppu_fetch_bg();
+                        self.ppu_shift_tile_registers();
+                    }
                     1 => {
                         self.ppu.ppustatus &= !0xE0;
                         self.ppu_fetch_bg();
                         self.ppu_oam_refresh_bug();
                     }
-                    2..=256 => {
-                        self.ppu_fetch_bg();
-                        if self.ppu.xpos == 256 {
-                            self.ppu_y_increment();
-                        }
-                        if self.ppu.xpos < 9 {
-                            self.ppu_oam_refresh_bug();
-                        }
-                    }
                     257 => {
                         self.ppu_t_to_v();
                         self.ppu_fetch_sprites();
                     }
-                    258..=279 => self.ppu_fetch_sprites(),
-                    280..=304 => {
-                        self.ppu_v_from_t();
-                        self.ppu_fetch_sprites();
-                    }
-                    305..=320 => self.ppu_fetch_sprites(),
                     321 => {
-                        self.ppu_fetch_bg();
-                        self.ppu_shift_tile_registers();
-                    }
-                    322..=336 => {
                         self.ppu_fetch_bg();
                         self.ppu_shift_tile_registers();
                     }
@@ -644,46 +684,6 @@ impl Nes {
                     _ => (),
                 }
             }
-            0..=239 => match self.ppu.xpos {
-                1 => {
-                    self.ppu_fetch_bg();
-                    self.ppu_draw_pixel();
-                    self.ppu.secondary_oam = [0xFF; 0x20];
-                }
-                2..=256 => {
-                    self.ppu_shift_tile_registers();
-                    self.ppu_fetch_bg();
-
-                    if self.ppu.xpos >= 65 {
-                        self.ppu_sprite_evaluation();
-
-                        if self.ppu.xpos == 256 {
-                            self.ppu_y_increment();
-                        }
-                    }
-
-                    self.ppu_draw_pixel();
-                }
-                257 => {
-                    self.ppu_t_to_v();
-                    self.ppu_shift_tile_registers();
-                    self.ppu_fetch_sprites();
-                }
-                258..=320 => self.ppu_fetch_sprites(),
-                321 => {
-                    self.ppu_fetch_bg();
-                    self.ppu_shift_tile_registers();
-                }
-                322..=336 => {
-                    self.ppu_fetch_bg();
-                    self.ppu_shift_tile_registers();
-                }
-                337 | 339 => {
-                    self.ppu_read(self.ppu_nametable_addr());
-                }
-                _ => (),
-            },
-            241..=260 => self.ppu_vblank(),
             _ => (),
         }
     }
@@ -691,7 +691,6 @@ impl Nes {
     #[inline]
     fn ppu_vblank(&mut self) {
         match (self.ppu.scanline, self.ppu.xpos) {
-            (241, 0) => (),
             (241, 1) => {
                 if !self.ppu.suppress_nmi {
                     self.ppu.ppustatus |= 0x80;
@@ -706,9 +705,10 @@ impl Nes {
 
                 self.ppu.suppress_nmi = false;
             }
+            (241, 0) => (),
             _ => {
                 let current_nmi =
-                    self.ppu.nmi_on_vblank && ((self.ppu.ppustatus & 0x80) != 0);
+                self.ppu.nmi_on_vblank && ((self.ppu.ppustatus & 0x80) != 0);
 
                 //if self.scanline == 241 && self.xpos < 9 {
                 //    println!(
@@ -755,6 +755,7 @@ impl Nes {
     //||| || +++++-------- coarse Y scroll
     //||| ++-------------- nametable select
     //+++----------------- fine Y scroll
+    //FIXME: optimize
     #[inline]
     fn ppu_fetch_bg(&mut self) {
         if self.ppu.rendering_enabled {
@@ -1052,14 +1053,15 @@ impl Nes {
         self.ppu.attribute >>= 2;
     }
 
-    #[inline]
+    //FIXME: optimize
+    #[inline(always)]
     fn ppu_draw_pixel(&mut self) {
         let addr = (usize::from(self.ppu.scanline) << 8) + usize::from(self.ppu.xpos - 1);
         let color_index = self.ppu_pixel_color();
         self.ppu.output_buffer[addr] = self.ppu.palettes[color_index];
     }
 
-    #[inline]
+    #[inline(always)]
     fn ppu_pixel_color(&mut self) -> usize {
         if !self.ppu.rendering_enabled && (self.ppu.vram_addr & 0x3F00) == 0x3F00 {
             return self.ppu.vram_addr & 0x1F;

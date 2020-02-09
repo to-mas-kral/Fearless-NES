@@ -39,13 +39,13 @@ impl Nes {
         }
     }
 
-    pub fn _3_cnrom_cpu_read(&mut self, addr: usize) -> Option<u8> {
+    pub fn _3_cnrom_cpu_read(&mut self, addr: usize) -> u8 {
         match addr {
-            0x8000..=0xBFFF => Some(self.mapper.cartridge.prg_rom[addr - 0x8000]),
+            0x8000..=0xBFFF => self.mapper.cartridge.prg_rom[addr - 0x8000],
             0xC000..=0xFFFF => {
-                Some(self.mapper.cartridge.prg_rom[self.mapper.prg_2 + (addr - 0xC000)])
+                self.mapper.cartridge.prg_rom[self.mapper.prg_2 + (addr - 0xC000)]
             }
-            _ => None,
+            _ => self.cpu.open_bus,
         }
     }
 
