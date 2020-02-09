@@ -163,18 +163,18 @@ impl Nes {
         }
     }
 
-    pub fn _1_mmc1_cpu_read(&mut self, addr: usize) -> Option<u8> {
+    pub fn _1_mmc1_cpu_read(&mut self, addr: usize) -> u8 {
         match addr {
             0x6000..=0x7FFF if self.mapper.enable_ram => {
-                Some(self.mapper.cartridge.prg_ram[addr - 0x6000])
+                self.mapper.cartridge.prg_ram[addr - 0x6000]
             }
             0x8000..=0xBFFF => {
-                Some(self.mapper.cartridge.prg_rom[self.mapper.prg_1 + (addr - 0x8000)])
+                self.mapper.cartridge.prg_rom[self.mapper.prg_1 + (addr - 0x8000)]
             }
             0xC000..=0xFFFF => {
-                Some(self.mapper.cartridge.prg_rom[self.mapper.prg_2 + (addr - 0xC000)])
+                self.mapper.cartridge.prg_rom[self.mapper.prg_2 + (addr - 0xC000)]
             }
-            _ => None,
+            _ => self.cpu.open_bus,
         }
     }
 

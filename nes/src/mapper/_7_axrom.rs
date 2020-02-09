@@ -31,12 +31,12 @@ impl Nes {
         }
     }
 
-    pub fn _7_axrom_cpu_read(&mut self, addr: usize) -> Option<u8> {
+    pub fn _7_axrom_cpu_read(&mut self, addr: usize) -> u8 {
         match addr {
             0x8000..=0xFFFF => {
-                Some(self.mapper.cartridge.prg_rom[self.mapper.prg_1 + (addr - 0x8000)])
+                self.mapper.cartridge.prg_rom[self.mapper.prg_1 + (addr - 0x8000)]
             }
-            _ => None,
+            _ => self.cpu.open_bus,
         }
     }
 

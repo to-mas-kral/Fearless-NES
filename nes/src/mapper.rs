@@ -26,7 +26,7 @@ impl Nes {
 
 pub struct Mapper {
     // Function pointers
-    pub cpu_read: fn(&mut Nes, usize) -> Option<u8>,
+    pub cpu_read: fn(&mut Nes, usize) -> u8,
     pub cpu_peek: fn(&mut Nes, usize) -> u8,
     pub cpu_write: fn(&mut Nes, addr: usize, val: u8),
     pub read_chr: fn(&mut Nes, addr: usize) -> u8,
@@ -100,7 +100,7 @@ impl Mapper {
     }
 }
 
-fn mock_cpu_read(_: &mut Nes, _: usize) -> Option<u8> {
+fn mock_cpu_read(_: &mut Nes, _: usize) -> u8 {
     unimplemented!("Mapper function pointer have not been set")
 }
 fn mock_cpu_peek(_: &mut Nes, _: usize) -> u8 {
