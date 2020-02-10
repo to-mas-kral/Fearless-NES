@@ -1,4 +1,3 @@
-#[allow(unused_variables, dead_code)]
 use super::Nes;
 
 static SAMPLE_FREQ: u32 = 40;
@@ -14,18 +13,18 @@ pub struct Apu {
     dmc: Dmc,
     frame_counter: FrameCounter,
 
-    pulse_table: [f32; 31],
-    tnd_table: [f32; 203],
+    pulse_table: Vec<f32>,
+    tnd_table: Vec<f32>,
 }
 
 impl Apu {
     pub fn new() -> Apu {
-        let mut pulse_table = [0f32; 31];
+        let mut pulse_table = vec![0f32; 31];
         for n in 0..31 {
             pulse_table[n] = 95.52 / (8128f32 / n as f32 + 100f32);
         }
 
-        let mut tnd_table = [0f32; 203];
+        let mut tnd_table = vec![0f32; 203];
         for n in 0..203 {
             tnd_table[n] = 163.67 / (24329f32 / n as f32 + 100f32);
         }

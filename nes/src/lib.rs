@@ -12,14 +12,19 @@ pub mod ppu;
 
 use mapper::Mapper;
 
+use apu::Apu;
+use controller::Controller;
+use cpu::Cpu;
+use ppu::Ppu;
+
 use std::fs::File;
 use std::io;
 use std::path::Path;
 
 pub struct Nes {
-    pub cpu: cpu::Cpu,
-    pub ppu: ppu::Ppu,
-    pub apu: apu::Apu,
+    pub cpu: Cpu,
+    pub ppu: Ppu,
+    pub apu: Apu,
 
     pub mapper: Mapper,
 
@@ -35,20 +40,25 @@ impl Nes {
         let cartridge = cartridge::parse_rom(&mut rom)?;
 
         let mut nes = Nes {
-            cpu: cpu::Cpu::new(),
-            ppu: ppu::Ppu::new(),
-            apu: apu::Apu::new(),
+            cpu: Cpu::new(),
+            ppu: Ppu::new(),
+            apu: Apu::new(),
 
             mapper: Nes::initialize_mapper(cartridge),
 
-            controller: controller::Controller::new(),
+            controller: Controller::new(),
 
             frame_ready: false,
             cycle_count: 0,
         };
 
         use std::mem::size_of;
-        println!("Size of Nes in bytes: {}", size_of::<Nes>());
+        println!("Total size of nes in bytes: {}", size_of::<Nes>());
+        println!("Size of cpu in bytes: {}", size_of::<Cpu>());
+        println!("Size of ppu in bytes: {}", size_of::<Ppu>());
+        println!("Size of apu in bytes: {}", size_of::<Apu>());
+        println!("Size of controller in bytes: {}", size_of::<Controller>());
+        println!("Size of mapper in bytes: {}", size_of::<Mapper>());
 
         nes.cpu_gen_reset();
         for _ in 0..6 {

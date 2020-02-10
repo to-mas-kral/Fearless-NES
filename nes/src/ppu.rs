@@ -50,8 +50,8 @@ pub struct Ppu {
     prev_nmi: bool,
 
     pub oam: Vec<u8>,
-    secondary_oam: [u8; 0x20],
-    palettes: [u8; 0x20],
+    secondary_oam: Vec<u8>,
+    palettes: Vec<u8>,
 
     oamdata_buffer: u8,
     sprite_eval_count: u8,
@@ -64,7 +64,7 @@ pub struct Ppu {
     sprite_count: u8,
 
     sprite_index: u8,
-    sprite_buffer: [Sprite; 8],
+    sprite_buffer: Vec<Sprite>,
     sprite_cache: Vec<bool>,
 
     vram_addr: usize,
@@ -111,7 +111,7 @@ pub struct Ppu {
 
 impl Ppu {
     pub fn new() -> Ppu {
-        let palettes = [
+        let palettes = vec![
             0x09, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x0D, 0x08, 0x10, 0x08, 0x24, 0x00,
             0x00, 0x04, 0x2C, 0x09, 0x01, 0x34, 0x03, 0x00, 0x04, 0x00, 0x14, 0x08, 0x3A,
             0x00, 0x02, 0x00, 0x20, 0x2C, 0x08,
@@ -128,7 +128,7 @@ impl Ppu {
             odd_frame: false,
 
             oam: vec![0; 0x100],
-            secondary_oam: [0; 0x20],
+            secondary_oam: vec![0; 0x20],
             palettes,
 
             oamdata_buffer: 0,
@@ -142,7 +142,7 @@ impl Ppu {
             sprite_count: 0,
 
             sprite_index: 0,
-            sprite_buffer: [Sprite::new(); 8],
+            sprite_buffer: vec![Sprite::new(); 8],
             sprite_cache: vec![false; 0x101],
 
             nametable_byte: 0,
@@ -605,24 +605,20 @@ impl Nes {
 
                     self.ppu_draw_pixel();
                 }
-                322..=336 => {
+                321..=336 => {
                     self.ppu_fetch_bg();
                     self.ppu_shift_tile_registers();
                 }
                 258..=320 => self.ppu_fetch_sprites(),
                 1 => {
-                    self.ppu_fetch_bg();
+                    self.ppu_fetch_nt();
                     self.ppu_draw_pixel();
-                    self.ppu.secondary_oam = [0xFF; 0x20];
+                    self.ppu.secondary_oam = vec![0xFF; 0x20];
                 }
                 257 => {
                     self.ppu_t_to_v();
                     self.ppu_shift_tile_registers();
                     self.ppu_fetch_sprites();
-                }
-                321 => {
-                    self.ppu_fetch_bg();
-                    self.ppu_shift_tile_registers();
                 }
                 337 | 339 => {
                     self.ppu_read(self.ppu_nametable_addr());
@@ -647,22 +643,18 @@ impl Nes {
                     }
                     258..=279 => self.ppu_fetch_sprites(),
                     305..=320 => self.ppu_fetch_sprites(),
-                    322..=336 => {
+                    321..=336 => {
                         self.ppu_fetch_bg();
                         self.ppu_shift_tile_registers();
                     }
                     1 => {
                         self.ppu.ppustatus &= !0xE0;
-                        self.ppu_fetch_bg();
+                        self.ppu_fetch_nt();
                         self.ppu_oam_refresh_bug();
                     }
                     257 => {
                         self.ppu_t_to_v();
                         self.ppu_fetch_sprites();
-                    }
-                    321 => {
-                        self.ppu_fetch_bg();
-                        self.ppu_shift_tile_registers();
                     }
                     337 => {
                         self.ppu_read(self.ppu_nametable_addr());
@@ -708,7 +700,7 @@ impl Nes {
             (241, 0) => (),
             _ => {
                 let current_nmi =
-                self.ppu.nmi_on_vblank && ((self.ppu.ppustatus & 0x80) != 0);
+                    self.ppu.nmi_on_vblank && ((self.ppu.ppustatus & 0x80) != 0);
 
                 //if self.scanline == 241 && self.xpos < 9 {
                 //    println!(
@@ -756,40 +748,50 @@ impl Nes {
     //||| ++-------------- nametable select
     //+++----------------- fine Y scroll
     //FIXME: optimize
-    #[inline]
+    #[inline(always)]
     fn ppu_fetch_bg(&mut self) {
         if self.ppu.rendering_enabled {
             match self.ppu.xpos & 7 {
-                0 => {
-                    self.ppu_coarse_x_increment();
-                }
-                1 => {
-                    self.ppu_shift_attrbutes();
-
-                    self.ppu.shift_low |= u16::from(self.ppu.tile_lb);
-                    self.ppu.shift_high |= u16::from(self.ppu.tile_hb);
-
-                    self.ppu.nametable_byte = self.ppu_read(self.ppu_nametable_addr());
-                }
-                //The 2-bit 1-of-4 selector" is used to shift the attribute byte right
-                //by 0, 2, 4, or 6 bits depending on bit 4 of the X and Y pixel position.
-                //Roughly: if (v & 0x40) attrbyte >>= 4; if (v & 0x02) attrbyte >>= 2.
-                3 => {
-                    let shift =
-                        ((self.ppu.vram_addr >> 4) & 4) | (self.ppu.vram_addr & 2);
-                    let attr = (self.ppu_read(self.ppu_attr_table_addr()) >> shift) & 3;
-                    self.ppu.attribute |= attr << 6;
-                }
-                5 => {
-                    self.ppu.tile_addr = (usize::from(self.ppu.nametable_byte) << 4)
-                        | (self.ppu.vram_addr >> 12)
-                        | self.ppu.bg_pattern_table_addr;
-                    self.ppu.tile_lb = self.ppu_read(self.ppu.tile_addr);
-                }
-                7 => self.ppu.tile_hb = self.ppu_read(self.ppu.tile_addr + 8),
+                0 => self.ppu_coarse_x_increment(),
+                1 => self.ppu_fetch_nt(),
+                3 => self.ppu_fetch_at(),
+                5 => self.ppu_fetch_bg_low(),
+                7 => self.ppu_fetch_bg_high(),
                 _ => (),
             }
         }
+    }
+
+    #[inline(always)]
+    fn ppu_fetch_nt(&mut self) {
+        //The 2-bit 1-of-4 selector" is used to shift the attribute byte right
+        //by 0, 2, 4, or 6 bits depending on bit 4 of the X and Y pixel position.
+        //Roughly: if (v & 0x40) attrbyte >>= 4; if (v & 0x02) attrbyte >>= 2.
+        self.ppu_shift_attrbutes();
+        self.ppu.shift_low |= u16::from(self.ppu.tile_lb);
+        self.ppu.shift_high |= u16::from(self.ppu.tile_hb);
+
+        self.ppu.nametable_byte = self.ppu_read(self.ppu_nametable_addr());
+    }
+
+    #[inline]
+    fn ppu_fetch_at(&mut self) {
+        let shift = ((self.ppu.vram_addr >> 4) & 4) | (self.ppu.vram_addr & 2);
+        let attr = (self.ppu_read(self.ppu_attr_table_addr()) >> shift) & 3;
+        self.ppu.attribute |= attr << 6;
+    }
+
+    #[inline]
+    fn ppu_fetch_bg_low(&mut self) {
+        self.ppu.tile_addr = (usize::from(self.ppu.nametable_byte) << 4)
+            | (self.ppu.vram_addr >> 12)
+            | self.ppu.bg_pattern_table_addr;
+        self.ppu.tile_lb = self.ppu_read(self.ppu.tile_addr);
+    }
+
+    #[inline]
+    fn ppu_fetch_bg_high(&mut self) {
+        self.ppu.tile_hb = self.ppu_read(self.ppu.tile_addr + 8);
     }
 
     #[inline]

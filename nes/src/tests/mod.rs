@@ -83,6 +83,8 @@ macro_rules! hash_test {
 mod cpu;
 mod ppu;
 
+use tests::test::black_box;
+
 #[bench]
 fn nes_bencher(b: &mut Bencher) {
     let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -92,7 +94,7 @@ fn nes_bencher(b: &mut Bencher) {
         Nes::new(&bench_path).expect("error when creating bencher NES instance");
 
     b.iter(|| {
-        nes.run_one_frame();
+        black_box(nes.run_one_frame());
     });
 }
 
@@ -105,19 +107,20 @@ fn test_bencher_1(b: &mut Bencher) {
         Nes::new(&bench_path).expect("error when creating bencher NES instance");
 
     b.iter(|| {
-        nes.run_one_frame();
+        black_box(nes.run_one_frame());
     });
 }
 
 #[bench]
 fn test_bencher_2(b: &mut Bencher) {
     let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let bench_path = Path::new(&base_dir).join("src/tests/cpu/blargg_instr/all_instrs.nes");
+    let bench_path =
+        Path::new(&base_dir).join("src/tests/cpu/blargg_instr/all_instrs.nes");
 
     let mut nes =
         Nes::new(&bench_path).expect("error when creating bencher NES instance");
 
     b.iter(|| {
-        nes.run_one_frame();
+        black_box(nes.run_one_frame());
     });
 }
