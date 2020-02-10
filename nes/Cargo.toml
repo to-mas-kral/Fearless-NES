@@ -2,7 +2,7 @@
 name = "fearless_nes"
 version = "0.1.0"
 authors = ["TomasKralCZ <tomas@kral.hk>"]
-build = "src/cpu/cpu_generator.rs"
+#build = "src/cpu/cpu_generator.rs"
 
 [build.dependencies]
 rustfmt = "*"

@@ -52,14 +52,6 @@ impl Nes {
             cycle_count: 0,
         };
 
-        use std::mem::size_of;
-        println!("Total size of nes in bytes: {}", size_of::<Nes>());
-        println!("Size of cpu in bytes: {}", size_of::<Cpu>());
-        println!("Size of ppu in bytes: {}", size_of::<Ppu>());
-        println!("Size of apu in bytes: {}", size_of::<Apu>());
-        println!("Size of controller in bytes: {}", size_of::<Controller>());
-        println!("Size of mapper in bytes: {}", size_of::<Mapper>());
-
         nes.cpu_gen_reset();
         for _ in 0..6 {
             nes.run_one_cycle();
@@ -86,6 +78,22 @@ impl Nes {
         }
 
         self.cpu_tick();
+        for _ in 0..3 {
+            self.ppu_tick();
+        }
+
+        self.apu_tick();
+
+
+        self.cpu_tick_new();
+        self.cpu_tick_new();
+        self.cpu_tick_new();
+        self.cpu_tick_new();
+        self.cpu_tick_new();
+        self.cpu_tick_new();
+    }
+
+    fn clock_ppu_apu(&mut self) {
         for _ in 0..3 {
             self.ppu_tick();
         }

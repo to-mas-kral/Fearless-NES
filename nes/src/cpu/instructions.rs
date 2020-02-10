@@ -1,15 +1,5 @@
 use super::super::Nes;
 
-/* macro_rules! implied {
-    ($instruction:expr) => {
-        self.cpu_check_interrupts();
-        self.cpu_read(self.cpu.ab);
-        self.cpu_check_dma();
-        $instruction
-    };
-}
- */
-
 impl Nes {
     // Table of instructions - index is opcode, 1st field is addressing mode,
     // 2nd field is function name
@@ -17,32 +7,31 @@ impl Nes {
         match self.cpu.state {
             //0x00 => (Brk, ""),
             //0x01 => (IndirectX, "self.cpu_ora(val);"),
-            //0x02 => (Immediate, "self.cpu.halt = true;"),
+            0x02 => self.cpu_immediate(Nes::cpu_halt),
             //0x03 => (IndirectXIllegal, "self.cpu_slo();"),
-            //0x04 => (ZeroPage, ""),
-            //0x05 => (ZeroPage, "self.cpu_ora(val);"),
+            0x04 => self.cpu_zero_page(|_, _| ()),
+            0x05 => self.cpu_zero_page(Nes::cpu_ora),
             //0x06 => (ZeroPageRmw, "self.cpu_asl(val);"),
             //0x07 => (ZeroPageRmw, "self.cpu_slo();"),
             //0x08 => (Php, ""),
-            //0x09 => (Immediate, "self.cpu_ora(val);"),
-            //0x0A => (Accumulator, "self.cpu_asl_a();"),
-            //0x0B => (Immediate, "self.cpu_anc(val);"),
+            0x09 => self.cpu_immediate(Nes::cpu_ora),
+            0x0A => self.cpu_accumulator(Nes::cpu_asl_a),
+            0x0B => self.cpu_immediate(Nes::cpu_anc),
             //0x0C => (Absolute, ""),
             //0x0D => (Absolute, "self.cpu_ora(val);"),
             //0x0E => (AbsoluteRmw, "self.cpu_asl(val);"),
             //0x0F => (AbsoluteRmw, "self.cpu_slo();"),
             //0x10 => (Relative, "!self.cpu.n"),
             //0x11 => (IndirectY, "self.cpu_ora(val);"),
-            //0x12 => (Immediate, "self.cpu.halt = true;"),
+            0x12 => self.cpu_immediate(Nes::cpu_halt),
             //0x13 => (IndirectYIllegal, "self.cpu_slo();"),
             //0x14 => (ZeroPageX, ""),
             //0x15 => (ZeroPageX, "self.cpu_ora(val);"),
             //0x16 => (ZeroPageXRmw, "self.cpu_asl(val);"),
             //0x17 => (ZeroPageXRmw, "self.cpu_slo();"),
-            //0x18 => (Implied, "self.cpu.c = false;"),
             0x18 => self.cpu_implied(Nes::cpu_clc),
             //0x19 => (AbsoluteY, "self.cpu_ora(val);"),
-            //0x1A => (Implied, ""),
+            0x1A => self.cpu_implied(|_| ()),
             //0x1B => (AbsoluteYIllegal, "self.cpu_slo();"),
             //0x1C => (AbsoluteX, ""),
             //0x1D => (AbsoluteX, "self.cpu_ora(val);"),
@@ -50,31 +39,31 @@ impl Nes {
             //0x1F => (AbsoluteXRmw, "self.cpu_slo();"),
             //0x20 => (Jsr, "self.cpu_jsr(val);"),
             //0x21 => (IndirectX, "self.cpu_and(val);"),
-            //0x22 => (Immediate, "self.cpu.halt = true;"),
+            0x22 => self.cpu_immediate(Nes::cpu_halt),
             //0x23 => (IndirectXIllegal, "self.cpu_rla();"),
-            //0x24 => (ZeroPage, "self.cpu_bit(val);"),
-            //0x25 => (ZeroPage, "self.cpu_and(val);"),
+            0x24 => self.cpu_zero_page(Nes::cpu_bit),
+            0x25 => self.cpu_zero_page(Nes::cpu_and),
             //0x26 => (ZeroPageRmw, "self.cpu_rol(val);"),
             //0x27 => (ZeroPageRmw, "self.cpu_rla();"),
             //0x28 => (Plp, ""),
-            //0x29 => (Immediate, "self.cpu_and(val);"),
-            //0x2A => (Accumulator, "self.cpu_rol_a();"),
-            //0x2B => (Immediate, "self.cpu_anc(val);"),
+            0x29 => self.cpu_immediate(Nes::cpu_and),
+            0x2A => self.cpu_accumulator(Nes::cpu_rol_a),
+            0x2B => self.cpu_immediate(Nes::cpu_anc),
             //0x2C => (Absolute, "self.cpu_bit(val);"),
             //0x2D => (Absolute, "self.cpu_and(val);"),
             //0x2E => (AbsoluteRmw, "self.cpu_rol(val);"),
             //0x2F => (AbsoluteRmw, "self.cpu_rla();"),
             //0x30 => (Relative, "self.cpu.n"),
             //0x31 => (IndirectY, "self.cpu_and(val);"),
-            //0x32 => (Immediate, "self.cpu.halt = true;"),
+            0x32 => self.cpu_immediate(Nes::cpu_halt),
             //0x33 => (IndirectYIllegal, "self.cpu_rla();"),
             //0x34 => (ZeroPageX, ""),
             //0x35 => (ZeroPageX, "self.cpu_and(val);"),
             //0x36 => (ZeroPageXRmw, "self.cpu_rol(val);"),
             //0x37 => (ZeroPageXRmw, "self.cpu_rla();"),
-            //0x38 => (Implied, "self.cpu.c = true;"),
+            0x38 => self.cpu_implied(Nes::cpu_sec),
             //0x39 => (AbsoluteY, "self.cpu_and(val);"),
-            //0x3A => (Implied, ""),
+            0x3A => self.cpu_implied(|_| ()),
             //0x3B => (AbsoluteYIllegal, "self.cpu_rla();"),
             //0x3C => (AbsoluteX, ""),
             //0x3D => (AbsoluteX, "self.cpu_and(val);"),
@@ -82,31 +71,31 @@ impl Nes {
             //0x3F => (AbsoluteXRmw, "self.cpu_rla();"),
             //0x40 => (Rti, "self.cpu_rti();"),
             //0x41 => (IndirectX, "self.cpu_eor(val);"),
-            //0x42 => (Immediate, "self.cpu.halt = true;"),
+            0x42 => self.cpu_immediate(Nes::cpu_halt),
             //0x43 => (IndirectXIllegal, "self.cpu_sre();"),
-            //0x44 => (ZeroPage, ""),
-            //0x45 => (ZeroPage, "self.cpu_eor(val);"),
+            0x44 => self.cpu_zero_page(|_, _| ()),
+            0x45 => self.cpu_zero_page(Nes::cpu_eor),
             //0x46 => (ZeroPageRmw, "self.cpu_lsr(val);"),
             //0x47 => (ZeroPageRmw, "self.cpu_sre();"),
             //0x48 => (Pha, ""),
-            //0x49 => (Immediate, "self.cpu_eor(val);"),
-            //0x4A => (Accumulator, "self.cpu_lsr_a();"),
-            //0x4B => (Immediate, "self.cpu_alr(val);"),
+            0x49 => self.cpu_immediate(Nes::cpu_eor),
+            0x4A => self.cpu_accumulator(Nes::cpu_lsr_a),
+            0x4B => self.cpu_immediate(Nes::cpu_alr),
             //0x4C => (AbsoluteJmp, ""),
             //0x4D => (Absolute, "self.cpu_eor(val);"),
             //0x4E => (AbsoluteRmw, "self.cpu_lsr(val);"),
             //0x4F => (AbsoluteRmw, "self.cpu_sre();"),
             //0x50 => (Relative, "!self.cpu.v"),
             //0x51 => (IndirectY, "self.cpu_eor(val);"),
-            //0x52 => (Immediate, "self.cpu.halt = true;"),
+            0x52 => self.cpu_immediate(Nes::cpu_halt),
             //0x53 => (IndirectYIllegal, "self.cpu_sre();"),
             //0x54 => (ZeroPageX, ""),
             //0x55 => (ZeroPageX, "self.cpu_eor(val);"),
             //0x56 => (ZeroPageXRmw, "self.cpu_lsr(val);"),
             //0x57 => (ZeroPageXRmw, "self.cpu_sre();"),
-            //0x58 => (Implied, "self.cpu.i = false;"),
+            0x58 => self.cpu_implied(Nes::cpu_cli),
             //0x59 => (AbsoluteY, "self.cpu_eor(val);"),
-            //0x5A => (Implied, ""),
+            0x5A => self.cpu_implied(|_| ()),
             //0x5B => (AbsoluteYIllegal, "self.cpu_sre();"),
             //0x5C => (AbsoluteX, ""),
             //0x5D => (AbsoluteX, "self.cpu_eor(val);"),
@@ -114,159 +103,159 @@ impl Nes {
             //0x5F => (AbsoluteXRmw, "self.cpu_sre();"),
             //0x60 => (Rts, "self.cpu_rts();"),
             //0x61 => (IndirectX, "self.cpu_adc(val);"),
-            //0x62 => (Immediate, "self.cpu.halt = true;"),
+            0x62 => self.cpu_immediate(Nes::cpu_halt),
             //0x63 => (IndirectXIllegal, "self.cpu_rra();"),
-            //0x64 => (ZeroPage, ""),
-            //0x65 => (ZeroPage, "self.cpu_adc(val);"),
+            0x64 => self.cpu_zero_page(|_, _| ()),
+            0x65 => self.cpu_zero_page(Nes::cpu_adc),
             //0x66 => (ZeroPageRmw, "self.cpu_ror(val);"),
             //0x67 => (ZeroPageRmw, "self.cpu_rra();"),
             //0x68 => (Pla, ""),
-            //0x69 => (Immediate, "self.cpu_adc(val);"),
-            //0x6A => (Accumulator, "self.cpu_ror_a();"),
-            //0x6B => (Immediate, "self.cpu_arr(val);"),
+            0x69 => self.cpu_immediate(Nes::cpu_adc),
+            0x6A => self.cpu_accumulator(Nes::cpu_ror_a),
+            0x6B => self.cpu_immediate(Nes::cpu_arr),
             //0x6C => (Indirect, ""),
             //0x6D => (Absolute, "self.cpu_adc(val);"),
             //0x6E => (AbsoluteRmw, "self.cpu_ror(val);"),
             //0x6F => (AbsoluteRmw, "self.cpu_rra();"),
             //0x70 => (Relative, "self.cpu.v"),
             //0x71 => (IndirectY, "self.cpu_adc(val);"),
-            //0x72 => (Immediate, "self.cpu.halt = true;"),
+            0x72 => self.cpu_immediate(Nes::cpu_halt),
             //0x73 => (IndirectYIllegal, "self.cpu_rra();"),
             //0x74 => (ZeroPageX, ""),
             //0x75 => (ZeroPageX, "self.cpu_adc(val);"),
             //0x76 => (ZeroPageXRmw, "self.cpu_ror(val);"),
             //0x77 => (ZeroPageXRmw, "self.cpu_rra();"),
-            //0x78 => (Implied, "self.cpu.i = true;"),
+            0x78 => self.cpu_implied(Nes::cpu_sei),
             //0x79 => (AbsoluteY, "self.cpu_adc(val);"),
-            //0x7A => (Implied, ""),
+            0x7A => self.cpu_implied(|_| ()),
             //0x7B => (AbsoluteYIllegal, "self.cpu_rra();"),
             //0x7C => (AbsoluteX, ""),
             //0x7D => (AbsoluteX, "self.cpu_adc(val);"),
             //0x7E => (AbsoluteXRmw, "self.cpu_ror(val);"),
             //0x7F => (AbsoluteXRmw, "self.cpu_rra();"),
-            //0x80 => (Immediate, ""),
+            0x80 => self.cpu_immediate(|_, _| ()),
             //0x81 => (IndirectXSt, "self.cpu_sta();"),
-            //0x82 => (Immediate, ""),
+            0x82 => self.cpu_immediate(|_, _| ()),
             //0x83 => (IndirectX, "self.cpu_aax();"),
             //0x84 => (ZeroPageSt, "self.cpu_sty();"),
             //0x85 => (ZeroPageSt, "self.cpu_sta();"),
             //0x86 => (ZeroPageSt, "self.cpu_stx();"),
-            //0x87 => (ZeroPage, "self.cpu_aax();"),
-            //0x88 => (Implied, "self.cpu_dey();"),
-            //0x89 => (Immediate, ""),
-            //0x8A => (Implied, "self.cpu_txa();"),
-            //0x8B => (Immediate, "self.cpu_xaa(val);"),
+            0x87 => self.cpu_zero_page(Nes::cpu_aax),
+            0x88 => self.cpu_implied(Nes::cpu_dey),
+            0x89 => self.cpu_immediate(|_, _| ()),
+            0x8A => self.cpu_implied(Nes::cpu_txa),
+            0x8B => self.cpu_immediate(Nes::cpu_xaa),
             //0x8C => (AbsoluteSt, "self.cpu_sty();"),
             //0x8D => (AbsoluteSt, "self.cpu_sta();"),
             //0x8E => (AbsoluteSt, "self.cpu_stx();"),
             //0x8F => (Absolute, "self.cpu_aax();"),
             //0x90 => (Relative, "!self.cpu.c"),
             //0x91 => (IndirectYSt, "self.cpu_sta();"),
-            //0x92 => (Immediate, "self.cpu.halt = true;"),
+            0x92 => self.cpu_immediate(Nes::cpu_halt),
             //0x93 => (IndirectYSt, "self.cpu_ahx();"),
             //0x94 => (ZeroPageXSt, "self.cpu_sty();"),
             //0x95 => (ZeroPageXSt, "self.cpu_sta();"),
             //0x96 => (ZeroPageYSt, "self.cpu_stx();"),
             //0x97 => (ZeroPageY, "self.cpu_aax();"),
-            //0x98 => (Implied, "self.cpu_tya();"),
+            0x98 => self.cpu_implied(Nes::cpu_tya),
             //0x99 => (AbsoluteYSt, "self.cpu_sta();"),
-            //0x9A => (Implied, "self.cpu_txs();"),
+            0x9A => self.cpu_implied(Nes::cpu_txs),
             //0x9B => (AbsoluteYSt, "self.cpu_tas();"),
             //0x9C => (AbsoluteXSt, "self.cpu_shy();"),
             //0x9D => (AbsoluteXSt, "self.cpu_sta();"),
             //0x9E => (AbsoluteYSt, "self.cpu_shx();"),
             //0x9F => (AbsoluteYSt, "self.cpu_ahx();"),
-            //0xA0 => (Immediate, "self.cpu_ldy(val);"),
+            0xA0 => self.cpu_immediate(Nes::cpu_ldy),
             //0xA1 => (IndirectX, "self.cpu_lda(val);"),
-            //0xA2 => (Immediate, "self.cpu_ldx(val);"),
+            0xA2 => self.cpu_immediate(Nes::cpu_ldx),
             //0xA3 => (IndirectX, "self.cpu_lax(val);"),
-            //0xA4 => (ZeroPage, "self.cpu_ldy(val);"),
-            //0xA5 => (ZeroPage, "self.cpu_lda(val);"),
-            //0xA6 => (ZeroPage, "self.cpu_ldx(val);"),
-            //0xA7 => (ZeroPage, "self.cpu_lax(val);"),
-            //0xA8 => (Implied, "self.cpu_tay();"),
-            //0xA9 => (Immediate, "self.cpu_lda(val);"),
-            //0xAA => (Implied, "self.cpu_tax();"),
-            //0xAB => (Immediate, "self.cpu_lax(val);"),
+            0xA4 => self.cpu_zero_page(Nes::cpu_ldy),
+            0xA5 => self.cpu_zero_page(Nes::cpu_lda),
+            0xA6 => self.cpu_zero_page(Nes::cpu_ldx),
+            0xA7 => self.cpu_zero_page(Nes::cpu_lax),
+            0xA8 => self.cpu_implied(Nes::cpu_tay),
+            0xA9 => self.cpu_immediate(Nes::cpu_lda),
+            0xAA => self.cpu_implied(Nes::cpu_tax),
+            0xAB => self.cpu_immediate(Nes::cpu_lax),
             //0xAC => (Absolute, "self.cpu_ldy(val);"),
             //0xAD => (Absolute, "self.cpu_lda(val);"),
             //0xAE => (Absolute, "self.cpu_ldx(val);"),
             //0xAF => (Absolute, "self.cpu_lax(val);"),
             //0xB0 => (Relative, "self.cpu.c"),
             //0xB1 => (IndirectY, "self.cpu_lda(val);"),
-            //0xB2 => (Immediate, "self.cpu.halt = true;"),
+            0xB2 => self.cpu_immediate(Nes::cpu_halt),
             //0xB3 => (IndirectY, "self.cpu_lax(val);"),
             //0xB4 => (ZeroPageX, "self.cpu_ldy(val);"),
             //0xB5 => (ZeroPageX, "self.cpu_lda(val);"),
             //0xB6 => (ZeroPageY, "self.cpu_ldx(val);"),
             //0xB7 => (ZeroPageY, "self.cpu_lax(val);"),
-            //0xB8 => (Implied, "self.cpu.v = false;"),
+            0xB8 => self.cpu_implied(Nes::cpu_clv),
             //0xB9 => (AbsoluteY, "self.cpu_lda(val);"),
-            //0xBA => (Implied, "self.cpu_tsx();"),
+            0xBA => self.cpu_implied(Nes::cpu_tsx),
             //0xBB => (AbsoluteY, "self.cpu_las(val);"),
             //0xBC => (AbsoluteX, "self.cpu_ldy(val);"),
             //0xBD => (AbsoluteX, "self.cpu_lda(val);"),
             //0xBE => (AbsoluteY, "self.cpu_ldx(val);"),
             //0xBF => (AbsoluteY, "self.cpu_lax(val);"),
-            //0xC0 => (Immediate, "self.cpu_cpy(val);"),
+            0xC0 => self.cpu_immediate(Nes::cpu_cpy),
             //0xC1 => (IndirectX, "self.cpu_cmp(val);"),
-            //0xC2 => (Immediate, ""),
+            0xC2 => self.cpu_immediate(|_, _| ()),
             //0xC3 => (IndirectXIllegal, "self.cpu_dcp();"),
-            //0xC4 => (ZeroPage, "self.cpu_cpy(val);"),
-            //0xC5 => (ZeroPage, "self.cpu_cmp(val);"),
+            0xC4 => self.cpu_zero_page(Nes::cpu_cpy),
+            0xC5 => self.cpu_zero_page(Nes::cpu_cmp),
             //0xC6 => (ZeroPageRmw, "self.cpu_dec(val);"),
             //0xC7 => (ZeroPageRmw, "self.cpu_dcp();"),
-            //0xC8 => (Implied, "self.cpu_iny();"),
-            //0xC9 => (Immediate, "self.cpu_cmp(val);"),
-            //0xCA => (Implied, "self.cpu_dex();"),
-            //0xCB => (Immediate, "self.cpu_axs(val);"),
+            0xC8 => self.cpu_implied(Nes::cpu_iny),
+            0xC9 => self.cpu_immediate(Nes::cpu_cmp),
+            0xCA => self.cpu_implied(Nes::cpu_dex),
+            0xCB => self.cpu_immediate(Nes::cpu_axs),
             //0xCC => (Absolute, "self.cpu_cpy(val);"),
             //0xCD => (Absolute, "self.cpu_cmp(val);"),
             //0xCE => (AbsoluteRmw, "self.cpu_dec(val);"),
             //0xCF => (AbsoluteRmw, "self.cpu_dcp();"),
             //0xD0 => (Relative, "!self.cpu.z"),
             //0xD1 => (IndirectY, "self.cpu_cmp(val);"),
-            //0xD2 => (Immediate, "self.cpu.halt = true;"),
+            0xD2 => self.cpu_immediate(Nes::cpu_halt),
             //0xD3 => (IndirectYIllegal, "self.cpu_dcp();"),
             //0xD4 => (ZeroPageX, ""),
             //0xD5 => (ZeroPageX, "self.cpu_cmp(val);"),
             //0xD6 => (ZeroPageXRmw, "self.cpu_dec(val);"),
             //0xD7 => (ZeroPageXRmw, "self.cpu_dcp();"),
-            //0xD8 => (Implied, "self.cpu.d = false;"),
+            0xD8 => self.cpu_implied(Nes::cpu_cld),
             //0xD9 => (AbsoluteY, "self.cpu_cmp(val);"),
-            //0xDA => (Implied, ""),
+            0xDA => self.cpu_implied(|_| ()),
             //0xDB => (AbsoluteYIllegal, "self.cpu_dcp();"),
             //0xDC => (AbsoluteX, ""),
             //0xDD => (AbsoluteX, "self.cpu_cmp(val);"),
             //0xDE => (AbsoluteXRmw, "self.cpu_dec(val);"),
             //0xDF => (AbsoluteXRmw, "self.cpu_dcp();"),
-            //0xE0 => (Immediate, "self.cpu_cpx(val);"),
+            0xE0 => self.cpu_immediate(Nes::cpu_cpx),
             //0xE1 => (IndirectX, "self.cpu_sbc(val);"),
-            //0xE2 => (Immediate, ""),
+            0xE2 => self.cpu_immediate(|_, _| ()),
             //0xE3 => (IndirectXIllegal, "self.cpu_isc();"),
-            //0xE4 => (ZeroPage, "self.cpu_cpx(val);"),
-            //0xE5 => (ZeroPage, "self.cpu_sbc(val);"),
+            0xE4 => self.cpu_zero_page(Nes::cpu_cpx),
+            0xE5 => self.cpu_zero_page(Nes::cpu_sbc),
             //0xE6 => (ZeroPageRmw, "self.cpu_inc(val);"),
             //0xE7 => (ZeroPageRmw, "self.cpu_isc();"),
-            //0xE8 => (Implied, "self.cpu_inx();"),
-            //0xE9 => (Immediate, "self.cpu_sbc(val);"),
-            //0xEA => (Implied, ""),
-            //0xEB => (Immediate, "self.cpu_sbc(val);"),
+            0xE8 => self.cpu_implied(Nes::cpu_inx),
+            0xE9 => self.cpu_immediate(Nes::cpu_sbc),
+            0xEA => self.cpu_implied(|_| ()),
+            0xEB => self.cpu_immediate(Nes::cpu_sbc),
             //0xEC => (Absolute, "self.cpu_cpx(val);"),
             //0xED => (Absolute, "self.cpu_sbc(val);"),
             //0xEE => (AbsoluteRmw, "self.cpu_inc(val);"),
             //0xEF => (AbsoluteRmw, "self.cpu_isc();"),
             //0xF0 => (Relative, "self.cpu.z"),
             //0xF1 => (IndirectY, "self.cpu_sbc(val);"),
-            //0xF2 => (Immediate, "self.cpu.halt = true;"),
+            0xF2 => self.cpu_immediate(Nes::cpu_halt),
             //0xF3 => (IndirectYIllegal, "self.cpu_isc();"),
             //0xF4 => (ZeroPageX, ""),
             //0xF5 => (ZeroPageX, "self.cpu_sbc(val);"),
             //0xF6 => (ZeroPageXRmw, "self.cpu_inc(val);"),
             //0xF7 => (ZeroPageXRmw, "self.cpu_isc();"),
-            //0xF8 => (Implied, "self.cpu.d = true;"),
+            0xF8 => self.cpu_implied(Nes::cpu_sed),
             //0xF9 => (AbsoluteY, "self.cpu_sbc(val);"),
-            //0xFA => (Implied, ""),
+            0xFA => self.cpu_implied(|_| ()),
             //0xFB => (AbsoluteYIllegal, "self.cpu_isc();"),
             //0xFC => (AbsoluteX, ""),
             //0xFD => (AbsoluteX, "self.cpu_sbc(val);"),
@@ -280,8 +269,86 @@ impl Nes {
 // Addressing modes with proper timings
 
 impl Nes {
-    pub fn cpu_implied(&mut self, instruction: fn(&mut Nes)) {
+    #[inline]
+    pub fn cpu_implied(&mut self, op_instruction: fn(&mut Nes)) {
+        // Cycle 0
+        self.cpu_check_interrupts();
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
 
+        op_instruction(self);
+
+        self.clock_ppu_apu();
+
+        // Cycle 1
+        self.cpu_load_next_instruction();
+
+        self.clock_ppu_apu();
+    }
+
+    #[inline]
+    pub fn cpu_immediate(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
+        // Cycle 0
+        self.cpu_check_interrupts();
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
+
+        op_instruction(self, self.cpu.db);
+
+        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+
+        // Cycle 1
+        self.cpu_load_next_instruction();
+
+        self.clock_ppu_apu();
+    }
+
+    #[inline]
+    pub fn cpu_accumulator(&mut self, op_instruction: fn(&mut Nes)) {
+        // Cycle 0
+        self.cpu_check_interrupts();
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
+        op_instruction(self);
+
+        self.clock_ppu_apu();
+
+        // Cycle 1
+
+        self.cpu_load_next_instruction();
+
+        self.clock_ppu_apu();
+    }
+
+    #[inline]
+    pub fn cpu_zero_page(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
+        // Cycle 0
+        self.cpu_cache_interrupts();
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
+
+        self.cpu.ab = self.cpu.db as usize;
+        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+
+        self.clock_ppu_apu();
+
+        // Cycle 1
+        self.cpu_check_interrupts();
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
+
+        op_instruction(self, self.cpu.db);
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+
+        // Cycle 2
+        self.cpu_load_next_instruction();
+
+        self.clock_ppu_apu();
     }
 }
 
@@ -461,6 +528,36 @@ impl Nes {
     }
 
     #[inline]
+    pub fn cpu_sec(&mut self) {
+        self.cpu.c = true;
+    }
+
+    #[inline]
+    pub fn cpu_cli(&mut self) {
+        self.cpu.i = false;
+    }
+
+    #[inline]
+    pub fn cpu_sei(&mut self) {
+        self.cpu.i = true;
+    }
+
+    #[inline]
+    pub fn cpu_cld(&mut self) {
+        self.cpu.d = false;
+    }
+
+    #[inline]
+    pub fn cpu_sed(&mut self) {
+        self.cpu.d = true;
+    }
+
+    #[inline]
+    pub fn cpu_clv(&mut self) {
+        self.cpu.v = false;
+    }
+
+    #[inline]
     pub fn cpu_lda(&mut self, num: u8) {
         self.cpu.a = num;
         self.cpu_set_z_n(self.cpu.a);
@@ -529,7 +626,7 @@ impl Nes {
     }
 
     #[inline]
-    pub fn cpu_aax(&mut self) {
+    pub fn cpu_aax(&mut self, _: u8) {
         let res = self.cpu.x & self.cpu.a;
         self.cpu_write(self.cpu.ab, res);
     }
@@ -652,10 +749,24 @@ impl Nes {
         self.cpu.c = (self.cpu.a >> 6) & 1 == 1;
         self.cpu.v = self.cpu.c != ((self.cpu.a >> 5) & 1 == 1);
     }
+
+    pub fn cpu_halt(&mut self, _: u8) {
+        self.cpu.halt = true;
+    }
 }
 
 // Helper functions
 impl Nes {
+    pub fn cpu_load_next_instruction(&mut self) {
+        self.cpu_cache_interrupts();
+        let int: u8 = if self.cpu.take_interrupt { 0 } else { 1 };
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
+        self.cpu.state = u16::from(int * self.cpu.db);
+        self.cpu.pc = (self.cpu.pc).wrapping_add(int as usize);
+        self.cpu.ab = self.cpu.pc
+    }
+
     pub fn cpu_cache_interrupts(&mut self) {
         self.cpu.cached_irq = self.cpu.irq_signal;
         self.cpu.cached_nmi = self.cpu.nmi_signal;
