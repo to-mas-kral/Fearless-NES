@@ -21,12 +21,12 @@ impl Nes {
             //0x0D => (Absolute, "self.cpu_ora(val);"),
             //0x0E => (AbsoluteRmw, "self.cpu_asl(val);"),
             //0x0F => (AbsoluteRmw, "self.cpu_slo();"),
-            //0x10 => (Relative, "!self.cpu.n"),
+            0x10 => self.cpu_relative(!self.cpu.n),
             //0x11 => (IndirectY, "self.cpu_ora(val);"),
             0x12 => self.cpu_immediate(Nes::cpu_halt),
             //0x13 => (IndirectYIllegal, "self.cpu_slo();"),
-            //0x14 => (ZeroPageX, ""),
-            //0x15 => (ZeroPageX, "self.cpu_ora(val);"),
+            0x14 => self.cpu_zero_page_x(|_, _| ()),
+            0x15 => self.cpu_zero_page_x(Nes::cpu_ora),
             //0x16 => (ZeroPageXRmw, "self.cpu_asl(val);"),
             //0x17 => (ZeroPageXRmw, "self.cpu_slo();"),
             0x18 => self.cpu_implied(Nes::cpu_clc),
@@ -53,12 +53,12 @@ impl Nes {
             //0x2D => (Absolute, "self.cpu_and(val);"),
             //0x2E => (AbsoluteRmw, "self.cpu_rol(val);"),
             //0x2F => (AbsoluteRmw, "self.cpu_rla();"),
-            //0x30 => (Relative, "self.cpu.n"),
+            0x30 => self.cpu_relative(self.cpu.n),
             //0x31 => (IndirectY, "self.cpu_and(val);"),
             0x32 => self.cpu_immediate(Nes::cpu_halt),
             //0x33 => (IndirectYIllegal, "self.cpu_rla();"),
-            //0x34 => (ZeroPageX, ""),
-            //0x35 => (ZeroPageX, "self.cpu_and(val);"),
+            0x34 => self.cpu_zero_page_x(|_, _| ()),
+            0x35 => self.cpu_zero_page_x(Nes::cpu_and),
             //0x36 => (ZeroPageXRmw, "self.cpu_rol(val);"),
             //0x37 => (ZeroPageXRmw, "self.cpu_rla();"),
             0x38 => self.cpu_implied(Nes::cpu_sec),
@@ -85,12 +85,12 @@ impl Nes {
             //0x4D => (Absolute, "self.cpu_eor(val);"),
             //0x4E => (AbsoluteRmw, "self.cpu_lsr(val);"),
             //0x4F => (AbsoluteRmw, "self.cpu_sre();"),
-            //0x50 => (Relative, "!self.cpu.v"),
+            0x50 => self.cpu_relative(!self.cpu.v),
             //0x51 => (IndirectY, "self.cpu_eor(val);"),
             0x52 => self.cpu_immediate(Nes::cpu_halt),
             //0x53 => (IndirectYIllegal, "self.cpu_sre();"),
-            //0x54 => (ZeroPageX, ""),
-            //0x55 => (ZeroPageX, "self.cpu_eor(val);"),
+            0x54 => self.cpu_zero_page_x(|_, _| ()),
+            0x55 => self.cpu_zero_page_x(Nes::cpu_eor),
             //0x56 => (ZeroPageXRmw, "self.cpu_lsr(val);"),
             //0x57 => (ZeroPageXRmw, "self.cpu_sre();"),
             0x58 => self.cpu_implied(Nes::cpu_cli),
@@ -117,12 +117,12 @@ impl Nes {
             //0x6D => (Absolute, "self.cpu_adc(val);"),
             //0x6E => (AbsoluteRmw, "self.cpu_ror(val);"),
             //0x6F => (AbsoluteRmw, "self.cpu_rra();"),
-            //0x70 => (Relative, "self.cpu.v"),
+            0x70 => self.cpu_relative(self.cpu.v),
             //0x71 => (IndirectY, "self.cpu_adc(val);"),
             0x72 => self.cpu_immediate(Nes::cpu_halt),
             //0x73 => (IndirectYIllegal, "self.cpu_rra();"),
-            //0x74 => (ZeroPageX, ""),
-            //0x75 => (ZeroPageX, "self.cpu_adc(val);"),
+            0x74 => self.cpu_zero_page_x(|_, _| ()),
+            0x75 => self.cpu_zero_page_x(Nes::cpu_adc),
             //0x76 => (ZeroPageXRmw, "self.cpu_ror(val);"),
             //0x77 => (ZeroPageXRmw, "self.cpu_rra();"),
             0x78 => self.cpu_implied(Nes::cpu_sei),
@@ -149,14 +149,14 @@ impl Nes {
             //0x8D => (AbsoluteSt, "self.cpu_sta();"),
             //0x8E => (AbsoluteSt, "self.cpu_stx();"),
             //0x8F => (Absolute, "self.cpu_aax();"),
-            //0x90 => (Relative, "!self.cpu.c"),
+            0x90 => self.cpu_relative(!self.cpu.c),
             //0x91 => (IndirectYSt, "self.cpu_sta();"),
             0x92 => self.cpu_immediate(Nes::cpu_halt),
             //0x93 => (IndirectYSt, "self.cpu_ahx();"),
             //0x94 => (ZeroPageXSt, "self.cpu_sty();"),
             //0x95 => (ZeroPageXSt, "self.cpu_sta();"),
             //0x96 => (ZeroPageYSt, "self.cpu_stx();"),
-            //0x97 => (ZeroPageY, "self.cpu_aax();"),
+            0x97 => self.cpu_zero_page_y(Nes::cpu_aax),
             0x98 => self.cpu_implied(Nes::cpu_tya),
             //0x99 => (AbsoluteYSt, "self.cpu_sta();"),
             0x9A => self.cpu_implied(Nes::cpu_txs),
@@ -181,14 +181,14 @@ impl Nes {
             //0xAD => (Absolute, "self.cpu_lda(val);"),
             //0xAE => (Absolute, "self.cpu_ldx(val);"),
             //0xAF => (Absolute, "self.cpu_lax(val);"),
-            //0xB0 => (Relative, "self.cpu.c"),
+            0xB0 => self.cpu_relative(self.cpu.c),
             //0xB1 => (IndirectY, "self.cpu_lda(val);"),
             0xB2 => self.cpu_immediate(Nes::cpu_halt),
             //0xB3 => (IndirectY, "self.cpu_lax(val);"),
-            //0xB4 => (ZeroPageX, "self.cpu_ldy(val);"),
-            //0xB5 => (ZeroPageX, "self.cpu_lda(val);"),
-            //0xB6 => (ZeroPageY, "self.cpu_ldx(val);"),
-            //0xB7 => (ZeroPageY, "self.cpu_lax(val);"),
+            0xB4 => self.cpu_zero_page_x(Nes::cpu_ldy),
+            0xB5 => self.cpu_zero_page_x(Nes::cpu_lda),
+            0xB6 => self.cpu_zero_page_y(Nes::cpu_ldx),
+            0xB7 => self.cpu_zero_page_y(Nes::cpu_lax),
             0xB8 => self.cpu_implied(Nes::cpu_clv),
             //0xB9 => (AbsoluteY, "self.cpu_lda(val);"),
             0xBA => self.cpu_implied(Nes::cpu_tsx),
@@ -213,12 +213,12 @@ impl Nes {
             //0xCD => (Absolute, "self.cpu_cmp(val);"),
             //0xCE => (AbsoluteRmw, "self.cpu_dec(val);"),
             //0xCF => (AbsoluteRmw, "self.cpu_dcp();"),
-            //0xD0 => (Relative, "!self.cpu.z"),
+            0xD0 => self.cpu_relative(!self.cpu.z),
             //0xD1 => (IndirectY, "self.cpu_cmp(val);"),
             0xD2 => self.cpu_immediate(Nes::cpu_halt),
             //0xD3 => (IndirectYIllegal, "self.cpu_dcp();"),
-            //0xD4 => (ZeroPageX, ""),
-            //0xD5 => (ZeroPageX, "self.cpu_cmp(val);"),
+            0xD4 => self.cpu_zero_page_x(|_, _| ()),
+            0xD5 => self.cpu_zero_page_x(Nes::cpu_cmp),
             //0xD6 => (ZeroPageXRmw, "self.cpu_dec(val);"),
             //0xD7 => (ZeroPageXRmw, "self.cpu_dcp();"),
             0xD8 => self.cpu_implied(Nes::cpu_cld),
@@ -245,12 +245,12 @@ impl Nes {
             //0xED => (Absolute, "self.cpu_sbc(val);"),
             //0xEE => (AbsoluteRmw, "self.cpu_inc(val);"),
             //0xEF => (AbsoluteRmw, "self.cpu_isc();"),
-            //0xF0 => (Relative, "self.cpu.z"),
+            0xF0 => self.cpu_relative(self.cpu.z),
             //0xF1 => (IndirectY, "self.cpu_sbc(val);"),
             0xF2 => self.cpu_immediate(Nes::cpu_halt),
             //0xF3 => (IndirectYIllegal, "self.cpu_isc();"),
-            //0xF4 => (ZeroPageX, ""),
-            //0xF5 => (ZeroPageX, "self.cpu_sbc(val);"),
+            0xF4 => self.cpu_zero_page_x(|_, _| ()),
+            0xF5 => self.cpu_zero_page_x(Nes::cpu_sbc),
             //0xF6 => (ZeroPageXRmw, "self.cpu_inc(val);"),
             //0xF7 => (ZeroPageXRmw, "self.cpu_isc();"),
             0xF8 => self.cpu_implied(Nes::cpu_sed),
@@ -346,6 +346,144 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 2
+        self.cpu_load_next_instruction();
+
+        self.clock_ppu_apu();
+    }
+
+    #[inline]
+    pub fn cpu_zero_page_x(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
+        //Cycle 0
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
+
+        self.cpu.ab = self.cpu.db as usize;
+        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+
+        self.clock_ppu_apu();
+
+        // Cycle 1
+        self.cpu_cache_interrupts();
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
+
+        self.cpu.ab = (self.cpu.ab + self.cpu.x as usize) & 0xFF;
+
+        self.clock_ppu_apu();
+
+        // Cycle 2
+        self.cpu_check_interrupts();
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
+
+        op_instruction(self, self.cpu.db);
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+
+        // Cycle 3
+        self.cpu_load_next_instruction();
+
+        self.clock_ppu_apu();
+    }
+
+    #[inline]
+    pub fn cpu_zero_page_y(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
+        //Cycle 0
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
+
+        self.cpu.ab = self.cpu.db as usize;
+        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+
+        self.clock_ppu_apu();
+
+        // Cycle 1
+        self.cpu_cache_interrupts();
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
+
+        self.cpu.ab = (self.cpu.ab + self.cpu.y as usize) & 0xFF;
+
+        self.clock_ppu_apu();
+
+        // Cycle 2
+        self.cpu_check_interrupts();
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
+
+        op_instruction(self, self.cpu.db);
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+
+        // Cycle 3
+        self.cpu_load_next_instruction();
+
+        self.clock_ppu_apu();
+    }
+    //self.add_entry(format!("self.cpu_check_interrupts(); read_ab!(); check_dma!(self);
+    //self.cpu.temp = self.cpu.db as usize; self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+    //self.cpu.ab = self.cpu.pc; self.cpu.state = if {} {{<>}} else {{0x100}}", i_code), op);
+
+    //self.add_middle("cache_interrupts!(self); self.cpu.take_interrupt = false;
+    //read_ab!(); check_dma!(self); self.cpu_take_branch(); self.cpu.ab = self.cpu.pc;
+    //self.cpu.state = if self.cpu.temp != 0 {<>} else {0x100};".to_string());
+
+    //self.add_exit(
+    //    "self.cpu_check_interrupts(); read_ab!(); check_dma!(self); self.cpu.ab = self.cpu.pc;
+    //    self.cpu.state = 0x100"
+    //        .to_string(),
+    //);
+
+    #[inline]
+    pub fn cpu_relative(&mut self, branch: bool) {
+        // Cycle 0
+        self.cpu_check_interrupts();
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
+
+        self.cpu.temp = self.cpu.db as usize;
+        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+
+        if !branch {
+            // Cycle 1a
+            self.cpu_load_next_instruction();
+
+            self.clock_ppu_apu();
+        }
+
+        // Cycle 1b
+        self.cpu_cache_interrupts();
+        self.cpu.take_interrupt = false;
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
+
+        self.cpu_take_branch();
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+
+        if self.cpu.temp == 0 {
+            // Cycle 2a
+            self.cpu_load_next_instruction();
+
+            self.clock_ppu_apu();
+        }
+
+        // Cycle 2b
+        self.cpu_check_interrupts();
+        self.cpu_read(self.cpu.ab);
+        self.cpu_check_dma();
+
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+
+        // Cycle 3
         self.cpu_load_next_instruction();
 
         self.clock_ppu_apu();
