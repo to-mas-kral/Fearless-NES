@@ -113,7 +113,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ora(val);
+                self.ora(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -122,7 +122,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_asl_a();
+                self.asl_a();
                 self.cpu.state = 0x100;
             }
             0xB => {
@@ -130,7 +130,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_anc(val);
+                self.anc(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -362,7 +362,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_and(val);
+                self.and(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -371,7 +371,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_rol_a();
+                self.rol_a();
                 self.cpu.state = 0x100;
             }
             0x2B => {
@@ -379,7 +379,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_anc(val);
+                self.anc(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -611,7 +611,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_eor(val);
+                self.eor(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -620,7 +620,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_lsr_a();
+                self.lsr_a();
                 self.cpu.state = 0x100;
             }
             0x4B => {
@@ -628,7 +628,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_alr(val);
+                self.alr(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -859,7 +859,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_adc(val);
+                self.adc(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -868,7 +868,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_ror_a();
+                self.ror_a();
                 self.cpu.state = 0x100;
             }
             0x6B => {
@@ -876,7 +876,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_arr(val);
+                self.arr(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -1103,7 +1103,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_dey();
+                self.dey();
                 self.cpu.state = 0x100;
             }
             0x89 => {
@@ -1119,7 +1119,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_txa();
+                self.txa();
                 self.cpu.state = 0x100;
             }
             0x8B => {
@@ -1127,7 +1127,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_xaa(val);
+                self.xaa(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -1229,7 +1229,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_tya();
+                self.tya();
                 self.cpu.state = 0x100;
             }
             0x99 => {
@@ -1244,7 +1244,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_txs();
+                self.txs();
                 self.cpu.state = 0x100;
             }
             0x9B => {
@@ -1292,7 +1292,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ldy(val);
+                self.ldy(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -1309,7 +1309,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ldx(val);
+                self.ldx(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -1357,7 +1357,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_tay();
+                self.tay();
                 self.cpu.state = 0x100;
             }
             0xA9 => {
@@ -1365,7 +1365,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lda(val);
+                self.lda(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -1374,7 +1374,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_tax();
+                self.tax();
                 self.cpu.state = 0x100;
             }
             0xAB => {
@@ -1382,7 +1382,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lax(val);
+                self.lax(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -1499,7 +1499,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_tsx();
+                self.tsx();
                 self.cpu.state = 0x100;
             }
             0xBB => {
@@ -1547,7 +1547,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_cpy(val);
+                self.cpy(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -1609,7 +1609,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_iny();
+                self.iny();
                 self.cpu.state = 0x100;
             }
             0xC9 => {
@@ -1617,7 +1617,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_cmp(val);
+                self.cmp(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -1626,7 +1626,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_dex();
+                self.dex();
                 self.cpu.state = 0x100;
             }
             0xCB => {
@@ -1634,7 +1634,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_axs(val);
+                self.axs(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -1798,7 +1798,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_cpx(val);
+                self.cpx(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -1860,7 +1860,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_inx();
+                self.inx();
                 self.cpu.state = 0x100;
             }
             0xE9 => {
@@ -1868,7 +1868,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_sbc(val);
+                self.sbc(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -1884,7 +1884,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_sbc(val);
+                self.sbc(val);
                 self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
@@ -2117,7 +2117,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ora(val);
+                self.ora(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -2150,7 +2150,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_slo();
+                self.slo();
                 self.cpu.state = 0x10F;
             }
             0x10F => {
@@ -2172,7 +2172,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ora(val);
+                self.ora(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -2186,7 +2186,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_asl(val);
+                self.asl(val);
                 self.cpu.state = 0x114;
             }
             0x114 => {
@@ -2205,7 +2205,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_slo();
+                self.slo();
                 self.cpu.state = 0x117;
             }
             0x117 => {
@@ -2249,7 +2249,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ora(val);
+                self.ora(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -2270,7 +2270,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_asl(val);
+                self.asl(val);
                 self.cpu.state = 0x120;
             }
             0x120 => {
@@ -2296,7 +2296,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_slo();
+                self.slo();
                 self.cpu.state = 0x124;
             }
             0x124 => {
@@ -2353,7 +2353,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ora(val);
+                self.ora(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -2388,7 +2388,7 @@ impl Nes {
             0x130 => {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
-                self.cpu_slo();
+                self.slo();
                 self.cpu.state = 0x131;
             }
             0x131 => {
@@ -2424,7 +2424,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ora(val);
+                self.ora(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -2444,7 +2444,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_asl(val);
+                self.asl(val);
                 self.cpu.state = 0x139;
             }
             0x139 => {
@@ -2469,7 +2469,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_slo();
+                self.slo();
                 self.cpu.state = 0x13D;
             }
             0x13D => {
@@ -2503,7 +2503,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ora(val);
+                self.ora(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -2532,7 +2532,7 @@ impl Nes {
             0x144 => {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
-                self.cpu_slo();
+                self.slo();
                 self.cpu.state = 0x145;
             }
             0x145 => {
@@ -2594,7 +2594,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ora(val);
+                self.ora(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -2624,7 +2624,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_asl(val);
+                self.asl(val);
                 self.cpu.state = 0x150;
             }
             0x150 => {
@@ -2659,7 +2659,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_slo();
+                self.slo();
                 self.cpu.state = 0x155;
             }
             0x155 => {
@@ -2720,7 +2720,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_and(val);
+                self.and(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -2753,7 +2753,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_rla();
+                self.rla();
                 self.cpu.state = 0x163;
             }
             0x163 => {
@@ -2767,7 +2767,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_bit(val);
+                self.bit(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -2776,7 +2776,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_and(val);
+                self.and(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -2790,7 +2790,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_rol(val);
+                self.rol(val);
                 self.cpu.state = 0x168;
             }
             0x168 => {
@@ -2809,7 +2809,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_rla();
+                self.rla();
                 self.cpu.state = 0x16B;
             }
             0x16B => {
@@ -2847,7 +2847,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_bit(val);
+                self.bit(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -2864,7 +2864,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_and(val);
+                self.and(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -2885,7 +2885,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_rol(val);
+                self.rol(val);
                 self.cpu.state = 0x175;
             }
             0x175 => {
@@ -2911,7 +2911,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_rla();
+                self.rla();
                 self.cpu.state = 0x179;
             }
             0x179 => {
@@ -2968,7 +2968,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_and(val);
+                self.and(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -3003,7 +3003,7 @@ impl Nes {
             0x185 => {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
-                self.cpu_rla();
+                self.rla();
                 self.cpu.state = 0x186;
             }
             0x186 => {
@@ -3039,7 +3039,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_and(val);
+                self.and(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -3059,7 +3059,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_rol(val);
+                self.rol(val);
                 self.cpu.state = 0x18E;
             }
             0x18E => {
@@ -3084,7 +3084,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_rla();
+                self.rla();
                 self.cpu.state = 0x192;
             }
             0x192 => {
@@ -3118,7 +3118,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_and(val);
+                self.and(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -3147,7 +3147,7 @@ impl Nes {
             0x199 => {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
-                self.cpu_rla();
+                self.rla();
                 self.cpu.state = 0x19A;
             }
             0x19A => {
@@ -3209,7 +3209,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_and(val);
+                self.and(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -3239,7 +3239,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_rol(val);
+                self.rol(val);
                 self.cpu.state = 0x1A5;
             }
             0x1A5 => {
@@ -3274,7 +3274,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_rla();
+                self.rla();
                 self.cpu.state = 0x1AA;
             }
             0x1AA => {
@@ -3340,7 +3340,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_eor(val);
+                self.eor(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -3373,7 +3373,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_sre();
+                self.sre(val);
                 self.cpu.state = 0x1B8;
             }
             0x1B8 => {
@@ -3395,7 +3395,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_eor(val);
+                self.eor(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -3409,7 +3409,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_lsr(val);
+                self.lsr(val);
                 self.cpu.state = 0x1BD;
             }
             0x1BD => {
@@ -3428,7 +3428,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_sre();
+                self.sre(val);
                 self.cpu.state = 0x1C0;
             }
             0x1C0 => {
@@ -3464,7 +3464,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_eor(val);
+                self.eor(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -3485,7 +3485,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_lsr(val);
+                self.lsr(val);
                 self.cpu.state = 0x1C8;
             }
             0x1C8 => {
@@ -3511,7 +3511,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_sre();
+                self.sre(val);
                 self.cpu.state = 0x1CC;
             }
             0x1CC => {
@@ -3568,7 +3568,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_eor(val);
+                self.eor(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -3603,7 +3603,7 @@ impl Nes {
             0x1D8 => {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
-                self.cpu_sre();
+                self.sre(val);
                 self.cpu.state = 0x1D9;
             }
             0x1D9 => {
@@ -3639,7 +3639,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_eor(val);
+                self.eor(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -3659,7 +3659,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_lsr(val);
+                self.lsr(val);
                 self.cpu.state = 0x1E1;
             }
             0x1E1 => {
@@ -3684,7 +3684,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_sre();
+                self.sre(val);
                 self.cpu.state = 0x1E5;
             }
             0x1E5 => {
@@ -3718,7 +3718,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_eor(val);
+                self.eor(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -3747,7 +3747,7 @@ impl Nes {
             0x1EC => {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
-                self.cpu_sre();
+                self.sre(val);
                 self.cpu.state = 0x1ED;
             }
             0x1ED => {
@@ -3809,7 +3809,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_eor(val);
+                self.eor(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -3839,7 +3839,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_lsr(val);
+                self.lsr(val);
                 self.cpu.state = 0x1F8;
             }
             0x1F8 => {
@@ -3874,7 +3874,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_sre();
+                self.sre(val);
                 self.cpu.state = 0x1FD;
             }
             0x1FD => {
@@ -3939,7 +3939,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_adc(val);
+                self.adc(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -3972,7 +3972,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_rra();
+                self.rra(val);
                 self.cpu.state = 0x20B;
             }
             0x20B => {
@@ -3994,7 +3994,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_adc(val);
+                self.adc(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4008,7 +4008,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_ror(val);
+                self.ror(val);
                 self.cpu.state = 0x210;
             }
             0x210 => {
@@ -4027,7 +4027,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_rra();
+                self.rra(val);
                 self.cpu.state = 0x213;
             }
             0x213 => {
@@ -4048,7 +4048,7 @@ impl Nes {
                 self.cpu_check_interrupts();
                 read_ab!();
                 check_dma!(self);
-                self.cpu_lda(self.cpu.db);
+                self.lda(self.cpu.db);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -4087,7 +4087,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_adc(val);
+                self.adc(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -4108,7 +4108,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_ror(val);
+                self.ror(val);
                 self.cpu.state = 0x21E;
             }
             0x21E => {
@@ -4134,7 +4134,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_rra();
+                self.rra(val);
                 self.cpu.state = 0x222;
             }
             0x222 => {
@@ -4191,7 +4191,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_adc(val);
+                self.adc(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4226,7 +4226,7 @@ impl Nes {
             0x22E => {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
-                self.cpu_rra();
+                self.rra(val);
                 self.cpu.state = 0x22F;
             }
             0x22F => {
@@ -4262,7 +4262,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_adc(val);
+                self.adc(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4282,7 +4282,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_ror(val);
+                self.ror(val);
                 self.cpu.state = 0x237;
             }
             0x237 => {
@@ -4307,7 +4307,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_rra();
+                self.rra(val);
                 self.cpu.state = 0x23B;
             }
             0x23B => {
@@ -4341,7 +4341,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_adc(val);
+                self.adc(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4370,7 +4370,7 @@ impl Nes {
             0x242 => {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
-                self.cpu_rra();
+                self.rra(val);
                 self.cpu.state = 0x243;
             }
             0x243 => {
@@ -4432,7 +4432,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_adc(val);
+                self.adc(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4462,7 +4462,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_ror(val);
+                self.ror(val);
                 self.cpu.state = 0x24E;
             }
             0x24E => {
@@ -4497,7 +4497,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_rra();
+                self.rra(val);
                 self.cpu.state = 0x253;
             }
             0x253 => {
@@ -4528,7 +4528,7 @@ impl Nes {
             }
             0x257 => {
                 self.cpu_check_interrupts();
-                self.cpu_sta();
+                self.sta();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4557,25 +4557,25 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_aax();
+                self.aax(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
             0x25C => {
                 self.cpu_check_interrupts();
-                self.cpu_sty();
+                self.sty();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
             0x25D => {
                 self.cpu_check_interrupts();
-                self.cpu_sta();
+                self.sta();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
             0x25E => {
                 self.cpu_check_interrupts();
-                self.cpu_stx();
+                self.stx();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4584,7 +4584,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_aax();
+                self.aax(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4598,7 +4598,7 @@ impl Nes {
             }
             0x261 => {
                 self.cpu_check_interrupts();
-                self.cpu_sty();
+                self.sty();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4612,7 +4612,7 @@ impl Nes {
             }
             0x263 => {
                 self.cpu_check_interrupts();
-                self.cpu_sta();
+                self.sta();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4626,7 +4626,7 @@ impl Nes {
             }
             0x265 => {
                 self.cpu_check_interrupts();
-                self.cpu_stx();
+                self.stx();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4643,7 +4643,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_aax();
+                self.aax(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -4688,7 +4688,7 @@ impl Nes {
             }
             0x26D => {
                 self.cpu_check_interrupts();
-                self.cpu_sta();
+                self.sta();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4717,7 +4717,7 @@ impl Nes {
             }
             0x271 => {
                 self.cpu_check_interrupts();
-                self.cpu_ahx();
+                self.ahx();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4730,7 +4730,7 @@ impl Nes {
             }
             0x273 => {
                 self.cpu_check_interrupts();
-                self.cpu_sty();
+                self.sty();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4743,7 +4743,7 @@ impl Nes {
             }
             0x275 => {
                 self.cpu_check_interrupts();
-                self.cpu_sta();
+                self.sta();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4756,7 +4756,7 @@ impl Nes {
             }
             0x277 => {
                 self.cpu_check_interrupts();
-                self.cpu_stx();
+                self.stx();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4772,7 +4772,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_aax();
+                self.aax(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4795,7 +4795,7 @@ impl Nes {
             }
             0x27C => {
                 self.cpu_check_interrupts();
-                self.cpu_sta();
+                self.sta();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4818,7 +4818,7 @@ impl Nes {
             }
             0x27F => {
                 self.cpu_check_interrupts();
-                self.cpu_tas();
+                self.tas();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4841,7 +4841,7 @@ impl Nes {
             }
             0x282 => {
                 self.cpu_check_interrupts();
-                self.cpu_shy();
+                self.shy();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4864,7 +4864,7 @@ impl Nes {
             }
             0x285 => {
                 self.cpu_check_interrupts();
-                self.cpu_sta();
+                self.sta();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4887,7 +4887,7 @@ impl Nes {
             }
             0x288 => {
                 self.cpu_check_interrupts();
-                self.cpu_shx();
+                self.shx();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4910,7 +4910,7 @@ impl Nes {
             }
             0x28B => {
                 self.cpu_check_interrupts();
-                self.cpu_ahx();
+                self.ahx();
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4939,7 +4939,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lda(val);
+                self.lda(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -4968,7 +4968,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lax(val);
+                self.lax(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -4977,7 +4977,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ldy(val);
+                self.ldy(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4986,7 +4986,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lda(val);
+                self.lda(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -4995,7 +4995,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ldx(val);
+                self.ldx(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5004,7 +5004,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lax(val);
+                self.lax(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5021,7 +5021,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ldy(val);
+                self.ldy(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -5038,7 +5038,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lda(val);
+                self.lda(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -5055,7 +5055,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ldx(val);
+                self.ldx(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -5072,7 +5072,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lax(val);
+                self.lax(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -5124,7 +5124,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lda(val);
+                self.lda(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5160,7 +5160,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lax(val);
+                self.lax(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5176,7 +5176,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ldy(val);
+                self.ldy(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5192,7 +5192,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lda(val);
+                self.lda(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5208,7 +5208,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ldx(val);
+                self.ldx(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5224,7 +5224,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lax(val);
+                self.lax(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5253,7 +5253,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lda(val);
+                self.lda(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5282,7 +5282,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_las(val);
+                self.las(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5311,7 +5311,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ldy(val);
+                self.ldy(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5340,7 +5340,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lda(val);
+                self.lda(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5369,7 +5369,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_ldx(val);
+                self.ldx(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5398,7 +5398,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_lax(val);
+                self.lax(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5427,7 +5427,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_cmp(val);
+                self.cmp(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -5460,7 +5460,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_dcp();
+                self.dcp(val);
                 self.cpu.state = 0x2CF;
             }
             0x2CF => {
@@ -5474,7 +5474,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_cpy(val);
+                self.cpy(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5483,7 +5483,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_cmp(val);
+                self.cmp(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5497,7 +5497,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_dec(val);
+                self.dec(val);
                 self.cpu.state = 0x2D4;
             }
             0x2D4 => {
@@ -5516,7 +5516,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_dcp();
+                self.dcp(val);
                 self.cpu.state = 0x2D7;
             }
             0x2D7 => {
@@ -5538,7 +5538,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_cpy(val);
+                self.cpy(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -5555,7 +5555,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_cmp(val);
+                self.cmp(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -5576,7 +5576,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_dec(val);
+                self.dec(val);
                 self.cpu.state = 0x2DF;
             }
             0x2DF => {
@@ -5602,7 +5602,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_dcp();
+                self.dcp(val);
                 self.cpu.state = 0x2E3;
             }
             0x2E3 => {
@@ -5659,7 +5659,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_cmp(val);
+                self.cmp(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5694,7 +5694,7 @@ impl Nes {
             0x2EF => {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
-                self.cpu_dcp();
+                self.dcp(val);
                 self.cpu.state = 0x2F0;
             }
             0x2F0 => {
@@ -5730,7 +5730,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_cmp(val);
+                self.cmp(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5750,7 +5750,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_dec(val);
+                self.dec(val);
                 self.cpu.state = 0x2F8;
             }
             0x2F8 => {
@@ -5775,7 +5775,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_dcp();
+                self.dcp(val);
                 self.cpu.state = 0x2FC;
             }
             0x2FC => {
@@ -5809,7 +5809,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_cmp(val);
+                self.cmp(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5838,7 +5838,7 @@ impl Nes {
             0x303 => {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
-                self.cpu_dcp();
+                self.dcp(val);
                 self.cpu.state = 0x304;
             }
             0x304 => {
@@ -5900,7 +5900,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_cmp(val);
+                self.cmp(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -5930,7 +5930,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_dec(val);
+                self.dec(val);
                 self.cpu.state = 0x30F;
             }
             0x30F => {
@@ -5965,7 +5965,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_dcp();
+                self.dcp(val);
                 self.cpu.state = 0x314;
             }
             0x314 => {
@@ -5999,7 +5999,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_sbc(val);
+                self.sbc(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -6032,7 +6032,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_isc();
+                self.isc(val);
                 self.cpu.state = 0x31E;
             }
             0x31E => {
@@ -6046,7 +6046,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_cpx(val);
+                self.cpx(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -6055,7 +6055,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_sbc(val);
+                self.sbc(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -6069,7 +6069,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_inc(val);
+                self.inc(val);
                 self.cpu.state = 0x323;
             }
             0x323 => {
@@ -6088,7 +6088,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_isc();
+                self.isc(val);
                 self.cpu.state = 0x326;
             }
             0x326 => {
@@ -6110,7 +6110,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_cpx(val);
+                self.cpx(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -6127,7 +6127,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_sbc(val);
+                self.sbc(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100
             }
@@ -6148,7 +6148,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_inc(val);
+                self.inc(val);
                 self.cpu.state = 0x32E;
             }
             0x32E => {
@@ -6174,7 +6174,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_isc();
+                self.isc(val);
                 self.cpu.state = 0x332;
             }
             0x332 => {
@@ -6231,7 +6231,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_sbc(val);
+                self.sbc(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -6266,7 +6266,7 @@ impl Nes {
             0x33E => {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
-                self.cpu_isc();
+                self.isc(val);
                 self.cpu.state = 0x33F;
             }
             0x33F => {
@@ -6302,7 +6302,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_sbc(val);
+                self.sbc(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -6322,7 +6322,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_inc(val);
+                self.inc(val);
                 self.cpu.state = 0x347;
             }
             0x347 => {
@@ -6347,7 +6347,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_isc();
+                self.isc(val);
                 self.cpu.state = 0x34B;
             }
             0x34B => {
@@ -6381,7 +6381,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_sbc(val);
+                self.sbc(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -6410,7 +6410,7 @@ impl Nes {
             0x352 => {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
-                self.cpu_isc();
+                self.isc(val);
                 self.cpu.state = 0x353;
             }
             0x353 => {
@@ -6472,7 +6472,7 @@ impl Nes {
                 read_ab!();
                 check_dma!(self);
                 let val = self.cpu.db;
-                self.cpu_sbc(val);
+                self.sbc(val);
                 self.cpu.ab = self.cpu.pc;
                 self.cpu.state = 0x100;
             }
@@ -6502,7 +6502,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_inc(val);
+                self.inc(val);
                 self.cpu.state = 0x35E;
             }
             0x35E => {
@@ -6537,7 +6537,7 @@ impl Nes {
                 cache_interrupts!(self);
                 self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
                 let val = self.cpu.temp as u8;
-                self.cpu_isc();
+                self.isc(val);
                 self.cpu.state = 0x363;
             }
             0x363 => {

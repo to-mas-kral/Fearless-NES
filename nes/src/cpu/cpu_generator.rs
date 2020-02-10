@@ -194,7 +194,7 @@ impl Generator {
             "cache_interrupts!(self); read_ab!(); check_dma!(self); self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1) as usize; sp_to_ab!(self); self.cpu.state = <>;"
                 .to_string(),
         );
-        self.add_exit("self.cpu_check_interrupts(); read_ab!(); check_dma!(self); self.cpu_lda(self.cpu.db); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100".to_string());
+        self.add_exit("self.cpu_check_interrupts(); read_ab!(); check_dma!(self); self.lda(self.cpu.db); self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100".to_string());
     }
 
     fn php(&mut self, op: usize) {
