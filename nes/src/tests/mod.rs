@@ -27,10 +27,7 @@ macro_rules! blargg_test {
             let mut test_running = false;
 
             loop {
-                nes.run_one_cycle();
-                while nes.cpu.state != 0x100 {
-                    nes.run_one_cycle();
-                }
+                nes.cpu_tick_new();
 
                 let test_state = nes.cpu_peek(0x6000);
                 if test_state == 0x80 {

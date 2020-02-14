@@ -53,10 +53,7 @@ impl Nes {
         };
 
         nes.cpu_gen_reset();
-        for _ in 0..6 {
-            nes.run_one_cycle();
-        }
-
+        nes.cpu_reset_routine();
         Ok(nes)
     }
 
@@ -66,12 +63,13 @@ impl Nes {
 
     pub fn run_one_frame(&mut self) {
         while !self.frame_ready {
-            self.run_one_cycle();
+            //self.run_one_cycle();
+            self.cpu_tick_new();
         }
         self.frame_ready = false;
     }
 
-    pub fn run_one_cycle(&mut self) {
+    /* pub fn run_one_cycle(&mut self) {
         self.cycle_count += 1;
         if self.cycle_count == 29658 {
             self.ppu_enable_writes();
@@ -83,17 +81,14 @@ impl Nes {
         }
 
         self.apu_tick();
-
-
-        self.cpu_tick_new();
-        self.cpu_tick_new();
-        self.cpu_tick_new();
-        self.cpu_tick_new();
-        self.cpu_tick_new();
-        self.cpu_tick_new();
-    }
+    } */
 
     fn clock_ppu_apu(&mut self) {
+        self.cycle_count += 1;
+        if self.cycle_count == 29658 {
+            self.ppu_enable_writes();
+        }
+
         for _ in 0..3 {
             self.ppu_tick();
         }
