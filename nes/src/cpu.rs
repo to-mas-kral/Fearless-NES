@@ -106,8 +106,10 @@ impl Cpu {
 impl Nes {
     pub(crate) fn cpu_debug_info(&mut self) -> String {
         format!(
-            "A: 0x{:X}, X: 0x{:X}, Y: 0x{:X}, pc: 0x{:X}, sp: 0x{:X}, ab: 0x{:X}",
-            self.cpu.a, self.cpu.x, self.cpu.y, self.cpu.pc, self.cpu.sp, self.cpu.ab
+            "A: 0x{:X}, X: 0x{:X}, Y: 0x{:X}, pc: 0x{:X}, sp: 0x{:X}, ab: 0x{:X}, db: 0x{:X}, n: {}, v: {}, d: {}, u: {}, c: {}, i: {}",
+            self.cpu.a, self.cpu.x, self.cpu.y, self.cpu.pc,
+            self.cpu.sp, self.cpu.ab, self.cpu.db, self.cpu.n,
+            self.cpu.v, self.cpu.d, self.cpu.z, self.cpu.c, self.cpu.i
         )
     }
 
@@ -151,6 +153,7 @@ impl Nes {
         };
 
         self.cpu.db = self.cpu.open_bus;
+        //println!("Reading 0x{:X} from 0x{:X}", self.cpu.db, index);
     }
 
     #[inline]
@@ -170,6 +173,8 @@ impl Nes {
             0x4020..=0xFFFF => (self.mapper.cpu_write)(self, index, val),
             _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
         }
+
+        //println!("Writing 0x{:X} to 0x{:X}", val, index);
     }
 
     #[inline]
@@ -225,7 +230,8 @@ random documents found in the hidden corners of the internet.*/
 
 impl Nes {
     pub(crate) fn cpu_tick(&mut self) {
-        println!("OP: 0x{:X}", self.cpu.state);
+        //print!("0x{:X}    ", self.cpu.state);
+        //println!("{}", self.cpu_debug_info());
 
         match self.cpu.state {
             0x00 => self.brk(),
@@ -484,7 +490,7 @@ impl Nes {
             0xFD => self.absolute_x(Nes::sbc),
             0xFE => self.absolute_x_rmw(Nes::inc),
             0xFF => self.absolute_x_rmw(Nes::isc),
-        }
+        };
 
         self.load_next_instruction();
 
@@ -749,11 +755,12 @@ impl Nes {
 
         self.clock_ppu_apu();
 
-        if self.cpu.temp == 1 {
+        if self.cpu.temp == 0 {
             // Cycle 2a
             //self.load_next_instruction();
 
-            self.clock_ppu_apu();
+            //self.clock_ppu_apu();
+            return;
         }
 
         // Cycle 2b
@@ -1063,6 +1070,8 @@ impl Nes {
         self.last_cycle();
         self.cpu.pc = ((self.cpu.db as usize) << 8) | self.cpu.temp;
         self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
     }
 
     #[inline]
@@ -1218,12 +1227,6 @@ impl Nes {
             self.clock_ppu_apu();
         }
 
-        //Cycle 3
-        self.penultimate_cycle();
-        self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100) as usize;
-
-        self.clock_ppu_apu();
-
         //Cycle 4
         self.last_cycle();
         op_instruction(self, self.cpu.db);
@@ -1341,7 +1344,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.last_cycle();
+        self.check_interrupts();
         op_instruction(self);
         self.cpu.ab = self.cpu.pc;
 
@@ -1439,6 +1442,7 @@ impl Nes {
         self.start_cycle();
         let int = if self.cpu.take_interrupt { 0 } else { 1 };
         self.cpu.pc += int;
+        self.sp_to_ab();
         self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1) as usize;
 
         self.clock_ppu_apu();
@@ -1926,15 +1930,15 @@ impl Nes {
     }
 
     #[inline]
-    pub(in cpu) fn dcp(&mut self, val: u8) {
-        self.dec(val);
-        self.cmp(val);
+    pub(in cpu) fn dcp(&mut self, _: u8) {
+        self.dec(self.cpu.temp as u8);
+        self.cmp(self.cpu.temp as u8);
     }
 
     #[inline]
-    pub(in cpu) fn isc(&mut self, val: u8) {
-        self.inc(val);
-        self.sbc(val);
+    pub(in cpu) fn isc(&mut self, _: u8) {
+        self.inc(self.cpu.temp as u8);
+        self.sbc(self.cpu.temp as u8);
     }
 
     #[inline]
@@ -1945,27 +1949,27 @@ impl Nes {
     }
 
     #[inline]
-    pub(in cpu) fn rla(&mut self, val: u8) {
-        self.rol(val);
-        self.and(val);
+    pub(in cpu) fn rla(&mut self, _: u8) {
+        self.rol(self.cpu.temp as u8);
+        self.and(self.cpu.temp as u8);
     }
 
     #[inline]
-    pub(in cpu) fn rra(&mut self, val: u8) {
-        self.ror(val);
-        self.adc(val);
+    pub(in cpu) fn rra(&mut self, _: u8) {
+        self.ror(self.cpu.temp as u8);
+        self.adc(self.cpu.temp as u8);
     }
 
     #[inline]
-    pub(in cpu) fn slo(&mut self, val: u8) {
-        self.asl(val);
-        self.ora(val);
+    pub(in cpu) fn slo(&mut self, _: u8) {
+        self.asl(self.cpu.temp as u8);
+        self.ora(self.cpu.temp as u8);
     }
 
     #[inline]
-    pub(in cpu) fn sre(&mut self, val: u8) {
-        self.lsr(val);
-        self.eor(val);
+    pub(in cpu) fn sre(&mut self, _: u8) {
+        self.lsr(self.cpu.temp as u8);
+        self.eor(self.cpu.temp as u8);
     }
 
     #[inline]
