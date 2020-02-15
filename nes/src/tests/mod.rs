@@ -27,7 +27,7 @@ macro_rules! blargg_test {
             let mut test_running = false;
 
             loop {
-                nes.cpu_tick_new();
+                nes.cpu_tick();
 
                 let test_state = nes.cpu_peek(0x6000);
                 if test_state == 0x80 {

@@ -64,7 +64,7 @@ impl Nes {
     pub fn run_one_frame(&mut self) {
         while !self.frame_ready {
             //self.run_one_cycle();
-            self.cpu_tick_new();
+            self.cpu_tick();
         }
         self.frame_ready = false;
     }

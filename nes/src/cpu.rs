@@ -132,7 +132,7 @@ impl Nes {
         //self.clock_ppu_apu();
 
         self.cpu.state = 0;
-        self.cpu_tick_new();
+        self.cpu_tick();
     }
 
     #[inline]
@@ -224,7 +224,7 @@ described on visual6502.org wiki. Some of them are described in numerous
 random documents found in the hidden corners of the internet.*/
 
 impl Nes {
-    pub(crate) fn cpu_tick_new(&mut self) {
+    pub(crate) fn cpu_tick(&mut self) {
         println!("OP: 0x{:X}", self.cpu.state);
 
         match self.cpu.state {
@@ -484,7 +484,6 @@ impl Nes {
             0xFD => self.absolute_x(Nes::sbc),
             0xFE => self.absolute_x_rmw(Nes::inc),
             0xFF => self.absolute_x_rmw(Nes::isc),
-            _ => unreachable!(),
         }
 
         self.load_next_instruction();
@@ -733,9 +732,10 @@ impl Nes {
 
         if !branch {
             // Cycle 1a
-            self.load_next_instruction();
+            //self.load_next_instruction();
 
-            self.clock_ppu_apu();
+            //self.clock_ppu_apu();
+            return;
         }
 
         // Cycle 1b
@@ -749,9 +749,9 @@ impl Nes {
 
         self.clock_ppu_apu();
 
-        if self.cpu.temp == 0 {
+        if self.cpu.temp == 1 {
             // Cycle 2a
-            self.load_next_instruction();
+            //self.load_next_instruction();
 
             self.clock_ppu_apu();
         }
@@ -1347,9 +1347,6 @@ impl Nes {
 
         self.clock_ppu_apu();
     }
-
-    // 5 "self.check_interrupts(); self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
-    // self.cpu.ab = self.cpu.pc; self.cpu.state = 0x100;"
 
     #[inline]
     pub(in cpu) fn absolute_x_rmw(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
