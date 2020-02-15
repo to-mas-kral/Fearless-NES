@@ -83,7 +83,7 @@ impl Nes {
         self.apu_tick();
     } */
 
-    fn clock_ppu_apu(&mut self) {
+    pub(crate) fn clock_ppu_apu(&mut self) {
         self.cycle_count += 1;
         if self.cycle_count == 29658 {
             self.ppu_enable_writes();

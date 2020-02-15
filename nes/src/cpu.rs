@@ -44,7 +44,7 @@ pub struct Cpu {
     d: bool, // BCD flag, this doesn't do anything on the NES CPU
 
     pub halt: bool,
-    pub state: u16,
+    pub state: u8,
     odd_cycle: bool,
 
     pub ab: usize, //Address bus
@@ -81,7 +81,7 @@ impl Cpu {
             c: false,
 
             halt: false,
-            state: 0x100,
+            state: 0,
             odd_cycle: false,
 
             ab: 0,
@@ -225,13 +225,13 @@ random documents found in the hidden corners of the internet.*/
 
 impl Nes {
     pub(crate) fn cpu_tick_new(&mut self) {
-        //println!("OP: 0x{:X}", self.cpu.state);
+        println!("OP: 0x{:X}", self.cpu.state);
 
         match self.cpu.state {
             0x00 => self.brk(),
             0x01 => self.indirect_x(Nes::ora),
             0x02 => self.immediate(Nes::halt),
-            //0x03 => (IndirectXIllegal, "self.cpu_slo();"),
+            0x03 => self.indirect_x_illegal(Nes::slo),
             0x04 => self.zero_page(|_, _| ()),
             0x05 => self.zero_page(Nes::ora),
             0x06 => self.zero_page_rmw(Nes::asl),
@@ -242,12 +242,12 @@ impl Nes {
             0x0B => self.immediate(Nes::anc),
             0x0C => self.absolute(|_, _| ()),
             0x0D => self.absolute(Nes::ora),
-            //0x0E => (AbsoluteRmw, "self.cpu_asl(val);"),
-            //0x0F => (AbsoluteRmw, "self.cpu_slo();"),
+            0x0E => self.absolute_rmw(Nes::asl),
+            0x0F => self.absolute_rmw(Nes::slo),
             0x10 => self.relative(!self.cpu.n),
             0x11 => self.indirect_y(Nes::ora),
             0x12 => self.immediate(Nes::halt),
-            //0x13 => (IndirectYIllegal, "self.cpu_slo();"),
+            0x13 => self.indirect_y_illegal(Nes::slo),
             0x14 => self.zero_page_x(|_, _| ()),
             0x15 => self.zero_page_x(Nes::ora),
             0x16 => self.zero_page_x_rmw(Nes::asl),
@@ -255,7 +255,7 @@ impl Nes {
             0x18 => self.implied(Nes::clc),
             0x19 => self.absolute_y(Nes::ora),
             0x1A => self.implied(|_| ()),
-            //0x1B => (AbsoluteYIllegal, "self.cpu_slo();"),
+            0x1B => self.absolute_y_illegal(Nes::slo),
             0x1C => self.absolute_x(|_, _| ()),
             0x1D => self.absolute_x(Nes::ora),
             0x1E => self.absolute_x_rmw(Nes::asl),
@@ -263,23 +263,23 @@ impl Nes {
             0x20 => self.jsr(),
             0x21 => self.indirect_x(Nes::and),
             0x22 => self.immediate(Nes::halt),
-            //0x23 => (IndirectXIllegal, "self.cpu_rla();"),
+            0x23 => self.indirect_x_illegal(Nes::rla),
             0x24 => self.zero_page(Nes::bit),
             0x25 => self.zero_page(Nes::and),
             0x26 => self.zero_page_rmw(Nes::rol),
             0x27 => self.zero_page_rmw(Nes::rla),
-            //0x28 => (Plp, ""),
+            0x28 => self.plp(),
             0x29 => self.immediate(Nes::and),
             0x2A => self.accumulator(Nes::rol_a),
             0x2B => self.immediate(Nes::anc),
             0x2C => self.absolute(Nes::bit),
             0x2D => self.absolute(Nes::and),
-            //0x2E => (AbsoluteRmw, "self.cpu_rol(val);"),
-            //0x2F => (AbsoluteRmw, "self.cpu_rla();"),
+            0x2E => self.absolute_rmw(Nes::rol),
+            0x2F => self.absolute_rmw(Nes::rla),
             0x30 => self.relative(self.cpu.n),
             0x31 => self.indirect_y(Nes::and),
             0x32 => self.immediate(Nes::halt),
-            //0x33 => (IndirectYIllegal, "self.cpu_rla();"),
+            0x33 => self.indirect_y_illegal(Nes::rla),
             0x34 => self.zero_page_x(|_, _| ()),
             0x35 => self.zero_page_x(Nes::and),
             0x36 => self.zero_page_x_rmw(Nes::rol),
@@ -287,7 +287,7 @@ impl Nes {
             0x38 => self.implied(Nes::sec),
             0x39 => self.absolute_y(Nes::and),
             0x3A => self.implied(|_| ()),
-            //0x3B => (AbsoluteYIllegal, "self.cpu_rla();"),
+            0x3B => self.absolute_y_illegal(Nes::rla),
             0x3C => self.absolute_x(|_, _| ()),
             0x3D => self.absolute_x(Nes::and),
             0x3E => self.absolute_x_rmw(Nes::rol),
@@ -295,7 +295,7 @@ impl Nes {
             0x40 => self.rti(),
             0x41 => self.indirect_x(Nes::eor),
             0x42 => self.immediate(Nes::halt),
-            //0x43 => (IndirectXIllegal, "self.cpu_sre();"),
+            0x43 => self.indirect_x_illegal(Nes::sre),
             0x44 => self.zero_page(|_, _| ()),
             0x45 => self.zero_page(Nes::eor),
             0x46 => self.zero_page_rmw(Nes::lsr),
@@ -306,12 +306,12 @@ impl Nes {
             0x4B => self.immediate(Nes::alr),
             0x4C => self.absolute_jmp(),
             0x4D => self.absolute(Nes::eor),
-            //0x4E => (AbsoluteRmw, "self.cpu_lsr(val);"),
-            //0x4F => (AbsoluteRmw, "self.cpu_sre();"),
+            0x4E => self.absolute_rmw(Nes::lsr),
+            0x4F => self.absolute_rmw(Nes::sre),
             0x50 => self.relative(!self.cpu.v),
             0x51 => self.indirect_y(Nes::eor),
             0x52 => self.immediate(Nes::halt),
-            //0x53 => (IndirectYIllegal, "self.cpu_sre();"),
+            0x53 => self.indirect_y_illegal(Nes::sre),
             0x54 => self.zero_page_x(|_, _| ()),
             0x55 => self.zero_page_x(Nes::eor),
             0x56 => self.zero_page_x_rmw(Nes::lsr),
@@ -319,7 +319,7 @@ impl Nes {
             0x58 => self.implied(Nes::cli),
             0x59 => self.absolute_y(Nes::eor),
             0x5A => self.implied(|_| ()),
-            //0x5B => (AbsoluteYIllegal, "self.cpu_sre();"),
+            0x5B => self.absolute_y_illegal(Nes::sre),
             0x5C => self.absolute_x(|_, _| ()),
             0x5D => self.absolute_x(Nes::eor),
             0x5E => self.absolute_x_rmw(Nes::lsr),
@@ -327,7 +327,7 @@ impl Nes {
             0x60 => self.rts(),
             0x61 => self.indirect_x(Nes::adc),
             0x62 => self.immediate(Nes::halt),
-            //0x63 => (IndirectXIllegal, "self.cpu_rra();"),
+            0x63 => self.indirect_x_illegal(Nes::rra),
             0x64 => self.zero_page(|_, _| ()),
             0x65 => self.zero_page(Nes::adc),
             0x66 => self.zero_page_rmw(Nes::ror),
@@ -338,12 +338,12 @@ impl Nes {
             0x6B => self.immediate(Nes::arr),
             0x6C => self.indirect(),
             0x6D => self.absolute(Nes::adc),
-            //0x6E => (AbsoluteRmw, "self.cpu_ror(val);"),
-            //0x6F => (AbsoluteRmw, "self.cpu_rra();"),
+            0x6E => self.absolute_rmw(Nes::ror),
+            0x6F => self.absolute_rmw(Nes::rra),
             0x70 => self.relative(self.cpu.v),
             0x71 => self.indirect_y(Nes::adc),
             0x72 => self.immediate(Nes::halt),
-            //0x73 => (IndirectYIllegal, "self.cpu_rra();"),
+            0x73 => self.indirect_y_illegal(Nes::rra),
             0x74 => self.zero_page_x(|_, _| ()),
             0x75 => self.zero_page_x(Nes::adc),
             0x76 => self.zero_page_x_rmw(Nes::ror),
@@ -351,13 +351,13 @@ impl Nes {
             0x78 => self.implied(Nes::sei),
             0x79 => self.absolute_y(Nes::adc),
             0x7A => self.implied(|_| ()),
-            //0x7B => (AbsoluteYIllegal, "self.cpu_rra();"),
+            0x7B => self.absolute_y_illegal(Nes::rra),
             0x7C => self.absolute_x(|_, _| ()),
             0x7D => self.absolute_x(Nes::adc),
             0x7E => self.absolute_x_rmw(Nes::ror),
             0x7F => self.absolute_x_rmw(Nes::rra),
             0x80 => self.immediate(|_, _| ()),
-            //0x81 => (IndirectXSt, "self.cpu_sta();"),
+            0x81 => self.indirect_x_st(Nes::sta),
             0x82 => self.immediate(|_, _| ()),
             0x83 => self.indirect_x(Nes::aax),
             0x84 => self.zero_page_st(Nes::sty),
@@ -373,9 +373,9 @@ impl Nes {
             0x8E => self.absolute_st(Nes::stx),
             0x8F => self.absolute(Nes::aax),
             0x90 => self.relative(!self.cpu.c),
-            //0x91 => (IndirectYSt, "self.cpu_sta();"),
+            0x91 => self.indirect_y_st(Nes::sta),
             0x92 => self.immediate(Nes::halt),
-            //0x93 => (IndirectYSt, "self.cpu_ahx();"),
+            0x93 => self.indirect_y_st(Nes::ahx),
             0x94 => self.zero_page_x_st(Nes::sty),
             0x95 => self.zero_page_x_st(Nes::sta),
             0x96 => self.zero_page_y_st(Nes::stx),
@@ -423,7 +423,7 @@ impl Nes {
             0xC0 => self.immediate(Nes::cpy),
             0xC1 => self.indirect_x(Nes::cmp),
             0xC2 => self.immediate(|_, _| ()),
-            //0xC3 => (IndirectXIllegal, "self.cpu_dcp();"),
+            0xC3 => self.indirect_x_illegal(Nes::dcp),
             0xC4 => self.zero_page(Nes::cpy),
             0xC5 => self.zero_page(Nes::cmp),
             0xC6 => self.zero_page_rmw(Nes::dec),
@@ -434,12 +434,12 @@ impl Nes {
             0xCB => self.immediate(Nes::axs),
             0xCC => self.absolute(Nes::cpy),
             0xCD => self.absolute(Nes::cmp),
-            //0xCE => (AbsoluteRmw, "self.cpu_dec(val);"),
-            //0xCF => (AbsoluteRmw, "self.cpu_dcp();"),
+            0xCE => self.absolute_rmw(Nes::dec),
+            0xCF => self.absolute_rmw(Nes::dcp),
             0xD0 => self.relative(!self.cpu.z),
             0xD1 => self.indirect_y(Nes::cmp),
             0xD2 => self.immediate(Nes::halt),
-            //0xD3 => (IndirectYIllegal, "self.cpu_dcp();"),
+            0xD3 => self.indirect_y_illegal(Nes::dcp),
             0xD4 => self.zero_page_x(|_, _| ()),
             0xD5 => self.zero_page_x(Nes::cmp),
             0xD6 => self.zero_page_x_rmw(Nes::dec),
@@ -447,7 +447,7 @@ impl Nes {
             0xD8 => self.implied(Nes::cld),
             0xD9 => self.absolute_y(Nes::cmp),
             0xDA => self.implied(|_| ()),
-            //0xDB => (AbsoluteYIllegal, "self.cpu_dcp();"),
+            0xDB => self.absolute_y_illegal(Nes::dcp),
             0xDC => self.absolute_x(|_, _| ()),
             0xDD => self.absolute_x(Nes::cmp),
             0xDE => self.absolute_x_rmw(Nes::dec),
@@ -455,7 +455,7 @@ impl Nes {
             0xE0 => self.immediate(Nes::cpx),
             0xE1 => self.indirect_x(Nes::sbc),
             0xE2 => self.immediate(|_, _| ()),
-            //0xE3 => (IndirectXIllegal, "self.cpu_isc();"),
+            0xE3 => self.indirect_x_illegal(Nes::isc),
             0xE4 => self.zero_page(Nes::cpx),
             0xE5 => self.zero_page(Nes::sbc),
             0xE6 => self.zero_page_rmw(Nes::inc),
@@ -466,12 +466,12 @@ impl Nes {
             0xEB => self.immediate(Nes::sbc),
             0xEC => self.absolute(Nes::cpx),
             0xED => self.absolute(Nes::sbc),
-            //0xEE => (AbsoluteRmw, "self.cpu_inc(val);"),
-            //0xEF => (AbsoluteRmw, "self.cpu_isc();"),
+            0xEE => self.absolute_rmw(Nes::inc),
+            0xEF => self.absolute_rmw(Nes::isc),
             0xF0 => self.relative(self.cpu.z),
             0xF1 => self.indirect_y(Nes::sbc),
             0xF2 => self.immediate(Nes::halt),
-            //0xF3 => (IndirectYIllegal, "self.cpu_isc();"),
+            0xF3 => self.indirect_y_illegal(Nes::isc),
             0xF4 => self.zero_page_x(|_, _| ()),
             0xF5 => self.zero_page_x(Nes::sbc),
             0xF6 => self.zero_page_x_rmw(Nes::inc),
@@ -479,12 +479,12 @@ impl Nes {
             0xF8 => self.implied(Nes::sed),
             0xF9 => self.absolute_y(Nes::sbc),
             0xFA => self.implied(|_| ()),
-            //0xFB => (AbsoluteYIllegal, "self.cpu_isc();"),
+            0xFB => self.absolute_y_illegal(Nes::isc),
             0xFC => self.absolute_x(|_, _| ()),
             0xFD => self.absolute_x(Nes::sbc),
             0xFE => self.absolute_x_rmw(Nes::inc),
             0xFF => self.absolute_x_rmw(Nes::isc),
-            opcode => unimplemented!("Opcode 0x{:X} is unimplemented", opcode),
+            _ => unreachable!(),
         }
 
         self.load_next_instruction();
@@ -792,6 +792,62 @@ impl Nes {
     }
 
     #[inline]
+    pub(in cpu) fn absolute_jmp(&mut self) {
+        // Cycle 0
+        self.penultimate_cycle();
+        self.cpu.temp = self.cpu.db as usize;
+        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+
+        // Cycle 1
+        self.last_cycle();
+        self.cpu.pc = ((self.cpu.db as usize) << 8) | self.cpu.temp;
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+    }
+
+    #[inline]
+    pub(in cpu) fn absolute_rmw(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
+        // Cycle 0
+        self.start_cycle();
+        self.cpu.temp = self.cpu.db as usize;
+        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+
+        // Cycle 1
+        self.start_cycle();
+        self.cpu.ab = ((self.cpu.db as usize) << 8) | self.cpu.temp;
+        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+
+        self.clock_ppu_apu();
+
+        // Cycle 2
+        self.start_cycle();
+        self.cpu.temp = self.cpu.db as usize;
+
+        self.clock_ppu_apu();
+
+        // Cycle 3
+        self.cache_interrupts();
+        self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
+        op_instruction(self, self.cpu.temp as u8);
+
+        self.clock_ppu_apu();
+
+        // Cycle 4
+        self.check_interrupts();
+        self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+    }
+
+    #[inline]
     pub(in cpu) fn absolute_x(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
         self.start_cycle();
@@ -934,6 +990,53 @@ impl Nes {
     }
 
     #[inline]
+    pub(in cpu) fn absolute_y_illegal(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
+        // Cycle 0
+        self.start_cycle();
+        self.cpu.temp = self.cpu.db as usize;
+        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+
+        // Cycle 1
+        self.start_cycle();
+        self.cpu.ab = ((self.cpu.db as usize) << 8)
+            | ((self.cpu.temp + self.cpu.y as usize) & 0xFF);
+        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+
+        self.clock_ppu_apu();
+
+        // Cycle 2
+        self.start_cycle();
+        if (self.cpu.temp + self.cpu.y as usize) >= 0x100 {
+            self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100) as usize;
+        };
+
+        self.clock_ppu_apu();
+
+        // Cycle 3
+        self.start_cycle();
+        self.cpu.temp = self.cpu.db as usize;
+
+        self.clock_ppu_apu();
+
+        // Cycle 4
+        self.cache_interrupts();
+        self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
+        op_instruction(self, self.cpu.temp as u8);
+
+        self.clock_ppu_apu();
+
+        // Cycle 5
+        self.check_interrupts();
+        self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+    }
+
+    #[inline]
     pub(in cpu) fn indirect(&mut self) {
         // Cycle 0
         self.start_cycle();
@@ -960,24 +1063,6 @@ impl Nes {
         self.last_cycle();
         self.cpu.pc = ((self.cpu.db as usize) << 8) | self.cpu.temp;
         self.cpu.ab = self.cpu.pc;
-    }
-
-    #[inline]
-    pub(in cpu) fn absolute_jmp(&mut self) {
-        // Cycle 0
-        self.penultimate_cycle();
-        self.cpu.temp = self.cpu.db as usize;
-        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
-        self.cpu.ab = self.cpu.pc;
-
-        self.clock_ppu_apu();
-
-        // Cycle 1
-        self.last_cycle();
-        self.cpu.pc = ((self.cpu.db as usize) << 8) | self.cpu.temp;
-        self.cpu.ab = self.cpu.pc;
-
-        self.clock_ppu_apu();
     }
 
     #[inline]
@@ -1011,6 +1096,91 @@ impl Nes {
         // Cycle 4
         self.last_cycle();
         op_instruction(self, self.cpu.db);
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+    }
+
+    #[inline]
+    pub(in cpu) fn indirect_x_st(&mut self, op_instruction: fn(&mut Nes)) {
+        // Cycle 0
+        self.start_cycle();
+        self.cpu.ab = self.cpu.db as usize;
+        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+
+        self.clock_ppu_apu();
+
+        // Cycle 1
+        self.start_cycle();
+        self.cpu.ab = (self.cpu.ab + self.cpu.x as usize) & 0xFF;
+
+        self.clock_ppu_apu();
+
+        // Cycle 2
+        self.start_cycle();
+        self.cpu.temp = self.cpu.db as usize;
+        self.cpu.ab = (self.cpu.ab + 1) & 0xFF;
+
+        self.clock_ppu_apu();
+
+        // Cycle 3
+        self.penultimate_cycle();
+        self.cpu.ab = ((self.cpu.db as usize) << 8) | self.cpu.temp;
+
+        self.clock_ppu_apu();
+
+        // Cycle 4
+        self.check_interrupts();
+        op_instruction(self);
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+    }
+
+    #[inline]
+    pub(in cpu) fn indirect_x_illegal(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
+        // Cycle 0
+        self.start_cycle();
+        self.cpu.ab = self.cpu.db as usize;
+        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+
+        self.clock_ppu_apu();
+
+        // Cycle 1
+        self.start_cycle();
+        self.cpu.ab = (self.cpu.ab + self.cpu.x as usize) & 0xFF;
+
+        self.clock_ppu_apu();
+
+        // Cycle 2
+        self.start_cycle();
+        self.cpu.temp = self.cpu.db as usize;
+        self.cpu.ab = (self.cpu.ab + 1) & 0xFF;
+
+        self.clock_ppu_apu();
+
+        // Cycle 3
+        self.start_cycle();
+        self.cpu.ab = ((self.cpu.db as usize) << 8) | self.cpu.temp;
+
+        self.clock_ppu_apu();
+
+        // Cycle 4
+        self.start_cycle();
+        self.cpu.temp = self.cpu.db as usize;
+
+        self.clock_ppu_apu();
+
+        // Cycle 5
+        self.cache_interrupts();
+        self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
+        op_instruction(self, self.cpu.temp as u8);
+
+        self.clock_ppu_apu();
+
+        // Cycle 6
+        self.check_interrupts();
+        self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
         self.cpu.ab = self.cpu.pc;
 
         self.clock_ppu_apu();
@@ -1057,6 +1227,97 @@ impl Nes {
         //Cycle 4
         self.last_cycle();
         op_instruction(self, self.cpu.db);
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+    }
+
+    #[inline]
+    pub(in cpu) fn indirect_y_illegal(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
+        // Cycle 0
+        self.start_cycle();
+        self.cpu.ab = self.cpu.db as usize;
+        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+
+        self.clock_ppu_apu();
+
+        // Cycle 1
+        self.start_cycle();
+        self.cpu.temp = self.cpu.db as usize;
+        self.cpu.ab = (self.cpu.ab + 1) & 0xFF;
+
+        self.clock_ppu_apu();
+
+        // Cycle 2
+        self.start_cycle();
+        self.cpu.ab = ((self.cpu.db as usize) << 8)
+            | ((self.cpu.temp + self.cpu.y as usize) & 0xFF);
+
+        self.clock_ppu_apu();
+
+        // Cycle 3
+        self.start_cycle();
+        if (self.cpu.temp + self.cpu.y as usize) >= 0x100 {
+            self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100) as usize
+        };
+
+        self.clock_ppu_apu();
+
+        // Cycle 4
+        self.start_cycle();
+        self.cpu.temp = self.cpu.db as usize;
+
+        self.clock_ppu_apu();
+
+        // Cycle 5
+        self.cache_interrupts();
+        self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
+        op_instruction(self, self.cpu.temp as u8);
+
+        self.clock_ppu_apu();
+
+        // Cycle 6
+        self.check_interrupts();
+        self.cpu_write(self.cpu.ab, self.cpu.temp as u8);
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+    }
+
+    #[inline]
+    pub(in cpu) fn indirect_y_st(&mut self, op_instruction: fn(&mut Nes)) {
+        // Cycle 0
+        self.start_cycle();
+        self.cpu.ab = self.cpu.db as usize;
+        self.cpu.pc = (self.cpu.pc as u16).wrapping_add(1) as usize;
+
+        self.clock_ppu_apu();
+
+        // Cycle 1
+        self.start_cycle();
+        self.cpu.temp = self.cpu.db as usize;
+        self.cpu.ab = (self.cpu.ab + 1) & 0xFF;
+
+        self.clock_ppu_apu();
+
+        // Cycle 2
+        self.start_cycle();
+        self.cpu.ab = ((self.cpu.db as usize) << 8)
+            | ((self.cpu.temp + self.cpu.y as usize) & 0xFF);
+
+        self.clock_ppu_apu();
+
+        // Cycle 3
+        self.penultimate_cycle();
+        if self.cpu.temp + self.cpu.y as usize >= 0x100 {
+            self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100) as usize;
+        }
+
+        self.clock_ppu_apu();
+
+        // Cycle 4
+        self.check_interrupts();
+        op_instruction(self);
         self.cpu.ab = self.cpu.pc;
 
         self.clock_ppu_apu();
@@ -1359,6 +1620,29 @@ impl Nes {
         // Cycle 2
         self.last_cycle();
         self.lda(self.cpu.db);
+        self.cpu.ab = self.cpu.pc;
+
+        self.clock_ppu_apu();
+    }
+
+    #[inline]
+    pub(in cpu) fn plp(&mut self) {
+        // Cycle 0
+        self.start_cycle();
+        self.sp_to_ab();
+
+        self.clock_ppu_apu();
+
+        // Cycle 1
+        self.penultimate_cycle();
+        self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1) as usize;
+        self.sp_to_ab();
+
+        self.clock_ppu_apu();
+
+        // Cycle 2
+        self.last_cycle();
+        self.pull_status(self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
         self.clock_ppu_apu();
@@ -1776,7 +2060,7 @@ impl Nes {
         let int: u8 = if self.cpu.take_interrupt { 0 } else { 1 };
         self.cpu_read(self.cpu.ab);
         self.check_dma();
-        self.cpu.state = u16::from(int * self.cpu.db);
+        self.cpu.state = u8::from(int * self.cpu.db);
         self.cpu.pc = (self.cpu.pc).wrapping_add(int as usize);
         self.cpu.ab = self.cpu.pc
     }
