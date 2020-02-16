@@ -18,7 +18,7 @@ pub struct Apu {
 }
 
 impl Apu {
-    pub fn new() -> Apu {
+    pub(crate) fn new() -> Apu {
         let mut pulse_table = vec![0f32; 31];
         for n in 0..31 {
             pulse_table[n] = 95.52 / (8128f32 / n as f32 + 100f32);
@@ -47,7 +47,7 @@ impl Apu {
 
 impl Nes {
     #[inline]
-    pub fn apu_tick(&mut self) {
+    pub(crate) fn apu_tick(&mut self) {
         self.apu.pulse_1.clock();
         self.apu.pulse_2.clock();
 
@@ -116,12 +116,12 @@ impl Nes {
         self.apu.sample_counter += 1;
         if self.apu.sample_counter == SAMPLE_FREQ {
             self.apu.sample_counter = 0;
-            let _output = self.apu_mixer();
+            let _output = self.mixer();
         }
     }
 
     #[inline]
-    fn apu_mixer(&mut self) -> f32 {
+    fn mixer(&mut self) -> f32 {
         //The APU mixer formulas can be efficiently implemented using two lookup tables: a 31-entry table
         //for the two pulse channels and a 203-entry table for the remaining channels (due to the approximation
         //of tnd_out, the numerators are adjusted slightly to preserve the normalized output range).
@@ -151,7 +151,7 @@ impl Nes {
     }
 
     #[inline]
-    pub fn apu_write_reg(&mut self, addr: usize, val: u8) {
+    pub(crate) fn apu_write_reg(&mut self, addr: usize, val: u8) {
         match addr {
             0x4000 => self.apu.pulse_1.set_dlcv(val),
             0x4001 => self.apu.pulse_1.set_epns(val),
@@ -191,7 +191,7 @@ impl Nes {
     //Reading this register clears the frame interrupt flag (but not the DMC interrupt flag).
     //If an interrupt flag was set at the same moment of the read, it will read back as 1 but it will not be cleared.
     #[inline]
-    pub fn apu_read_status(&mut self) -> u8 {
+    pub(crate) fn apu_read_status(&mut self) -> u8 {
         let mut result = 0;
         if self.apu.pulse_1.length_counter.counter > 0 {
             result |= 1;
@@ -298,7 +298,7 @@ struct Pulse {
 }
 
 impl Pulse {
-    pub fn new(adder_mode: u16) -> Pulse {
+    fn new(adder_mode: u16) -> Pulse {
         Pulse {
             duty_cycle: 0,
             duty_seq: 0,
@@ -311,7 +311,7 @@ impl Pulse {
     }
 
     #[inline]
-    pub fn set_dlcv(&mut self, val: u8) {
+    fn set_dlcv(&mut self, val: u8) {
         self.duty_seq = (val & 0xC0) >> 3;
         self.length_counter.enabled = (val & 0x20) == 0;
         self.envelope._loop = (val & 0x20) != 0;
@@ -320,17 +320,17 @@ impl Pulse {
     }
 
     #[inline]
-    pub fn set_epns(&mut self, val: u8) {
+    fn set_epns(&mut self, val: u8) {
         self.sweep.load(val);
     }
 
     #[inline]
-    pub fn set_t(&mut self, val: u8) {
+    fn set_t(&mut self, val: u8) {
         self.sweep.timer = (self.sweep.timer & !0xFF) | u16::from(val);
     }
 
     #[inline]
-    pub fn set_lt(&mut self, val: u8) {
+    fn set_lt(&mut self, val: u8) {
         //    $4003 write:
         //freq_timer =        v.210       (high 3 bits)
 
@@ -350,7 +350,7 @@ impl Pulse {
     }
 
     #[inline]
-    pub fn clock(&mut self) {
+    fn clock(&mut self) {
         if self.sweep.timer > 0 {
             self.sweep.timer -= 1;
         } else {
@@ -360,7 +360,7 @@ impl Pulse {
     }
 
     #[inline]
-    pub fn frame_clock(&mut self) {
+    fn frame_clock(&mut self) {
         self.length_counter.clock();
         self.envelope.clock();
         self.sweep.clock();
@@ -372,7 +372,7 @@ impl Pulse {
     //the length counter is zero, or
     //the timer has a value less than eight.
     #[inline]
-    pub fn output(&mut self) -> u8 {
+    fn output(&mut self) -> u8 {
         let active = DUTY_SEQUENCE[(self.duty_seq | self.duty_cycle) as usize];
 
         if active
@@ -414,7 +414,7 @@ struct Triangle {
 }
 
 impl Triangle {
-    pub fn new() -> Triangle {
+    fn new() -> Triangle {
         Triangle {
             counter_control: false,
             counter_reload: 0,
@@ -425,19 +425,19 @@ impl Triangle {
     }
 
     #[inline]
-    pub fn set_c(&mut self, val: u8) {
+    fn set_c(&mut self, val: u8) {
         self.counter_control = val & 0x80 != 0;
         self.length_counter.enabled = val & 0x80 == 0;
         self.counter_reload = val & 0x7F;
     }
 
     #[inline]
-    pub fn set_tl(&mut self, val: u8) {
+    fn set_tl(&mut self, val: u8) {
         self.timer = (self.timer & !0xFF) | u16::from(val);
     }
 
     #[inline]
-    pub fn set_l(&mut self, val: u8) {
+    fn set_l(&mut self, val: u8) {
         self.length_counter.load((val & 0xF8) >> 3);
         self.timer = (self.timer & !0x700) | (u16::from(val & 7) << 8);
         //TODO: set linear control reload flag
@@ -462,7 +462,7 @@ struct Noise {
 }
 
 impl Noise {
-    pub fn new() -> Noise {
+    fn new() -> Noise {
         Noise {
             constant_volume: false,
             volume: 0,
@@ -475,20 +475,20 @@ impl Noise {
     }
 
     #[inline]
-    pub fn set_lcn(&mut self, val: u8) {
+    fn set_lcn(&mut self, val: u8) {
         self.length_counter.enabled = (val & 0x20) == 0;
         self.constant_volume = (val & 0x10) != 0;
         self.volume = val & 0xF;
     }
 
     #[inline]
-    pub fn set_lp(&mut self, val: u8) {
+    fn set_lp(&mut self, val: u8) {
         self.loop_noise = (val & 0x80) != 0;
         self.noise_period = val & 0xF;
     }
 
     #[inline]
-    pub fn set_l(&mut self, val: u8) {
+    fn set_l(&mut self, val: u8) {
         self.length_counter.load((val & 0xF8) >> 3);
     }
 }
@@ -510,7 +510,7 @@ struct Dmc {
 }
 
 impl Dmc {
-    pub fn new() -> Dmc {
+    fn new() -> Dmc {
         Dmc {
             irq_enable: false,
             loop_sample: false,
@@ -524,24 +524,24 @@ impl Dmc {
     }
 
     #[inline]
-    pub fn set_ilf(&mut self, val: u8) {
+    fn set_ilf(&mut self, val: u8) {
         self.irq_enable = (val & 0x80) != 0;
         self.loop_sample = (val & 0x40) != 0;
         self.frequency_index = val & 0xF;
     }
 
     #[inline]
-    pub fn set_d(&mut self, val: u8) {
+    fn set_d(&mut self, val: u8) {
         self.direct_load = val & 0x7F;
     }
 
     #[inline]
-    pub fn set_a(&mut self, val: u8) {
+    fn set_a(&mut self, val: u8) {
         self.sample_address = 0xC000 | (u16::from(val) << 6);
     }
 
     #[inline]
-    pub fn set_l(&mut self, val: u8) {
+    fn set_l(&mut self, val: u8) {
         self.sample_length = 1 | (u16::from(val) << 4);
     }
 }
@@ -559,7 +559,7 @@ struct FrameCounter {
 }
 
 impl FrameCounter {
-    pub fn new() -> FrameCounter {
+    fn new() -> FrameCounter {
         FrameCounter {
             mode: false,
             odd_cycle: false,
@@ -568,7 +568,7 @@ impl FrameCounter {
     }
 
     #[inline]
-    pub fn set_mi(&mut self, val: u8) {
+    fn set_mi(&mut self, val: u8) {
         self.mode = val & 0x80 != 0;
         self.irq_inhibit &= val & 0x40 == 0;
     }
@@ -585,7 +585,7 @@ struct LengthCounter {
 }
 
 impl LengthCounter {
-    pub fn new() -> LengthCounter {
+    fn new() -> LengthCounter {
         LengthCounter {
             enabled: true,
             counter: 0,
@@ -593,14 +593,14 @@ impl LengthCounter {
     }
 
     #[inline]
-    pub fn load(&mut self, val: u8) {
+    fn load(&mut self, val: u8) {
         if self.enabled {
             self.counter = LENGTH_TABLE[val as usize];
         }
     }
 
     #[inline]
-    pub fn clock(&mut self) {
+    fn clock(&mut self) {
         if self.counter > 0 && self.enabled {
             self.counter -= 1;
         }
@@ -622,7 +622,7 @@ struct Sweep {
 }
 
 impl Sweep {
-    pub fn new(adder_mode: u16) -> Sweep {
+    fn new(adder_mode: u16) -> Sweep {
         Sweep {
             enabled: false,
             negate: false,
@@ -639,7 +639,7 @@ impl Sweep {
     }
 
     #[inline]
-    pub fn load(&mut self, val: u8) {
+    fn load(&mut self, val: u8) {
         self.enabled = (val & 0x80) != 0;
         self.period = (val as u16 & 0x70) >> 4;
         self.negate = (val & 8) != 0;
@@ -654,7 +654,7 @@ impl Sweep {
     //If the divider's counter is zero or the reload flag is true: The counter is set to P and the
     //reload flag is cleared. Otherwise, the counter is decremented.
     #[inline]
-    pub fn clock(&mut self) {
+    fn clock(&mut self) {
         if self.counter == 0 || self.reload {
             self.counter = self.period + 1;
             self.reload = false;
@@ -701,7 +701,7 @@ struct Envelope {
 }
 
 impl Envelope {
-    pub fn new() -> Envelope {
+    fn new() -> Envelope {
         Envelope {
             start: false,
             period: 0,
@@ -720,7 +720,7 @@ impl Envelope {
     //Then one of two actions occurs: If the counter is non-zero, it is decremented, otherwise if the
     //loop flag is set, the decay level counter is loaded with 15.
     #[inline]
-    pub fn clock(&mut self) {
+    fn clock(&mut self) {
         if !self.start {
             if self.step == 0 {
                 self.step = self.period;
