@@ -13,7 +13,7 @@ pub struct Cartridge {
     pub chr: Vec<u8>,
 }
 
-pub fn parse_rom(f: &mut File) -> Result<Cartridge, NesError> {
+pub(crate) fn parse_rom(f: &mut File) -> Result<Cartridge, NesError> {
     let _bytes: Result<Vec<u8>, _> = f.bytes().collect();
     let rom = _bytes?;
 

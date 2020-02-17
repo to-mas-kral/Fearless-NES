@@ -7,6 +7,12 @@ enum InterruptType {
     None,
 }
 
+enum DmaHijack {
+    Request,
+    Hijacked,
+    None,
+}
+
 pub struct Cpu {
     a: u8,       // Accumulator
     x: u8,       // X index
@@ -38,12 +44,11 @@ pub struct Cpu {
     take_interrupt: bool,
     interrupt_type: InterruptType,
 
-    dma_cycles: u16,
-    oam: bool,
-    dmc: bool,
-    hijack_read: bool,
+    dma_addr: u16,
+    hijack_read: DmaHijack,
     copy_buffer: u8,
-    dma_addr: usize,
+    dma_cycles: u16,
+    dmc: bool,
 
     ram: Vec<u8>,
 }
@@ -82,10 +87,9 @@ impl Cpu {
 
             open_bus: 0,
 
-            dma_cycles: 0,
-            oam: false,
             dmc: false,
-            hijack_read: false,
+            dma_cycles: 0,
+            hijack_read: DmaHijack::None,
             copy_buffer: 0,
             dma_addr: 0,
 
@@ -125,15 +129,15 @@ impl Nes {
             0..=0x1FFF => self.cpu.ram[index & 0x7FF],
             0x2000..=0x3FFF => self.ppu_read_reg(index),
             0x4000..=0x4014 | 0x4017..=0x401F => self.cpu.open_bus,
-            0x4016 => {
-                let tmp = self.controller.read_reg();
-                (self.cpu.open_bus & 0xE0) | tmp
-            }
+            0x4016 => (self.cpu.open_bus & 0xE0) | self.controller.read_reg(),
             0x4015 => self.apu_read_status(),
             _ => unreachable!("memory access into unmapped address: 0x{:X}", index),
         };
 
         self.cpu.db = self.cpu.open_bus;
+        if let DmaHijack::Request = self.cpu.hijack_read {
+            self.cpu.hijack_read = DmaHijack::Hijacked;
+        }
     }
 
     #[inline]
@@ -143,8 +147,8 @@ impl Nes {
             0x2000..=0x3FFF => self.ppu_write_reg(index, val),
             0x4000..=0x4013 => self.apu_write_reg(index, val),
             0x4014 => {
-                self.cpu.oam = true;
-                self.cpu.dma_addr = (val as usize) << 8;
+                self.cpu.hijack_read = DmaHijack::Request;
+                self.cpu.dma_addr = (val as u16) << 8;
             }
             0x4015 => self.apu_write_reg(index, val),
             0x4016 => self.controller.write_reg(val),
@@ -166,35 +170,69 @@ impl Nes {
 
     //https://forums.nesdev.com/viewtopic.php?f=3&t=14120
     #[inline]
-    pub(crate) fn cpu_dma(&mut self) {
-        if self.cpu.dma_cycles == 0 {
-            self.cpu.hijack_read = true;
-        } else {
-            self.cpu.hijack_read = false;
-            if self.cpu.oam {
-                if self.cpu.dma_cycles == 1 && self.cpu.odd_cycle {
-                    self.cpu_read(self.cpu.ab as usize);
-                } else {
-                    if self.cpu.dma_cycles & 1 != 0 {
-                        self.cpu_read(self.cpu.dma_addr);
-                        self.cpu.dma_addr += 1;
-                        self.cpu.copy_buffer = self.cpu.db
-                    } else {
-                        self.cpu_write(0x2004, self.cpu.copy_buffer);
-                    }
-                    self.cpu.dma_cycles += 1;
+    fn dma(&mut self) {
+        if let DmaHijack::Hijacked = self.cpu.hijack_read {
+            self.cpu.hijack_read = DmaHijack::None;
+            self.cpu.dma_cycles = 1;
+            self.clock_ppu_apu();
+        }
 
-                    if self.cpu.dma_cycles == 0x201 {
-                        self.cpu.oam = false;
-                        self.cpu.dma_cycles = 0;
-                    }
-                }
+        if self.cpu.dma_cycles == 1 && self.cpu.odd_cycle {
+            self.cpu_read(self.cpu.ab as usize);
+        } else if self.cpu.dma_cycles >= 1 {
+            if self.cpu.dma_cycles & 1 != 0 {
+                self.cpu_read(self.cpu.dma_addr as usize);
+                self.cpu.dma_addr += 1;
+                self.cpu.copy_buffer = self.cpu.db
+            } else {
+                self.cpu_write(0x2004, self.cpu.copy_buffer);
             }
-            if self.cpu.dmc {
-                unimplemented!("DMC DMA is unimplemented");
+            self.cpu.dma_cycles += 1;
+
+            if self.cpu.dma_cycles == 0x201 {
+                self.cpu.dma_cycles = 0;
+
+                self.load_next_instruction();
+                self.clock_ppu_apu();
             }
         }
+
+        if self.cpu.dmc {
+            unimplemented!("DMC DMA is unimplemented");
+        }
     }
+}
+
+// Helper macros
+macro_rules! check_read_hijack {
+    ($self:ident) => {
+        if let DmaHijack::Hijacked = $self.cpu.hijack_read {
+            return;
+        }
+    };
+}
+
+macro_rules! cycle {
+    ($self:ident) => {
+        $self.cpu_read($self.cpu.ab as usize);
+        check_read_hijack!($self);
+    };
+}
+
+macro_rules! penultimate_cycle {
+    ($self:ident) => {
+        $self.cache_interrupts();
+        $self.cpu_read($self.cpu.ab as usize);
+        check_read_hijack!($self);
+    };
+}
+
+macro_rules! last_cycle {
+    ($self:ident) => {
+        $self.check_interrupts();
+        $self.cpu_read($self.cpu.ab as usize);
+        check_read_hijack!($self);
+    };
 }
 
 /* Most of the documentation for the 6502 can be found on nesdev:
@@ -208,8 +246,11 @@ random documents found in the hidden corners of the internet.*/
 
 impl Nes {
     pub(crate) fn cpu_tick(&mut self) {
-        //print!("0x{:X}    ", self.cpu.state);
-        //println!("{}", self.cpu_debug_info());
+        self.dma();
+        if self.cpu.dma_cycles != 0 {
+            self.clock_ppu_apu();
+            return;
+        }
 
         match self.cpu.state {
             0x00 => self.brk(),
@@ -482,7 +523,7 @@ impl Nes {
     #[inline]
     fn implied(&mut self, op_instruction: fn(&mut Nes)) {
         // Cycle 0
-        self.last_cycle();
+        last_cycle!(self);
         op_instruction(self);
 
         self.clock_ppu_apu();
@@ -491,7 +532,7 @@ impl Nes {
     #[inline]
     fn immediate(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
-        self.last_cycle();
+        last_cycle!(self);
         op_instruction(self, self.cpu.db);
 
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
@@ -503,7 +544,7 @@ impl Nes {
     #[inline]
     fn accumulator(&mut self, op_instruction: fn(&mut Nes)) {
         // Cycle 0
-        self.last_cycle();
+        last_cycle!(self);
         op_instruction(self);
 
         self.clock_ppu_apu();
@@ -512,14 +553,14 @@ impl Nes {
     #[inline]
     fn zero_page(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.last_cycle();
+        last_cycle!(self);
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
@@ -529,20 +570,20 @@ impl Nes {
     #[inline]
     fn zero_page_x(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         //Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.x as u16) & 0xFF;
 
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.last_cycle();
+        last_cycle!(self);
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
@@ -552,20 +593,20 @@ impl Nes {
     #[inline]
     fn zero_page_y(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         //Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.y as u16) & 0xFF;
 
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.last_cycle();
+        last_cycle!(self);
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
@@ -575,7 +616,7 @@ impl Nes {
     #[inline]
     fn zero_page_st(&mut self, op_instruction: fn(&mut Nes)) {
         // Cycle 0
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
@@ -592,14 +633,14 @@ impl Nes {
     #[inline]
     fn zero_page_x_st(&mut self, op_instruction: fn(&mut Nes)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.x as u16) & 0xFF;
 
         self.clock_ppu_apu();
@@ -615,14 +656,14 @@ impl Nes {
     #[inline]
     fn zero_page_y_st(&mut self, op_instruction: fn(&mut Nes)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.y as u16) & 0xFF;
 
         self.clock_ppu_apu();
@@ -638,14 +679,14 @@ impl Nes {
     #[inline]
     fn zero_page_rmw(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
 
         self.clock_ppu_apu();
@@ -668,20 +709,20 @@ impl Nes {
     #[inline]
     fn zero_page_x_rmw(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.x as u16) & 0xFF;
 
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
 
         self.clock_ppu_apu();
@@ -704,9 +745,7 @@ impl Nes {
     #[inline]
     fn relative(&mut self, branch: bool) {
         // Cycle 0
-        self.check_interrupts();
-        self.cpu_read(self.cpu.ab as usize);
-        self.check_dma();
+        last_cycle!(self);
 
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
@@ -715,18 +754,13 @@ impl Nes {
         self.clock_ppu_apu();
 
         if !branch {
-            // Cycle 1a
-            //self.load_next_instruction();
-
-            //self.clock_ppu_apu();
             return;
         }
 
         // Cycle 1b
-        self.cache_interrupts();
+        penultimate_cycle!(self);
+
         self.cpu.take_interrupt = false;
-        self.cpu_read(self.cpu.ab as usize);
-        self.check_dma();
 
         self.take_branch();
         self.cpu.ab = self.cpu.pc;
@@ -734,17 +768,11 @@ impl Nes {
         self.clock_ppu_apu();
 
         if self.cpu.temp == 0 {
-            // Cycle 2a
-            //self.load_next_instruction();
-
-            //self.clock_ppu_apu();
             return;
         }
 
         // Cycle 2b
-        self.check_interrupts();
-        self.cpu_read(self.cpu.ab as usize);
-        self.check_dma();
+        last_cycle!(self);
 
         self.cpu.ab = self.cpu.pc;
 
@@ -754,7 +782,7 @@ impl Nes {
     #[inline]
     fn absolute(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
@@ -762,14 +790,14 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.last_cycle();
+        last_cycle!(self);
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
@@ -779,7 +807,7 @@ impl Nes {
     #[inline]
     fn absolute_jmp(&mut self) {
         // Cycle 0
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
@@ -787,7 +815,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.last_cycle();
+        last_cycle!(self);
         self.cpu.pc = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.ab = self.cpu.pc;
 
@@ -797,7 +825,7 @@ impl Nes {
     #[inline]
     fn absolute_rmw(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
@@ -805,14 +833,14 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
 
         self.clock_ppu_apu();
@@ -835,7 +863,7 @@ impl Nes {
     #[inline]
     fn absolute_x(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
@@ -843,7 +871,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8)
             | ((self.cpu.temp as u16 + self.cpu.x as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
@@ -852,14 +880,14 @@ impl Nes {
 
         if (self.cpu.temp + self.cpu.x as u16) >= 0x100 {
             // Cycle extra if page boundary was crossed
-            self.penultimate_cycle();
+            penultimate_cycle!(self);
             self.cpu.ab = (self.cpu.ab).wrapping_add(0x100);
 
             self.clock_ppu_apu();
         }
 
         // Cycle 2
-        self.last_cycle();
+        last_cycle!(self);
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
@@ -869,7 +897,7 @@ impl Nes {
     #[inline]
     fn absolute_y(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
@@ -877,7 +905,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8)
             | ((self.cpu.temp as u16 + self.cpu.y as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
@@ -886,16 +914,14 @@ impl Nes {
 
         if (self.cpu.temp as u16 + self.cpu.y as u16) >= 0x100 {
             // Cycle extra if page boundary was crossed
-            self.cache_interrupts();
-            self.cpu_read(self.cpu.ab as usize);
-            self.check_dma();
+            penultimate_cycle!(self);
             self.cpu.ab = (self.cpu.ab).wrapping_add(0x100);
 
             self.clock_ppu_apu();
         }
 
         // Cycle 2
-        self.last_cycle();
+        last_cycle!(self);
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
@@ -905,7 +931,7 @@ impl Nes {
     #[inline]
     fn absolute_x_st(&mut self, op_instruction: fn(&mut Nes)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
@@ -913,7 +939,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab =
             ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.x as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
@@ -921,7 +947,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         if (self.cpu.temp + self.cpu.x as u16) >= 0x100 {
             self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100);
         };
@@ -939,7 +965,7 @@ impl Nes {
     #[inline]
     fn absolute_y_st(&mut self, op_instruction: fn(&mut Nes)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
@@ -947,7 +973,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab =
             ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
@@ -955,7 +981,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         if (self.cpu.temp + self.cpu.y as u16) >= 0x100 {
             self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100);
         };
@@ -973,7 +999,7 @@ impl Nes {
     #[inline]
     fn absolute_y_illegal(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
@@ -981,7 +1007,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab =
             ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
@@ -989,7 +1015,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.start_cycle();
+        cycle!(self);
         if (self.cpu.temp + self.cpu.y as u16) >= 0x100 {
             self.cpu.ab = (self.cpu.ab).wrapping_add(0x100);
         };
@@ -997,7 +1023,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 3
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
 
         self.clock_ppu_apu();
@@ -1020,7 +1046,7 @@ impl Nes {
     #[inline]
     fn indirect(&mut self) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
@@ -1028,20 +1054,20 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
 
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab = (self.cpu.ab & 0xFF00) | ((self.cpu.ab + 1) & 0xFF);
 
         self.clock_ppu_apu();
 
         // Cycle 3
-        self.last_cycle();
+        last_cycle!(self);
         self.cpu.pc = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.ab = self.cpu.pc;
 
@@ -1051,33 +1077,33 @@ impl Nes {
     #[inline]
     fn indirect_x(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.x as u16) & 0xFF;
 
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab = (self.cpu.ab + 1) & 0xFF;
 
         self.clock_ppu_apu();
 
         // Cycle 3
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
 
         self.clock_ppu_apu();
 
         // Cycle 4
-        self.last_cycle();
+        last_cycle!(self);
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
@@ -1087,27 +1113,27 @@ impl Nes {
     #[inline]
     fn indirect_x_st(&mut self, op_instruction: fn(&mut Nes)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.x as u16) & 0xFF;
 
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab = (self.cpu.ab + 1) & 0xFF;
 
         self.clock_ppu_apu();
 
         // Cycle 3
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
 
         self.clock_ppu_apu();
@@ -1123,33 +1149,33 @@ impl Nes {
     #[inline]
     fn indirect_x_illegal(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.x as u16) & 0xFF;
 
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab = (self.cpu.ab + 1) & 0xFF;
 
         self.clock_ppu_apu();
 
         // Cycle 3
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
 
         self.clock_ppu_apu();
 
         // Cycle 4
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
 
         self.clock_ppu_apu();
@@ -1172,21 +1198,21 @@ impl Nes {
     #[inline]
     fn indirect_y(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         //Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab = (self.cpu.ab + 1u16) & 0xFF;
 
         self.clock_ppu_apu();
 
         //Cycle 2
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.ab =
             ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
 
@@ -1194,14 +1220,14 @@ impl Nes {
 
         if (self.cpu.temp + self.cpu.y as u16) >= 0x100 {
             //Cycle extra if page boundary was crossed
-            self.penultimate_cycle();
+            penultimate_cycle!(self);
             self.cpu.ab = (self.cpu.ab).wrapping_add(0x100);
 
             self.clock_ppu_apu();
         }
 
         //Cycle 4
-        self.last_cycle();
+        last_cycle!(self);
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
@@ -1211,28 +1237,28 @@ impl Nes {
     #[inline]
     fn indirect_y_illegal(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab = (self.cpu.ab + 1) & 0xFF;
 
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab =
             ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
 
         self.clock_ppu_apu();
 
         // Cycle 3
-        self.start_cycle();
+        cycle!(self);
         if (self.cpu.temp + self.cpu.y as u16) >= 0x100 {
             self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100);
         };
@@ -1240,7 +1266,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 4
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
 
         self.clock_ppu_apu();
@@ -1263,28 +1289,28 @@ impl Nes {
     #[inline]
     fn indirect_y_st(&mut self, op_instruction: fn(&mut Nes)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab = (self.cpu.ab + 1) & 0xFF;
 
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab =
             ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
 
         self.clock_ppu_apu();
 
         // Cycle 3
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         if self.cpu.temp + self.cpu.y as u16 >= 0x100 {
             self.cpu.ab = (self.cpu.ab).wrapping_add(0x100);
         }
@@ -1302,7 +1328,7 @@ impl Nes {
     #[inline]
     fn absolute_st(&mut self, op_instruction: fn(&mut Nes)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
@@ -1310,7 +1336,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
@@ -1327,7 +1353,7 @@ impl Nes {
     #[inline]
     fn absolute_x_rmw(&mut self, op_instruction: fn(&mut Nes, val: u8)) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
@@ -1335,7 +1361,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.ab =
             ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.x as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
@@ -1343,7 +1369,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.start_cycle();
+        cycle!(self);
         if (self.cpu.temp + self.cpu.x as u16) >= 0x100 {
             self.cpu.ab = (self.cpu.ab).wrapping_add(0x100);
         };
@@ -1351,7 +1377,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 3
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
 
         self.clock_ppu_apu();
@@ -1374,7 +1400,7 @@ impl Nes {
     #[inline]
     fn jsr(&mut self) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.sp_to_ab();
@@ -1382,7 +1408,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1);
 
         self.clock_ppu_apu();
@@ -1402,7 +1428,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 4
-        self.last_cycle();
+        last_cycle!(self);
         self.cpu.pc = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.ab = self.cpu.pc;
 
@@ -1412,7 +1438,7 @@ impl Nes {
     #[inline]
     fn brk(&mut self) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         let int = if self.cpu.take_interrupt { 0 } else { 1 };
         self.cpu.pc += int;
         self.sp_to_ab();
@@ -1449,7 +1475,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 4
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab += 1;
         self.cpu.i = true;
@@ -1457,7 +1483,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 5
-        self.start_cycle();
+        cycle!(self);
         self.cpu.pc = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.ab = self.cpu.pc;
 
@@ -1467,13 +1493,13 @@ impl Nes {
     #[inline]
     fn rti(&mut self) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.sp_to_ab();
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1);
 
         self.sp_to_ab();
@@ -1481,7 +1507,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.start_cycle();
+        cycle!(self);
         self.pull_status(self.cpu.db);
         self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1);
 
@@ -1490,7 +1516,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 3
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1);
 
@@ -1499,7 +1525,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 4
-        self.last_cycle();
+        last_cycle!(self);
         self.cpu.pc = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.ab = self.cpu.pc;
 
@@ -1509,20 +1535,20 @@ impl Nes {
     #[inline]
     fn rts(&mut self) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.sp_to_ab();
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.start_cycle();
+        cycle!(self);
         self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1);
         self.sp_to_ab();
 
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.start_cycle();
+        cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1);
         self.sp_to_ab();
@@ -1530,7 +1556,7 @@ impl Nes {
         self.clock_ppu_apu();
 
         // Cycle 3
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.pc = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.ab = self.cpu.pc;
 
@@ -1538,7 +1564,7 @@ impl Nes {
 
         // Cycle 4
 
-        self.last_cycle();
+        last_cycle!(self);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
@@ -1548,7 +1574,7 @@ impl Nes {
     #[inline]
     fn pha(&mut self) {
         // Cycle 0
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.sp_to_ab();
         self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1);
         self.clock_ppu_apu();
@@ -1564,7 +1590,7 @@ impl Nes {
     #[inline]
     fn php(&mut self) {
         // Cycle 0
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.sp_to_ab();
         self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1);
         self.clock_ppu_apu();
@@ -1580,20 +1606,20 @@ impl Nes {
     #[inline]
     fn pla(&mut self) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.sp_to_ab();
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1);
         self.sp_to_ab();
 
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.last_cycle();
+        last_cycle!(self);
         self.lda(self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
@@ -1603,20 +1629,20 @@ impl Nes {
     #[inline]
     fn plp(&mut self) {
         // Cycle 0
-        self.start_cycle();
+        cycle!(self);
         self.sp_to_ab();
 
         self.clock_ppu_apu();
 
         // Cycle 1
-        self.penultimate_cycle();
+        penultimate_cycle!(self);
         self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1);
         self.sp_to_ab();
 
         self.clock_ppu_apu();
 
         // Cycle 2
-        self.last_cycle();
+        last_cycle!(self);
         self.pull_status(self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
@@ -2034,7 +2060,7 @@ impl Nes {
         self.cache_interrupts();
         let int = if self.cpu.take_interrupt { 0 } else { 1 };
         self.cpu_read(self.cpu.ab as usize);
-        self.check_dma();
+        check_read_hijack!(self);
         self.cpu.state = u8::from(int * self.cpu.db);
         self.cpu.pc = (self.cpu.pc).wrapping_add(int as u16);
         self.cpu.ab = self.cpu.pc
@@ -2079,38 +2105,8 @@ impl Nes {
     }
 
     #[inline]
-    fn check_dma(&mut self) {
-        if self.cpu.hijack_read {
-            self.cpu.dma_cycles = 1;
-            return;
-        }
-    }
-
-    #[inline]
     fn sp_to_ab(&mut self) {
         self.cpu.ab = self.cpu.sp as u16 | 0x100;
-    }
-
-    // Only if the instructions has 3 or more cycles (without next instruction fetch)
-    #[inline]
-    fn start_cycle(&mut self) {
-        self.cpu_read(self.cpu.ab as usize);
-        self.check_dma();
-    }
-
-    #[inline]
-    fn penultimate_cycle(&mut self) {
-        self.cache_interrupts();
-        self.cpu_read(self.cpu.ab as usize);
-        self.check_dma();
-    }
-
-    // Always executed on the last instruction cycle (before next instruction fetch)
-    #[inline]
-    fn last_cycle(&mut self) {
-        self.check_interrupts();
-        self.cpu_read(self.cpu.ab as usize);
-        self.check_dma();
     }
 
     #[inline]

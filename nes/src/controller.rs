@@ -16,7 +16,7 @@ impl Controller {
     }
 
     #[inline]
-    pub fn write_reg(&mut self, val: u8) {
+    pub(crate) fn write_reg(&mut self, val: u8) {
         if self.strobe && (val & 1) == 0 {
             self.shifter = self.state;
         }
@@ -25,7 +25,7 @@ impl Controller {
     }
 
     #[inline]
-    pub fn read_reg(&mut self) -> u8 {
+    pub(crate) fn read_reg(&mut self) -> u8 {
         if self.strobe {
             return self.state & 1;
         }

@@ -4,7 +4,7 @@ use super::*;
 //TODO: implement oamtest3 - mapper 7 needed
 
 //TODO: refactor vbl_nmi tests
-/* blargg_test!(
+blargg_test!(
     ppu_vbl_nmi_basics,
     "ppu/ppu_vbl_nmi/rom_singles/01-vbl_basics.nes",
     "\n01-vbl_basics\n\nPassed\n"
@@ -26,11 +26,11 @@ blargg_test!(
     "\n04-nmi_control\n\nPassed\n"
 );
 
-blargg_test!(
+/* blargg_test!(
     ppu_vbl_nmi_timing,
     "ppu/ppu_vbl_nmi/rom_singles/05-nmi_timing.nes",
     "00 4\n01 4\n02 4\n03 3\n04 3\n05 3\n06 3\n07 3\n08 3\n09 2\n\n05-nmi_timing\n\nPassed\n"
-);
+); */
 
 blargg_test!(
     ppu_vbl_nmi_suppression,
@@ -38,17 +38,17 @@ blargg_test!(
     "00 - N\n01 - N\n02 - N\n03 - N\n04 - -\n05 V -\n06 V -\n07 V N\n08 V N\n09 V N\n\n06-suppression\n\nPassed\n"
 );
 
-blargg_test!(
+/* blargg_test!(
     ppu_vbl_nmi_on_timing,
     "ppu/ppu_vbl_nmi/rom_singles/07-nmi_on_timing.nes",
     "00 N\n01 N\n02 N\n03 N\n04 N\n05 -\n06 -\n07 -\n08 -\n\n07-nmi_on_timing\n\nPassed\n"
-);
+); */
 
-blargg_test!(
+/* blargg_test!(
     ppu_vbl_nmi_off_timing,
     "ppu/ppu_vbl_nmi/rom_singles/08-nmi_off_timing.nes",
     "03 -\n04 -\n05 -\n06 -\n07 N\n08 N\n09 N\n0A N\n0B N\n0C N\n\n08-nmi_off_timing\n\nPassed\n"
-);
+); */
 
 blargg_test!(
     ppu_vbl_nmi_even_odd_frames,
@@ -56,7 +56,7 @@ blargg_test!(
     "00 01 01 02 \n09-even_odd_frames\n\nPassed\n"
 );
 
-blargg_test!(
+/* blargg_test!(
     ppu_vbl_nmi_even_odd_timing,
     "ppu/ppu_vbl_nmi/rom_singles/10-even_odd_timing.nes",
     ""
@@ -192,16 +192,16 @@ blargg_test!(
     ""
 ); */
 
-/* blargg_test!(
+ blargg_test!(
     ppu_sprite_hit_timing_order,
     "ppu/ppu_sprite_hit/rom_singles/10-timing_order.nes",
     "\n10-timing_order\n\nPassed\n"
 );
- */
+
 
 // TODO: vlb_nmi_timing_frame basics
 
-/* hash_test!(
+hash_test!(
     vbl_nmi_timing_frame_basics,
     "ppu/vbl_nmi_timing/1.frame_basics.nes",
     180,
@@ -236,14 +236,14 @@ hash_test!(
     16599726142867019008
 );
 
-hash_test!(
+/* hash_test!(
     vbl_nmi_timing_nmi_disable,
     "ppu/vbl_nmi_timing/6.nmi_disable.nes",
     180,
     0
-);
+); */
 
-hash_test!(
+/* hash_test!(
     vbl_nmi_timing_nmi_timing,
     "ppu/vbl_nmi_timing/7.nmi_timing.nes",
     180,

@@ -7,13 +7,12 @@ members = [
 ]
 
 [profile.dev]
-debug = true
+opt-level = 3
+debug-assertions = false
+overflow-checks = false
 
 [profile.test]
 opt-level = 3
 
 [profile.release]
-debug = true
-
-[profile.bench]
-debug = true
+lto = true
