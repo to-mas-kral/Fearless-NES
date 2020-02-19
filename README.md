@@ -1,5 +1,7 @@
 # Fearless-NES
 Fearless-NES is a work-in-progress Nintendo enterntainment system emulator written in Rust.
+Edit: After some heavy refactoring, I'm now happier with the overall state of the code. I'll stop working
+on Fearless-NES because I think it already fulfilled its educational purpose.
 
 # Screenshots
 
@@ -15,22 +17,21 @@ Fearless-NES is a work-in-progress Nintendo enterntainment system emulator writt
 # Building from source requires:
 1. Rustup
 2. Cargo
-3. rustfmt
+3. Nightly Rust compiler
 4. SDL 2
 
 ```sh
 $ git clone git@github.com:TomasKralCZ/fearless-NES.git
 $ cd fearless-NES
-$ rustup default nightly
-$ cargo run --release -p -frontend-sdl -- -r 'path to ROM'
+$ cargo +nightly run --release -- -r 'path to ROM'
 ```
 
 # Accuracy
 For accuracy tests, see TESTS.md.
 Run these with 'cargo test'.
 
-# What still needs to be done (see TODO.md)
-- [ ] majority of the APU
+# What still needs to be done
+- [ ] rest of the APU
 - [ ] advanced mappers such as MMC3, MMC5
 - [ ] various accuracy tests
 
