@@ -3,4 +3,4 @@
 *.log
 Cargo.lock
 .vscode
-Nintendo/
+roms/

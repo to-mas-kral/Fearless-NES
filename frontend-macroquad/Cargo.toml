@@ -1,0 +1,16 @@
+[package]
+name = "frontend-macroquad"
+version = "0.1.0"
+authors = ["TomasKralCZ <tomas@kral.hk>"]
+edition = "2018"
+default-run = "frontend-macroquad"
+
+[dependencies]
+fearless_nes = { path = "../nes" }
+macroquad = "0.3"
+egui = "0.14.0"
+egui-macroquad = "0.6.0"
+native-dialog = "0.5.5"
+gilrs = "0.8.1"
+zip = { version = "0.5.5", default-features = false, features = ["bzip2"] }
+png = "0.17.0"

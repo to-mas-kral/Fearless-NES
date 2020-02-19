@@ -1,50 +1,52 @@
-#![feature(test)]
+mod apu;
+mod cartridge;
+mod controller;
+mod cpu;
+mod mapper;
+mod ppu;
 
+#[cfg(test)]
 mod tests;
 
-pub mod cpu;
-
-pub mod apu;
-pub mod cartridge;
-pub mod controller;
-pub mod mapper;
-pub mod ppu;
-
-use mapper::Mapper;
-
 use apu::Apu;
+use cartridge::InesHeader;
 use controller::Controller;
 use cpu::Cpu;
+use mapper::Mapper;
 use ppu::Ppu;
 
-use std::fs::File;
-use std::io;
-use std::path::Path;
+use serde::{Deserialize, Serialize};
 
+pub use controller::Button;
+pub use ppu::PALETTE;
+
+#[derive(Serialize, Deserialize)]
 pub struct Nes {
-    pub cpu: Cpu,
-    pub ppu: Ppu,
-    pub apu: Apu,
+    cpu: Cpu,
+    ppu: Ppu,
+    apu: Apu,
 
-    pub mapper: Mapper,
+    mapper: Mapper,
 
-    pub controller: controller::Controller,
+    controller: controller::Controller,
 
-    pub frame_ready: bool,
+    frame_ready: bool,
     cycle_count: u64,
 }
 
+/*
+    Public API
+*/
 impl Nes {
-    pub fn new(rom_path: &Path) -> Result<Nes, NesError> {
-        let mut rom = File::open(rom_path)?;
-        let cartridge = cartridge::parse_rom(&mut rom)?;
+    pub fn new(rom: &[u8]) -> Result<Nes, NesError> {
+        let cartridge = cartridge::parse_rom(rom)?;
 
         let mut nes = Nes {
             cpu: Cpu::new(),
             ppu: Ppu::new(),
             apu: Apu::new(),
 
-            mapper: Nes::initialize_mapper(cartridge),
+            mapper: Nes::initialize_mapper(cartridge)?,
 
             controller: Controller::new(),
 
@@ -57,8 +59,8 @@ impl Nes {
         Ok(nes)
     }
 
-    pub fn set_controller_state(&mut self, keycode: controller::Keycode, state: bool) {
-        self.controller.set_button(keycode, state);
+    pub fn set_button_state(&mut self, button: controller::Button, state: bool) {
+        self.controller.set_button(button, state);
     }
 
     pub fn run_one_frame(&mut self) {
@@ -68,7 +70,38 @@ impl Nes {
         self.frame_ready = false;
     }
 
-    pub(crate) fn clock_ppu_apu(&mut self) {
+    pub fn run_cpu_cycle(&mut self) {
+        self.cpu_tick();
+    }
+
+    pub fn get_frame_buffer(&self) -> &[u8] {
+        &self.ppu.output_buffer
+    }
+
+    pub fn load_state(&mut self, save: &[u8]) -> Result<(), Box<bincode::ErrorKind>> {
+        let nes: Nes = bincode::deserialize(&save)?;
+
+        *self = nes;
+        self.reaload_mapper_pointers();
+
+        Ok(())
+    }
+
+    pub fn save_state(&self) -> Result<Vec<u8>, Box<bincode::ErrorKind>> {
+        bincode::serialize(self)
+    }
+
+    pub fn get_cpu_state(&mut self) -> &mut Cpu {
+        &mut self.cpu
+    }
+
+    pub fn get_ines_header(&mut self) -> &InesHeader {
+        &self.mapper.cartridge.header
+    }
+}
+
+impl Nes {
+    fn clock_ppu_apu(&mut self) {
         self.cpu.odd_cycle = !self.cpu.odd_cycle;
         self.cycle_count += 1;
         if self.cycle_count == 29658 {
@@ -85,14 +118,10 @@ impl Nes {
 
 #[derive(Debug)]
 pub enum NesError {
-    IoError(io::Error),
-    PalRom,
-    InvalidFile,
-    UnsupportedMapper,
-}
-
-impl From<io::Error> for NesError {
-    fn from(error: io::Error) -> Self {
-        NesError::IoError(error)
-    }
+    Ines2Unsupported,
+    TrainerUnsupported,
+    PalUnsupported,
+    UnSupportedMapper(u32),
+    InvalidInesFormat,
+    InvalidRomSize,
 }

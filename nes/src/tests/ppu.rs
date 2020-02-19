@@ -1,4 +1,5 @@
 use super::*;
+use crate::{blargg_test, hash_test};
 
 //TODO: get read_buffer test working
 //TODO: implement oamtest3 - mapper 7 needed

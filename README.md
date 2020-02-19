@@ -13,35 +13,38 @@ Fearless-NES is a work-in-progress Nintendo enterntainment system emulator writt
 
 
 # Building from source requires:
-1. Rustup
-2. Cargo
-3. rustfmt
-4. SDL 2
+1. Cargo
+2. Macroquad dependencies
 
 ```sh
 $ git clone git@github.com:TomasKralCZ/fearless-NES.git
 $ cd fearless-NES
-$ rustup default nightly
-$ cargo run --release -p -frontend-sdl -- -r 'path to ROM'
+$ cargo run --release
 ```
 
 # Accuracy
 For accuracy tests, see TESTS.md.
 Run these with 'cargo test'.
 
-# What still needs to be done (see TODO.md)
-- [ ] majority of the APU
+# TODO
+- [ ] rest of the APU
 - [ ] advanced mappers such as MMC3, MMC5
 - [ ] various accuracy tests
+- [x] save states
+- [x] controller support
 
 # Controls
+### Keyboard
 | NES controller  | Keyboard |
 | ------------- | ------------- |
-| A  | A  |
-| B  | S  |
-| Select  | Y/Z |
-| Start  | X  |
+| A  | F  |
+| B  | D  |
+| Select  | Space |
+| Start  | Enter  |
 | Up  | ArrowUp  |
 | Down  | ArrowDown  |
 | Right  | ArrowRight  |
 | Left  | ArrowLeft  |
+
+### Gamepad
+![Gamepad Layout](https://raw.githubusercontent.com/TomasKralCZ/Fearless-NES/master/controller.svg)

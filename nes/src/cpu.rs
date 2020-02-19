@@ -1,5 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use super::Nes;
 
+#[derive(Serialize, Deserialize)]
 enum InterruptType {
     Nmi,
     Irq,
@@ -7,32 +10,39 @@ enum InterruptType {
     None,
 }
 
+#[derive(Serialize, Deserialize)]
 enum DmaHijack {
     Request,
     Hijacked,
     None,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Cpu {
-    a: u8,       // Accumulator
-    x: u8,       // X index
-    y: u8,       // Y index
-    pub pc: u16, // Program counter (16 bits)
-    pub sp: u8,  // Stack pointer (8 bits)
+    // registers
+    pub a: u8,
+    pub x: u8,
+    pub y: u8,
+    pub pc: u16,
+    pub sp: u8,
 
-    n: bool, // Negative flag
-    v: bool, // Overflow flag
-    i: bool, // Interrupt inhibit
-    z: bool, // Zero flag
-    c: bool, // Carry flag
-    d: bool, // BCD flag, this doesn't do anything on the NES CPU
+    // flags
+    pub n: bool,
+    pub v: bool,
+    pub i: bool,
+    pub z: bool,
+    pub c: bool,
+    /// BCD flag, BCD mode doesn't work on the NES CPU, but we still need to
+    /// keep the state of this flag to return the correct value in pull_status()
+    pub d: bool,
 
-    pub halt: bool,
-    pub state: u8,
+    // state needed for cycle-accuracy
+    pub current_instruction: u8,
     pub odd_cycle: bool,
-
-    pub ab: u16, //Address bus
-    db: u8,      //Data bus
+    /// Address bus
+    pub ab: u16,
+    /// Data bus
+    db: u8,
     temp: u16,
     pub open_bus: u8,
 
@@ -69,13 +79,13 @@ impl Cpu {
             z: false,
             c: false,
 
-            halt: false,
-            state: 0,
+            current_instruction: 0,
             odd_cycle: false,
 
             ab: 0,
             db: 0,
             temp: 0,
+            open_bus: 0,
 
             cached_irq: false,
             irq_signal: false,
@@ -85,13 +95,11 @@ impl Cpu {
             take_interrupt: false,
             interrupt_type: InterruptType::None,
 
-            open_bus: 0,
-
-            dmc: false,
             dma_cycles: 0,
             hijack_read: DmaHijack::None,
             copy_buffer: 0,
             dma_addr: 0,
+            dmc: false,
 
             ram: vec![0; 0x800],
         }
@@ -99,17 +107,8 @@ impl Cpu {
 }
 
 impl Nes {
-    pub(crate) fn cpu_debug_info(&mut self) -> String {
-        format!(
-            "A: 0x{:X}, X: 0x{:X}, Y: 0x{:X}, pc: 0x{:X}, sp: 0x{:X}, ab: 0x{:X}, db: 0x{:X}, n: {}, v: {}, d: {}, u: {}, c: {}, i: {}",
-            self.cpu.a, self.cpu.x, self.cpu.y, self.cpu.pc,
-            self.cpu.sp, self.cpu.ab, self.cpu.db, self.cpu.n,
-            self.cpu.v, self.cpu.d, self.cpu.z, self.cpu.c, self.cpu.i
-        )
-    }
-
     pub(crate) fn cpu_gen_reset(&mut self) {
-        self.cpu.state = 0;
+        self.cpu.current_instruction = 0;
         self.cpu.take_interrupt = true;
         self.cpu.reset_signal = true;
         self.cpu.interrupt_type = InterruptType::Reset;
@@ -118,14 +117,14 @@ impl Nes {
     }
 
     pub(crate) fn cpu_reset_routine(&mut self) {
-        self.cpu.state = 0;
+        self.cpu.current_instruction = 0;
         self.cpu_tick();
     }
 
     #[inline]
     pub(crate) fn cpu_read(&mut self, index: usize) {
         self.cpu.open_bus = match index {
-            0x4020..=0xFFFF => (self.mapper.cpu_read)(self, index),
+            0x4020..=0xFFFF => (self.mapper.cpu_read.ptr)(self, index),
             0..=0x1FFF => self.cpu.ram[index & 0x7FF],
             0x2000..=0x3FFF => self.ppu_read_reg(index),
             0x4000..=0x4014 | 0x4017..=0x401F => self.cpu.open_bus,
@@ -154,16 +153,18 @@ impl Nes {
             0x4016 => self.controller.write_reg(val),
             0x4017 => self.apu_write_reg(index, val),
             0x4018..=0x401F => (),
-            0x4020..=0xFFFF => (self.mapper.cpu_write)(self, index, val),
+            0x4020..=0xFFFF => (self.mapper.cpu_write.ptr)(self, index, val),
             _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
         }
     }
 
+    // This method allows reading from memory without causing side effect, used in testing
+    #[allow(dead_code)]
     #[inline]
     pub(crate) fn cpu_peek(&mut self, index: usize) -> u8 {
         match index {
             0..=0x1FFF => self.cpu.ram[index & 0x7FF],
-            0x4020..=0xFFFF => (self.mapper.cpu_peek)(self, index),
+            0x4020..=0xFFFF => (self.mapper.cpu_peek.ptr)(self, index),
             _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
         }
     }
@@ -235,14 +236,16 @@ macro_rules! last_cycle {
     };
 }
 
-/* Most of the documentation for the 6502 can be found on nesdev:
-http://nesdev.com/6502_cpu.txt
-However, a few illegal instructions (LAX and XAA) are basically undefined.
-Some information about those can be found in the visual6502.org wiki:
-http://visual6502.org/wiki/index.php?title=6502_Unsupported_Opcodes
-The 6502 has many quirks, some of them (such as the branch behavior) are
-described on visual6502.org wiki. Some of them are described in numerous
-random documents found in the hidden corners of the internet.*/
+/*
+    Most of the documentation for the 6502 can be found on nesdev:
+    http://nesdev.com/6502_cpu.txt
+    However, a few illegal instructions (LAX and XAA) are basically undefined.
+    Some information about those can be found in the visual6502.org wiki:
+    http://visual6502.org/wiki/index.php?title=6502_Unsupported_Opcodes
+    The 6502 has many quirks, some of them (such as the branch behavior) are
+    described on visual6502.org wiki. Some of them are described in numerous
+    random documents found in the hidden corners of the internet.
+*/
 
 impl Nes {
     pub(crate) fn cpu_tick(&mut self) {
@@ -252,7 +255,7 @@ impl Nes {
             return;
         }
 
-        match self.cpu.state {
+        match self.cpu.current_instruction {
             0x00 => self.brk(),
             0x01 => self.indirect_x(Nes::ora),
             0x02 => self.immediate(Nes::halt),
@@ -2049,7 +2052,8 @@ impl Nes {
     }
 
     fn halt(&mut self, _: u8) {
-        self.cpu.halt = true;
+        // TODO: shouldn't panic here
+        panic!("The CPU executed a halt instruction, this implies either an emulator bug, or a game bug.");
     }
 }
 
@@ -2061,7 +2065,7 @@ impl Nes {
         let int = if self.cpu.take_interrupt { 0 } else { 1 };
         self.cpu_read(self.cpu.ab as usize);
         check_read_hijack!(self);
-        self.cpu.state = u8::from(int * self.cpu.db);
+        self.cpu.current_instruction = u8::from(int * self.cpu.db);
         self.cpu.pc = (self.cpu.pc).wrapping_add(int as u16);
         self.cpu.ab = self.cpu.pc
     }

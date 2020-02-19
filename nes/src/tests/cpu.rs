@@ -1,31 +1,7 @@
 use super::*;
+use crate::{blargg_test, hash_test};
 
 //TODO: implement cpu_interrupts_v2 tests
-
-//TODO: nestest
-/*#[test]
-fn nestest() {
-    let nestest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let nestest_log_path = Path::new(&nestest_dir).join("src/tests/nestest/nestest_formatted.log");
-    let nestest_path = Path::new(&nestest_dir).join("src/tests/nestest/nestest.nes");
-
-    let f = File::open(&nestest_log_path).unwrap();
-    let file = BufReader::new(&f);
-    let mut lines = file.lines();
-
-    let mut nes = Nes::new(&nestest_path).expect("error when creating test NES instance");
-
-    nes.cpu.pc = 0xC000;
-    nes.cpu.ab = nes.cpu.pc;
-
-    for _ in 0..8991 {
-        assert_eq!(nes.cpu.debug_info(), lines.next().unwrap().unwrap());
-        nes.run_one_cpu_cycle();
-        while nes.cpu.state != 0x100 {
-            nes.run_one_cpu_cycle();
-        }
-    }
-}*/
 
 blargg_test!(
     blargg_instr_all,

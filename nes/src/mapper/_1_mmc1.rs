@@ -1,25 +1,21 @@
-use super::super::cartridge::Cartridge;
-use super::super::cartridge::Mirroring;
-use super::super::Nes;
-use super::Mapper;
+use super::{
+    super::{
+        cartridge::{BankSize, Cartridge},
+        ppu::Mirroring,
+        Nes,
+    },
+    Mapper,
+};
 
 impl Nes {
-    pub fn _1_mmc1_initialize(cartridge: Cartridge) -> Mapper {
+    pub(crate) fn _1_mmc1_initialize(cartridge: Cartridge) -> Mapper {
         let mut mapper = Mapper::new(cartridge);
 
-        let prg_count = mapper.cartridge.header.prg_rom_size as usize;
-        let prg_2 = 0x4000 * (prg_count - 1);
-
-        let chr_mask = if mapper.cartridge.header.chr_rom_size <= 1 {
+        let chr_mask = if mapper.cartridge.header.chr_rom_count <= 1 {
             1
         } else {
             0xFF
         };
-
-        mapper.prg_1 = 0;
-        mapper.prg_2 = prg_2;
-        mapper.chr_1 = 0;
-        mapper.chr_2 = 0;
 
         mapper.shift = 0x10;
 
@@ -29,19 +25,30 @@ impl Nes {
         mapper.chr_mask = chr_mask;
         mapper.enable_ram = false;
 
-        mapper.nt_ram = vec![0; 0x1000];
-
         mapper.ignore_write = 0;
 
-        mapper.cpu_read = Nes::_1_mmc1_cpu_read;
-        mapper.cpu_peek = Nes::_1_mmc1_cpu_peek;
-        mapper.cpu_write = Nes::_1_mmc1_cpu_write;
-        mapper.read_chr = Nes::_1_mmc1_read_chr;
-        mapper.write_chr = Nes::_1_mmc1_write_chr;
-        mapper.read_nametable = Nes::_1_mmc1_read_nametable;
-        mapper.write_nametable = Nes::_1_mmc1_write_nametable;
+        mapper.prg_rom_indices = vec![0, mapper.cartridge.header.prg_rom_count - 1];
+        mapper.chr_indices = vec![0, 0];
+
+        mapper.cpu_read.ptr = Nes::_1_mmc1_cpu_read;
+        mapper.cpu_peek.ptr = Nes::_1_mmc1_cpu_peek;
+        mapper.cpu_write.ptr = Nes::_1_mmc1_cpu_write;
+        mapper.read_chr.ptr = Nes::_1_mmc1_read_chr;
+        mapper.write_chr.ptr = Nes::_1_mmc1_write_chr;
+        mapper.read_nametable.ptr = Nes::_1_mmc1_read_nametable;
+        mapper.write_nametable.ptr = Nes::_1_mmc1_write_nametable;
 
         mapper
+    }
+
+    pub(crate) fn _1_mmc1_reload(&mut self) {
+        self.mapper.cpu_read.ptr = Nes::_1_mmc1_cpu_read;
+        self.mapper.cpu_peek.ptr = Nes::_1_mmc1_cpu_peek;
+        self.mapper.cpu_write.ptr = Nes::_1_mmc1_cpu_write;
+        self.mapper.read_chr.ptr = Nes::_1_mmc1_read_chr;
+        self.mapper.write_chr.ptr = Nes::_1_mmc1_write_chr;
+        self.mapper.read_nametable.ptr = Nes::_1_mmc1_read_nametable;
+        self.mapper.write_nametable.ptr = Nes::_1_mmc1_write_nametable;
     }
 
     //Control (internal, $8000-$9FFF)
@@ -56,7 +63,7 @@ impl Nes {
     //|                         3: fix last bank at $C000 and switch 16 KB bank at $8000)
     //+----- CHR ROM bank mode (0: switch 8 KB at a time; 1: switch two separate 4 KB banks)
     #[inline]
-    pub fn _1_mmc1_write_control(&mut self, val: u8) {
+    pub(crate) fn _1_mmc1_write_control(&mut self, val: u8) {
         self.mapper.mirroring = match val & 3 {
             0 => Mirroring::SingleScreenLow,
             1 => Mirroring::SingleScreenHigh,
@@ -68,18 +75,15 @@ impl Nes {
         self.mapper.prg_mode = (val & 0xC) >> 2;
         match self.mapper.prg_mode {
             0 | 1 => (),
-            2 => self.mapper.prg_1 = 0,
+            2 => self.mapper.prg_rom_indices[0] = 0,
             3 => {
-                self.mapper.prg_2 =
-                    (self.mapper.cartridge.header.prg_rom_size as usize - 1) * 0x4000
+                self.mapper.prg_rom_indices[1] =
+                    self.mapper.cartridge.header.prg_rom_count - 1
             }
             _ => unreachable!(),
         }
 
         self.mapper.chr_mode = (val & 0x10) >> 4;
-
-        //println!("val: {}, mode: {}", val, self.prg_mode);
-        //println!("prg_1: 0x{:X}, prg_2: 0x{:X}", self.prg_1, self.prg_2);
     }
 
     //CHR bank 0 (internal, $A000-$BFFF)
@@ -87,21 +91,17 @@ impl Nes {
     //-----
     //CCCCC
     //|||||
-    //+++++- Select 4 KB or 8 KB CHR bank at PPU $0000 (low bit ignored in 8 KB mode)
+    //+++++- Select 4 KB or 8 KB CHR bank at PPU 000 (low bit ignored in 8 KB mode)
     //For carts with 8 KiB of CHR (be it ROM or RAM), MMC1 follows the common
     //behavior of using only the low-order bits: the bank number is in effect ANDed with 1.
     #[inline]
-    pub fn _1_mmc1_write_chr_0(&mut self, val: u8) {
+    pub(crate) fn _1_mmc1_write_chr_0(&mut self, val: u8) {
         if self.mapper.chr_mode == 1 {
-            self.mapper.chr_1 = 0x1000 * (val & self.mapper.chr_mask) as usize;
+            self.mapper.chr_indices[0] = val & self.mapper.chr_mask;
         } else {
-            self.mapper.chr_1 = 0x1000 * (val as usize & 0xFE);
-            self.mapper.chr_2 = self.mapper.chr_1 + 0x1000;
+            self.mapper.chr_indices[0] = val & 0xFE;
+            self.mapper.chr_indices[1] = self.mapper.chr_indices[0] + 1;
         }
-        //println!(
-        //    "switching chr banks, mode: {}, chr_1: 0x{:X}, chr_2: 0x{:X}",
-        //    self.chr_mode, self.chr_1, self.chr_2
-        //);
     }
 
     //CHR bank 1 (internal, $C000-$DFFF)
@@ -111,14 +111,10 @@ impl Nes {
     //|||||
     //+++++- Select 4 KB CHR bank at PPU $1000 (ignored in 8 KB mode)
     #[inline]
-    pub fn _1_mmc1_write_chr_1(&mut self, val: u8) {
+    pub(crate) fn _1_mmc1_write_chr_1(&mut self, val: u8) {
         if self.mapper.chr_mode == 1 {
-            self.mapper.chr_2 = 0x1000 * (val & self.mapper.chr_mask) as usize;
+            self.mapper.chr_indices[1] = val & self.mapper.chr_mask;
         }
-        //println!(
-        //    "switching chr banks, mode: {}, chr_1: 0x{:X}, chr_2: 0x{:X}",
-        //    self.chr_mode, self.chr_1, self.chr_2
-        //);
     }
 
     //PRG bank (internal, $E000-$FFFF)
@@ -129,59 +125,49 @@ impl Nes {
     //|++++- Select 16 KB PRG ROM bank (low bit ignored in 32 KB mode)
     //+----- PRG RAM chip enable (0: enabled; 1: disabled; ignored on MMC1A)
     #[inline]
-    pub fn _1_mmc1_write_prg(&mut self, val: u8) {
+    pub(crate) fn _1_mmc1_write_prg(&mut self, val: u8) {
         self.mapper.enable_ram = val & 0x10 == 0;
         match self.mapper.prg_mode {
             0 | 1 => {
-                self.mapper.prg_1 = 0x4000 * (val as usize & 0xE);
-                self.mapper.prg_2 = self.mapper.prg_1 + 0x4000;
+                self.mapper.prg_rom_indices[0] = val & 0xE;
+                self.mapper.prg_rom_indices[1] = self.mapper.prg_rom_indices[0] + 1;
             }
-            2 => self.mapper.prg_2 = 0x4000 * (val as usize & 0xF),
-            3 => self.mapper.prg_1 = 0x4000 * (val as usize & 0xF),
+            2 => self.mapper.prg_rom_indices[1] = val & 0xF,
+            3 => self.mapper.prg_rom_indices[0] = val & 0xF,
             _ => unreachable!(),
         }
-
-        //println!("size: {:?}", self.cartridge.header.prg_rom_size);
-
-        //println!("val: 0x{:X}, mode: {}", val, self.prg_mode);
-        //println!(
-        //    "new prg_1: 0x{:X}, new prg_2: 0x{:X}",
-        //    self.prg_1, self.prg_2
-        //);
     }
 
-    pub fn _1_mmc1_cpu_peek(&mut self, addr: usize) -> u8 {
-        match addr {
-            0x6000..=0x7FFF => self.mapper.cartridge.prg_ram[addr - 0x6000],
-            0x8000..=0xBFFF => {
-                self.mapper.cartridge.prg_rom[self.mapper.prg_1 + (addr - 0x8000)]
-            }
-            0xC000..=0xFFFF => {
-                self.mapper.cartridge.prg_rom[self.mapper.prg_2 + (addr - 0xC000)]
-            }
-            _ => 0,
-        }
+    pub(crate) fn _1_mmc1_cpu_peek(&mut self, addr: usize) -> u8 {
+        self._1_mmc1_cpu_read(addr)
     }
 
-    pub fn _1_mmc1_cpu_read(&mut self, addr: usize) -> u8 {
+    pub(crate) fn _1_mmc1_cpu_read(&mut self, addr: usize) -> u8 {
         match addr {
-            0x6000..=0x7FFF if self.mapper.enable_ram => {
-                self.mapper.cartridge.prg_ram[addr - 0x6000]
-            }
-            0x8000..=0xBFFF => {
-                self.mapper.cartridge.prg_rom[self.mapper.prg_1 + (addr - 0x8000)]
-            }
-            0xC000..=0xFFFF => {
-                self.mapper.cartridge.prg_rom[self.mapper.prg_2 + (addr - 0xC000)]
-            }
+            0x6000..=0x7FFF if self.mapper.enable_ram => self
+                .mapper
+                .cartridge
+                .read_prg_ram(addr - 0x6000, 0, BankSize::Kb8),
+            0x8000..=0xBFFF => self.mapper.cartridge.read_prg_rom(
+                addr - 0x8000,
+                self.mapper.prg_rom_indices[0],
+                BankSize::Kb16,
+            ),
+            0xC000..=0xFFFF => self.mapper.cartridge.read_prg_rom(
+                addr - 0xC000,
+                self.mapper.prg_rom_indices[1],
+                BankSize::Kb16,
+            ),
             _ => self.cpu.open_bus,
         }
     }
 
-    pub fn _1_mmc1_cpu_write(&mut self, addr: usize, val: u8) {
+    pub(crate) fn _1_mmc1_cpu_write(&mut self, addr: usize, val: u8) {
         match addr {
             0x6000..=0x7FFF if self.mapper.enable_ram => {
-                self.mapper.cartridge.prg_ram[addr - 0x6000] = val
+                self.mapper
+                    .cartridge
+                    .write_prg_ram(addr - 0x6000, 0, BankSize::Kb8, val);
             }
             0x8000..=0xFFFF => {
                 //When the CPU writes to the serial port on consecutive cycles, the MMC1 ignores
@@ -194,7 +180,6 @@ impl Nes {
                 } else {
                     self.mapper.ignore_write = self.cycle_count + 1;
                 }
-                //println!("cpu write, val: 0x{:X}", val);
 
                 //Writing a value with bit 7 set to any address in $8000-$FFFF clears the shift register
                 //to its initial state.
@@ -209,7 +194,6 @@ impl Nes {
                     //the address, and then it clears the shift register.
                     let shift = ((val & 1) << 4) | self.mapper.shift >> 1;
 
-                    //println!("shifter after: {:b}", shift);
                     if self.mapper.shift & 1 != 0 {
                         match addr & 0x6000 {
                             0 => self._1_mmc1_write_control(shift),
@@ -232,35 +216,45 @@ impl Nes {
         }
     }
 
-    pub fn _1_mmc1_read_chr(&mut self, addr: usize) -> u8 {
-        //println!("chr reading, addr 0x{:X}", addr);
-        //println!("chr_1: 0x{:X}, chr_2 0x{:X}", self.chr_1, self.chr_2);
+    pub(crate) fn _1_mmc1_read_chr(&mut self, addr: usize) -> u8 {
         match addr {
-            0..=0xFFF => self.mapper.cartridge.chr[self.mapper.chr_1 + addr],
-            0x1000..=0x1FFF => {
-                self.mapper.cartridge.chr[self.mapper.chr_2 + (addr & 0xFFF)]
-            }
+            0..=0xFFF => self.mapper.cartridge.read_chr(
+                addr,
+                self.mapper.chr_indices[0],
+                BankSize::Kb4,
+            ),
+            0x1000..=0x1FFF => self.mapper.cartridge.read_chr(
+                addr & 0xFFF,
+                self.mapper.chr_indices[1],
+                BankSize::Kb4,
+            ),
             _ => unreachable!(),
         }
     }
 
-    pub fn _1_mmc1_write_chr(&mut self, addr: usize, val: u8) {
-        //println!("chr writing, addr 0x{:X}", addr);
-        //println!("chr_1: 0x{:X}, chr_2 0x{:X}", self.chr_1, self.chr_2);
+    pub(crate) fn _1_mmc1_write_chr(&mut self, addr: usize, val: u8) {
         match addr {
-            0..=0xFFF => self.mapper.cartridge.chr[self.mapper.chr_1 + addr] = val,
-            0x1000..=0x1FFF => {
-                self.mapper.cartridge.chr[self.mapper.chr_2 + (addr & 0xFFF)] = val
-            }
+            0..=0xFFF => self.mapper.cartridge.write_chr(
+                addr,
+                self.mapper.chr_indices[0],
+                BankSize::Kb4,
+                val,
+            ),
+            0x1000..=0x1FFF => self.mapper.cartridge.write_chr(
+                addr & 0xFFF,
+                self.mapper.chr_indices[1],
+                BankSize::Kb4,
+                val,
+            ),
             _ => unreachable!(),
         }
     }
 
-    pub fn _1_mmc1_read_nametable(&mut self, addr: usize) -> u8 {
+    pub(crate) fn _1_mmc1_read_nametable(&mut self, addr: usize) -> u8 {
         self.mapper.nt_ram[addr]
     }
 
-    pub fn _1_mmc1_write_nametable(&mut self, addr: usize, val: u8) {
+    pub(crate) fn _1_mmc1_write_nametable(&mut self, addr: usize, val: u8) {
         self.mapper.nt_ram[addr] = val;
     }
 }

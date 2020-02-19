@@ -1,6 +1,6 @@
-use super::cartridge::Cartridge;
-use super::cartridge::Mirroring;
-use super::Nes;
+use serde::{Deserialize, Serialize};
+
+use super::{cartridge::Cartridge, ppu::Mirroring, Nes, NesError};
 
 mod _0_nrom;
 mod _1_mmc1;
@@ -9,45 +9,66 @@ mod _3_cnrom;
 mod _7_axrom;
 
 impl Nes {
-    pub fn initialize_mapper(cartridge: Cartridge) -> Mapper {
-        match cartridge.header.mapper {
-            0 => Nes::_0_nrom_initialize(cartridge),
-            1 => Nes::_1_mmc1_initialize(cartridge),
-            2 => Nes::_2_uxrom_initialize(cartridge),
-            3 => Nes::_3_cnrom_initialize(cartridge),
-            7 => Nes::_7_axrom_initialize(cartridge),
-            _ => {
-                panic!("mapper number {} is unsupported", cartridge.header.mapper);
-                //Err(NesError::UnsupportedMapper)
-            }
+    pub(crate) fn initialize_mapper(cartridge: Cartridge) -> Result<Mapper, NesError> {
+        match cartridge.header.mapper_id {
+            0 => Ok(Nes::_0_nrom_initialize(cartridge)),
+            1 => Ok(Nes::_1_mmc1_initialize(cartridge)),
+            2 => Ok(Nes::_2_uxrom_initialize(cartridge)),
+            3 => Ok(Nes::_3_cnrom_initialize(cartridge)),
+            7 => Ok(Nes::_7_axrom_initialize(cartridge)),
+            mapper_id => Err(NesError::UnSupportedMapper(mapper_id)),
+        }
+    }
+
+    pub(crate) fn reaload_mapper_pointers(&mut self) {
+        match self.mapper.cartridge.header.mapper_id {
+            0 => Nes::_0_nrom_reload(self),
+            1 => Nes::_1_mmc1_reload(self),
+            3 => Nes::_3_cnrom_reload(self),
+            2 => Nes::_2_uxrom_reload(self),
+            7 => Nes::_7_axrom_reload(self),
+            mapper_id => panic!("Loaded unsupported mapper {} from save file", mapper_id),
         }
     }
 }
 
+/*
+    Using functions rather than Trait objects provides more versatility.
+    It's also necessary to implement more complicated mappers such as
+    MMC3 / MMC5 which require access to nes state.
+*/
+
+#[derive(Serialize, Deserialize)]
 pub struct Mapper {
     // Function pointers
-    pub cpu_read: fn(&mut Nes, usize) -> u8,
-    pub cpu_peek: fn(&mut Nes, usize) -> u8,
-    pub cpu_write: fn(&mut Nes, addr: usize, val: u8),
-    pub read_chr: fn(&mut Nes, addr: usize) -> u8,
-    pub write_chr: fn(&mut Nes, addr: usize, val: u8),
-    pub read_nametable: fn(&mut Nes, addr: usize) -> u8,
-    pub write_nametable: fn(&mut Nes, addr: usize, val: u8),
-
-    // General mapper state
-    pub prg_1: usize,
-    pub prg_2: usize,
-    pub chr_1: usize,
-    pub chr_2: usize,
+    #[serde(skip)]
+    pub cpu_read: MapperRead,
+    #[serde(skip)]
+    pub cpu_peek: MapperRead,
+    #[serde(skip)]
+    pub cpu_write: MapperWrite,
+    #[serde(skip)]
+    pub read_chr: MapperRead,
+    #[serde(skip)]
+    pub write_chr: MapperWrite,
+    #[serde(skip)]
+    pub read_nametable: MapperRead,
+    #[serde(skip)]
+    pub write_nametable: MapperWrite,
 
     pub nt_ram: Vec<u8>,
 
     pub mirroring: Mirroring,
-
     pub cartridge: Cartridge,
 
+    prg_rom_count: u8,
+    chr_count: u8,
+
+    prg_rom_indices: Vec<u8>,
+    chr_indices: Vec<u8>,
+
     // State for specific mappers
-    // 0
+    // 0 - NROM
     // 1 - MMC1
     pub shift: u8,
     prg_mode: u8,
@@ -64,27 +85,28 @@ impl Mapper {
     pub fn new(cartridge: Cartridge) -> Mapper {
         Mapper {
             // Function pointers
-            cpu_read: mock_cpu_read,
-            cpu_peek: mock_cpu_peek,
-            cpu_write: mock_cpu_write,
-            read_chr: mock_read_chr,
-            write_chr: mock_write_chr,
-            read_nametable: mock_read_nametable,
-            write_nametable: mock_write_nametable,
-
-            // General mapper state
-            prg_1: 0,
-            prg_2: 0,
-            chr_1: 0,
-            chr_2: 0,
+            cpu_read: MapperRead::default(),
+            cpu_peek: MapperRead::default(),
+            cpu_write: MapperWrite::default(),
+            read_chr: MapperRead::default(),
+            write_chr: MapperWrite::default(),
+            read_nametable: MapperRead::default(),
+            write_nametable: MapperWrite::default(),
 
             nt_ram: vec![0; 0x1000],
 
-            mirroring: Mirroring::Obscure,
+            mirroring: cartridge.header.mirroring,
+
+            prg_rom_count: cartridge.header.prg_rom_count,
+            chr_count: cartridge.header.chr_rom_count,
+
+            // Must be initialized for specific mappers
+            prg_rom_indices: vec![],
+            chr_indices: vec![],
 
             cartridge,
 
-            // State for specific mappers
+            // State for specific mappers, this is set in initialze functions
             // 0
             // 1 - MMC1
             shift: 0,
@@ -100,24 +122,32 @@ impl Mapper {
     }
 }
 
-fn mock_cpu_read(_: &mut Nes, _: usize) -> u8 {
-    unimplemented!("Mapper function pointer have not been set")
+// Structs have to be used here for implementing Default, which is used for Serde
+
+pub struct MapperRead {
+    pub ptr: fn(_: &mut Nes, _: usize) -> u8,
 }
-fn mock_cpu_peek(_: &mut Nes, _: usize) -> u8 {
-    unimplemented!("Mapper function pointer have not been set")
+
+pub struct MapperWrite {
+    pub ptr: fn(_: &mut Nes, _: usize, _: u8),
 }
-fn mock_cpu_write(_: &mut Nes, _: usize, _: u8) {
-    unimplemented!("Mapper function pointer have not been set")
+
+impl Default for MapperRead {
+    fn default() -> Self {
+        MapperRead {
+            ptr: |_: &mut Nes, _: usize| {
+                panic!("Mapper function pointers haven't been initialised")
+            },
+        }
+    }
 }
-fn mock_read_chr(_: &mut Nes, _: usize) -> u8 {
-    unimplemented!("Mapper function pointer have not been set")
-}
-fn mock_write_chr(_: &mut Nes, _: usize, _: u8) {
-    unimplemented!("Mapper function pointer have not been set")
-}
-fn mock_read_nametable(_: &mut Nes, _: usize) -> u8 {
-    unimplemented!("Mapper function pointer have not been set")
-}
-fn mock_write_nametable(_: &mut Nes, _: usize, _: u8) {
-    unimplemented!("Mapper function pointer have not been set")
+
+impl Default for MapperWrite {
+    fn default() -> Self {
+        MapperWrite {
+            ptr: |_: &mut Nes, _: usize, _: u8| {
+                panic!("Mapper function pointers haven't been initialised")
+            },
+        }
+    }
 }
