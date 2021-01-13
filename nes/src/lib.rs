@@ -3,7 +3,6 @@
 mod tests;
 
 pub mod cpu;
-
 pub mod apu;
 pub mod cartridge;
 pub mod controller;
@@ -17,26 +16,36 @@ use controller::Controller;
 use cpu::Cpu;
 use ppu::Ppu;
 
-use std::fs::File;
-use std::io;
-use std::path::Path;
+use std::{
+    fs::{self, File},
+    io,
+    path::Path,
+};
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
 pub struct Nes {
-    pub cpu: Cpu,
-    pub ppu: Ppu,
-    pub apu: Apu,
+    cpu: Cpu,
+    ppu: Ppu,
+    apu: Apu,
 
-    pub mapper: Mapper,
+    mapper: Mapper,
 
-    pub controller: controller::Controller,
+    controller: controller::Controller,
 
-    pub frame_ready: bool,
+    frame_ready: bool,
     cycle_count: u64,
 }
 
 impl Nes {
-    pub fn new(rom_path: &Path) -> Result<Nes, NesError> {
-        let mut rom = File::open(rom_path)?;
+    /*
+        Public API
+    */
+    pub fn new(rom_path: &str) -> Result<Nes, NesError> {
+        // TODO: remove file loading logic, accept vector of bytes
+        // TODO: error handling
+        let mut rom = File::open(Path::new(rom_path))?;
         let cartridge = cartridge::parse_rom(&mut rom)?;
 
         let mut nes = Nes {
@@ -68,7 +77,26 @@ impl Nes {
         self.frame_ready = false;
     }
 
-    pub(crate) fn clock_ppu_apu(&mut self) {
+    pub fn get_frame_buffer(&self) -> &[u8] {
+        &self.ppu.output_buffer
+    }
+
+    pub fn load_state(&mut self, save_path: &str) {
+        let save = fs::read(save_path).unwrap();
+
+        let nes: Nes = bincode::deserialize(&save).unwrap();
+
+        *self = nes;
+        self.reaload_mapper_pointers();
+    }
+
+    pub fn save_state(&mut self, save_path: &str) {
+        let nes = bincode::serialize(self).unwrap();
+
+        fs::write(save_path, nes).unwrap();
+    }
+
+    fn clock_ppu_apu(&mut self) {
         self.cpu.odd_cycle = !self.cpu.odd_cycle;
         self.cycle_count += 1;
         if self.cycle_count == 29658 {

@@ -1,6 +1,8 @@
-use super::cartridge::Mirroring;
-use super::Nes;
+use serde::{Deserialize, Serialize};
 
+use super::{cartridge::Mirroring, Nes};
+
+// This is the RGB palette, not to be confused with the internal PPU palette
 pub static PALETTE: [u8; 192] = [
     84, 84, 84, 0, 30, 116, 8, 16, 144, 48, 0, 136, 68, 0, 100, 92, 0, 48, 84, 4, 0, 60,
     24, 0, 32, 42, 0, 8, 58, 0, 0, 64, 0, 0, 60, 0, 0, 50, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -14,7 +16,7 @@ pub static PALETTE: [u8; 192] = [
     214, 228, 160, 162, 160, 0, 0, 0, 0, 0, 0,
 ];
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 struct Sprite {
     y: u8,
     x: u8,
@@ -43,8 +45,9 @@ impl Sprite {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Ppu {
-    pub output_buffer: Box<[u8; 256 * 240]>,
+    pub output_buffer: Vec<u8>,
 
     suppress_nmi: bool,
     prev_nmi: bool,
@@ -118,7 +121,7 @@ impl Ppu {
         ];
 
         Ppu {
-            output_buffer: Box::new([0; 256 * 240]),
+            output_buffer: vec![0; 256 * 240],
 
             suppress_nmi: false,
             prev_nmi: false,
@@ -225,7 +228,7 @@ impl Nes {
     fn ppu_write(&mut self, mut addr: usize, val: u8) {
         addr &= 0x3FFF;
         match addr {
-            0..=0x1FFF => (self.mapper.write_chr)(self, addr, val),
+            0..=0x1FFF => (self.mapper.write_chr.ptr)(self, addr, val),
             0x2000..=0x3EFF => self.write_nametable(addr & 0xFFF, val),
             0x3F00..=0x3FFF => self.palette_write(addr, val),
             _ => unreachable!(),
@@ -237,57 +240,67 @@ impl Nes {
         match self.mapper.mirroring {
             Mirroring::Vertical => match addr {
                 0..=0x3FF => {
-                    (self.mapper.write_nametable)(self, addr, val);
-                    (self.mapper.write_nametable)(self, addr + 0x800, val);
+                    (self.mapper.write_nametable.ptr)(self, addr, val);
+                    (self.mapper.write_nametable.ptr)(self, addr + 0x800, val);
                 }
                 0x400..=0x7FF => {
-                    (self.mapper.write_nametable)(self, addr, val);
-                    (self.mapper.write_nametable)(self, addr + 0x800, val);
+                    (self.mapper.write_nametable.ptr)(self, addr, val);
+                    (self.mapper.write_nametable.ptr)(self, addr + 0x800, val);
                 }
                 0x800..=0xBFF => {
-                    (self.mapper.write_nametable)(self, addr, val);
-                    (self.mapper.write_nametable)(self, addr - 0x400, val);
+                    (self.mapper.write_nametable.ptr)(self, addr, val);
+                    (self.mapper.write_nametable.ptr)(self, addr - 0x400, val);
                 }
                 0xC00..=0xFFF => {
-                    (self.mapper.write_nametable)(self, addr, val);
-                    (self.mapper.write_nametable)(self, addr - 0x800, val);
+                    (self.mapper.write_nametable.ptr)(self, addr, val);
+                    (self.mapper.write_nametable.ptr)(self, addr - 0x800, val);
                 }
                 _ => unreachable!(),
             },
             Mirroring::Horizontal => match addr {
                 0..=0x3FF => {
-                    (self.mapper.write_nametable)(self, addr, val);
-                    (self.mapper.write_nametable)(self, addr + 0x400, val);
+                    (self.mapper.write_nametable.ptr)(self, addr, val);
+                    (self.mapper.write_nametable.ptr)(self, addr + 0x400, val);
                 }
                 0x400..=0x7FF => {
-                    (self.mapper.write_nametable)(self, addr, val);
-                    (self.mapper.write_nametable)(self, addr - 0x400, val);
+                    (self.mapper.write_nametable.ptr)(self, addr, val);
+                    (self.mapper.write_nametable.ptr)(self, addr - 0x400, val);
                 }
                 0x800..=0xBFF => {
-                    (self.mapper.write_nametable)(self, addr, val);
-                    (self.mapper.write_nametable)(self, addr + 0x400, val);
+                    (self.mapper.write_nametable.ptr)(self, addr, val);
+                    (self.mapper.write_nametable.ptr)(self, addr + 0x400, val);
                 }
                 0xC00..=0xFFF => {
-                    (self.mapper.write_nametable)(self, addr, val);
-                    (self.mapper.write_nametable)(self, addr - 0x400, val);
+                    (self.mapper.write_nametable.ptr)(self, addr, val);
+                    (self.mapper.write_nametable.ptr)(self, addr - 0x400, val);
                 }
                 _ => unreachable!(),
             },
             Mirroring::SingleScreenLow => match addr {
-                0..=0x3FF => (self.mapper.write_nametable)(self, addr, val),
-                0x400..=0x7FF => (self.mapper.write_nametable)(self, addr - 0x400, val),
-                0x800..=0xBFF => (self.mapper.write_nametable)(self, addr - 0x800, val),
-                0xC00..=0xFFF => (self.mapper.write_nametable)(self, addr - 0xC00, val),
+                0..=0x3FF => (self.mapper.write_nametable.ptr)(self, addr, val),
+                0x400..=0x7FF => {
+                    (self.mapper.write_nametable.ptr)(self, addr - 0x400, val)
+                }
+                0x800..=0xBFF => {
+                    (self.mapper.write_nametable.ptr)(self, addr - 0x800, val)
+                }
+                0xC00..=0xFFF => {
+                    (self.mapper.write_nametable.ptr)(self, addr - 0xC00, val)
+                }
                 _ => unreachable!(),
             },
             Mirroring::SingleScreenHigh => match addr {
-                0..=0x3FF => (self.mapper.write_nametable)(self, addr + 0x400, val),
-                0x400..=0x7FF => (self.mapper.write_nametable)(self, addr, val),
-                0x800..=0xBFF => (self.mapper.write_nametable)(self, addr - 0x400, val),
-                0xC00..=0xFFF => (self.mapper.write_nametable)(self, addr - 0x800, val),
+                0..=0x3FF => (self.mapper.write_nametable.ptr)(self, addr + 0x400, val),
+                0x400..=0x7FF => (self.mapper.write_nametable.ptr)(self, addr, val),
+                0x800..=0xBFF => {
+                    (self.mapper.write_nametable.ptr)(self, addr - 0x400, val)
+                }
+                0xC00..=0xFFF => {
+                    (self.mapper.write_nametable.ptr)(self, addr - 0x800, val)
+                }
                 _ => unreachable!(),
             },
-            Mirroring::FourScreen => (self.mapper.write_nametable)(self, addr, val),
+            Mirroring::FourScreen => (self.mapper.write_nametable.ptr)(self, addr, val),
             m => unimplemented!("{:?} mirroring is unimplemented", m),
         }
     }
@@ -296,7 +309,7 @@ impl Nes {
     fn ppu_read(&mut self, mut addr: usize) -> u8 {
         addr &= 0x3FFF;
         match addr {
-            0..=0x1FFF => (self.mapper.read_chr)(self, addr),
+            0..=0x1FFF => (self.mapper.read_chr.ptr)(self, addr),
             0x2000..=0x3EFF => self.read_nametable(addr & 0xFFF),
             0x3F00..=0x3FFF => self.palette_read(addr),
             _ => unreachable!(),
@@ -307,23 +320,23 @@ impl Nes {
     fn read_nametable(&mut self, addr: usize) -> u8 {
         let mapper = &mut self.mapper;
         match mapper.mirroring {
-            Mirroring::Vertical => (self.mapper.read_nametable)(self, addr),
-            Mirroring::Horizontal => (self.mapper.read_nametable)(self, addr),
+            Mirroring::Vertical => (self.mapper.read_nametable.ptr)(self, addr),
+            Mirroring::Horizontal => (self.mapper.read_nametable.ptr)(self, addr),
             Mirroring::SingleScreenLow => match addr {
-                0..=0x3FF => (mapper.read_nametable)(self, addr),
-                0x400..=0x7FF => (mapper.read_nametable)(self, addr - 0x400),
-                0x800..=0xBFF => (mapper.read_nametable)(self, addr - 0x800),
-                0xC00..=0xFFF => (mapper.read_nametable)(self, addr - 0xC00),
+                0..=0x3FF => (mapper.read_nametable.ptr)(self, addr),
+                0x400..=0x7FF => (mapper.read_nametable.ptr)(self, addr - 0x400),
+                0x800..=0xBFF => (mapper.read_nametable.ptr)(self, addr - 0x800),
+                0xC00..=0xFFF => (mapper.read_nametable.ptr)(self, addr - 0xC00),
                 _ => unreachable!(),
             },
             Mirroring::SingleScreenHigh => match addr {
-                0..=0x3FF => (mapper.read_nametable)(self, addr + 0x400),
-                0x400..=0x7FF => (mapper.read_nametable)(self, addr),
-                0x800..=0xBFF => (mapper.read_nametable)(self, addr - 0x400),
-                0xC00..=0xFFF => (mapper.read_nametable)(self, addr - 0x800),
+                0..=0x3FF => (mapper.read_nametable.ptr)(self, addr + 0x400),
+                0x400..=0x7FF => (mapper.read_nametable.ptr)(self, addr),
+                0x800..=0xBFF => (mapper.read_nametable.ptr)(self, addr - 0x400),
+                0xC00..=0xFFF => (mapper.read_nametable.ptr)(self, addr - 0x800),
                 _ => unreachable!(),
             },
-            Mirroring::FourScreen => (mapper.read_nametable)(self, addr),
+            Mirroring::FourScreen => (mapper.read_nametable.ptr)(self, addr),
             m => unimplemented!("{:?} mirroring is unimplemented", m),
         }
     }
@@ -528,7 +541,7 @@ impl Nes {
 
         if (self.ppu.vram_addr & 0x3FFF) >= 0x3F00 {
             self.ppu.latch = self.palette_read(self.ppu.vram_addr);
-            self.ppu.read_buffer = (self.mapper.read_nametable)(
+            self.ppu.read_buffer = (self.mapper.read_nametable.ptr)(
                 self,
                 (self.ppu.vram_addr & 0x3FFF) - 0x3000,
             );
@@ -1055,7 +1068,6 @@ impl Nes {
         self.ppu.attribute >>= 2;
     }
 
-    //FIXME: optimize
     #[inline(always)]
     fn draw_pixel(&mut self) {
         let addr = (usize::from(self.ppu.scanline) << 8) + usize::from(self.ppu.xpos - 1);

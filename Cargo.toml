@@ -1,18 +1,16 @@
 [workspace]
 
 members = [
-    "frontend-wasm",
     "frontend-sdl",
     "nes",
 ]
 
 [profile.dev]
 opt-level = 3
-debug-assertions = false
-overflow-checks = false
 
 [profile.test]
 opt-level = 3
 
 [profile.release]
 lto = true
+#debug = true

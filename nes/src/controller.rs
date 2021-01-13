@@ -1,10 +1,11 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
 pub struct Controller {
     strobe: bool,
     shifter: u8,
     state: u8,
 }
-
-//TODO: 2 controllers, Famicone mode (0x4016 and 0x4017 reads)
 
 impl Controller {
     pub fn new() -> Controller {
@@ -40,9 +41,9 @@ impl Controller {
     pub fn set_button(&mut self, keycode: Keycode, state: bool) {
         self.state = match keycode {
             Keycode::A => (self.state & !1) | (state as u8),
-            Keycode::S => (self.state & !(1 << 1)) | (state as u8) << 1,
-            Keycode::Z => (self.state & !(1 << 2)) | (state as u8) << 2,
-            Keycode::X => (self.state & !(1 << 3)) | (state as u8) << 3,
+            Keycode::B => (self.state & !(1 << 1)) | (state as u8) << 1,
+            Keycode::Select => (self.state & !(1 << 2)) | (state as u8) << 2,
+            Keycode::Start => (self.state & !(1 << 3)) | (state as u8) << 3,
             Keycode::Up => (self.state & !(1 << 4)) | (state as u8) << 4,
             Keycode::Down => (self.state & !(1 << 5)) | (state as u8) << 5,
             Keycode::Left => (self.state & !(1 << 6)) | (state as u8) << 6,
@@ -53,9 +54,9 @@ impl Controller {
 
 pub enum Keycode {
     A,
-    S,
-    Z,
-    X,
+    B,
+    Select,
+    Start,
     Up,
     Down,
     Left,

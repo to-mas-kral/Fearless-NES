@@ -1,31 +1,26 @@
-#[macro_use]
-extern crate clap;
-extern crate fearless_nes;
-extern crate rand;
-extern crate sdl2;
+use clap::{value_t, App, Arg};
 
-use clap::{App, Arg};
+use sdl2::{
+    controller::{Axis, Button},
+    event::Event,
+    keyboard::Keycode,
+    pixels::PixelFormatEnum,
+    rect::Rect,
+    render::{Canvas, Texture, TextureCreator},
+    video::{Window, WindowContext},
+    Error, EventPump, GameControllerSubsystem,
+};
 
-//use sdl2::audio::AudioQueue;
-//use sdl2::audio::AudioSpecDesired;
-use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
-use sdl2::pixels::PixelFormatEnum;
-use sdl2::rect::Rect;
-use sdl2::render::Canvas;
-use sdl2::render::Texture;
-use sdl2::render::TextureCreator;
-use sdl2::video::Window;
-use sdl2::video::WindowContext;
-use sdl2::Error;
-use sdl2::EventPump;
+use std::{
+    path::Path,
+    thread,
+    time::{Duration, Instant},
+};
 
-use std::path::Path;
-use std::thread;
-use std::time::{Duration, Instant};
+use fearless_nes::{controller, ppu::PALETTE};
 
-use fearless_nes::controller;
-use fearless_nes::ppu::PALETTE;
+// The NTSC frame rate is 60,0988 FPPS
+const NTSC_FRAME_DURATION: Duration = Duration::from_nanos(16639267);
 
 fn main() {
     let matches = App::new("Fearless-NES")
@@ -67,7 +62,7 @@ fn main() {
         .create_texture_streaming(PixelFormatEnum::RGB24, 256, 240)
         .unwrap();
 
-    let mut nes = match fearless_nes::Nes::new(Path::new(rom_path)) {
+    let mut nes = match fearless_nes::Nes::new(rom_path) {
         Ok(nes) => nes,
         Err(e) => {
             println!("{:?}", e);
@@ -75,24 +70,22 @@ fn main() {
         }
     };
 
+    sdl.controller.set_event_state(true);
+    if sdl.controller.num_joysticks().unwrap() > 0 {}
+    let _controller = sdl.controller.open(0).unwrap();
+
     let mut pause = false;
 
+    let mut durs: Vec<Duration> = vec![];
+
     'running: loop {
+        let start = Instant::now();
+
         for event in sdl.event_pump.poll_iter() {
             match event {
-                Event::Quit { .. }
-                | Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
-                    ..
-                } => break 'running,
-                Event::KeyDown {
-                    keycode: Some(Keycode::F),
-                    ..
-                } => nes.run_one_frame(),
-                Event::KeyDown {
-                    keycode: Some(Keycode::P),
-                    ..
-                } => pause = !pause,
+                /*
+                    Keyboard  controller events
+                */
                 Event::KeyDown {
                     keycode: Some(Keycode::A),
                     ..
@@ -100,15 +93,15 @@ fn main() {
                 Event::KeyDown {
                     keycode: Some(Keycode::S),
                     ..
-                } => nes.set_controller_state(controller::Keycode::S, true),
+                } => nes.set_controller_state(controller::Keycode::B, true),
                 Event::KeyDown {
                     keycode: Some(Keycode::Y),
                     ..
-                } => nes.set_controller_state(controller::Keycode::Z, true),
+                } => nes.set_controller_state(controller::Keycode::Select, true),
                 Event::KeyDown {
                     keycode: Some(Keycode::X),
                     ..
-                } => nes.set_controller_state(controller::Keycode::X, true),
+                } => nes.set_controller_state(controller::Keycode::Start, true),
                 Event::KeyDown {
                     keycode: Some(Keycode::Up),
                     ..
@@ -132,15 +125,15 @@ fn main() {
                 Event::KeyUp {
                     keycode: Some(Keycode::S),
                     ..
-                } => nes.set_controller_state(controller::Keycode::S, false),
+                } => nes.set_controller_state(controller::Keycode::B, false),
                 Event::KeyUp {
                     keycode: Some(Keycode::Y),
                     ..
-                } => nes.set_controller_state(controller::Keycode::Z, false),
+                } => nes.set_controller_state(controller::Keycode::Select, false),
                 Event::KeyUp {
                     keycode: Some(Keycode::X),
                     ..
-                } => nes.set_controller_state(controller::Keycode::X, false),
+                } => nes.set_controller_state(controller::Keycode::Start, false),
                 Event::KeyUp {
                     keycode: Some(Keycode::Up),
                     ..
@@ -157,24 +150,139 @@ fn main() {
                     keycode: Some(Keycode::Right),
                     ..
                 } => nes.set_controller_state(controller::Keycode::Right, false),
-                _ => {}
+                /*
+                    Gamepad controller events
+                */
+                Event::ControllerButtonDown {
+                    button: Button::B, ..
+                } => nes.set_controller_state(controller::Keycode::A, true),
+                Event::ControllerButtonDown {
+                    button: Button::X, ..
+                } => nes.set_controller_state(controller::Keycode::B, true),
+                Event::ControllerButtonDown {
+                    button: Button::Start,
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Start, true),
+                Event::ControllerButtonDown {
+                    button: Button::Back,
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Select, true),
+                Event::ControllerButtonDown {
+                    button: Button::DPadUp,
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Up, true),
+                Event::ControllerButtonDown {
+                    button: Button::DPadDown,
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Down, true),
+                Event::ControllerButtonDown {
+                    button: Button::DPadLeft,
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Left, true),
+                Event::ControllerButtonDown {
+                    button: Button::DPadRight,
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Right, true),
+                Event::ControllerButtonUp {
+                    button: Button::B, ..
+                } => nes.set_controller_state(controller::Keycode::A, false),
+                Event::ControllerButtonUp {
+                    button: Button::X, ..
+                } => nes.set_controller_state(controller::Keycode::B, false),
+                Event::ControllerButtonUp {
+                    button: Button::Start,
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Start, false),
+                Event::ControllerButtonUp {
+                    button: Button::Back,
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Select, false),
+                Event::ControllerButtonUp {
+                    button: Button::DPadUp,
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Up, false),
+                Event::ControllerButtonUp {
+                    button: Button::DPadDown,
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Down, false),
+                Event::ControllerButtonUp {
+                    button: Button::DPadLeft,
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Left, false),
+                Event::ControllerButtonUp {
+                    button: Button::DPadRight,
+                    ..
+                } => nes.set_controller_state(controller::Keycode::Right, false),
+                Event::ControllerAxisMotion {
+                    timestamp: _,
+                    which: _,
+                    axis,
+                    value,
+                } => match axis {
+                    Axis::LeftX => {
+                        if value < -25000 {
+                            nes.set_controller_state(controller::Keycode::Left, true);
+                        } else if value > 25000 {
+                            nes.set_controller_state(controller::Keycode::Right, true);
+                        } else {
+                            nes.set_controller_state(controller::Keycode::Right, false);
+                            nes.set_controller_state(controller::Keycode::Left, false);
+                        }
+                    }
+                    Axis::LeftY => {
+                        if value < -25000 {
+                            nes.set_controller_state(controller::Keycode::Up, true);
+                        } else if value > 25000 {
+                            nes.set_controller_state(controller::Keycode::Down, true);
+                        } else {
+                            nes.set_controller_state(controller::Keycode::Down, false);
+                            nes.set_controller_state(controller::Keycode::Up, false);
+                        }
+                    }
+                    _ => (),
+                },
+                /*
+                   Settings
+                */
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => break 'running,
+                Event::KeyDown {
+                    keycode: Some(Keycode::F),
+                    ..
+                } => nes.run_one_frame(),
+                Event::KeyDown {
+                    keycode: Some(Keycode::P),
+                    ..
+                } => pause = !pause,
+                Event::KeyDown {
+                    keycode: Some(Keycode::PrintScreen),
+                    ..
+                }
+                | Event::ControllerButtonDown {
+                    button: Button::Guide,
+                    ..
+                } => nes.save_state("fearlessNES-save.fnes"),
+                Event::ControllerButtonDown {
+                    button: Button::RightStick,
+                    ..
+                } => nes.load_state("fearlessNES-save.fnes"),
+                _ => (),
             }
         }
 
-        let start = Instant::now();
+        let emu_start = Instant::now();
         if !pause {
             nes.run_one_frame();
         }
-        let end = Instant::now();
+        let emu_end = Instant::now();
+
+        durs.push(emu_end.duration_since(emu_start));
+        //dbg!(emu_end.duration_since(emu_start));
+
         buffer_to_texture(&nes, &mut texture);
-
-        let elapsed = end.duration_since(start);
-        let expected = Duration::from_millis(16);
-        //println!("Emulating a frame took {:?} milliseconds", elapsed);
-
-        if let Some(d) = expected.checked_sub(elapsed) {
-            thread::sleep(d);
-        }
 
         sdl.canvas.clear();
         sdl.canvas
@@ -183,7 +291,19 @@ fn main() {
         sdl.canvas.set_clip_rect(Rect::new(0, 0, 256, 240));
         sdl.canvas.set_scale(scale, scale).unwrap();
         sdl.canvas.present();
+
+        let end = Instant::now();
+        let elapsed = end.duration_since(start);
+
+        if let Some(d) = NTSC_FRAME_DURATION.checked_sub(elapsed) {
+            thread::sleep(d);
+        }
     }
+
+    println!(
+        "Average frame time: {:?}",
+        durs.iter().sum::<Duration>() / durs.len() as u32
+    );
 }
 
 struct SdlSystem {
@@ -191,6 +311,8 @@ struct SdlSystem {
     event_pump: EventPump,
 
     texture_creator: TextureCreator<WindowContext>,
+
+    controller: GameControllerSubsystem,
     //audio_device: AudioQueue<i16>,
 }
 
@@ -207,6 +329,8 @@ impl SdlSystem {
         }; */
 
         //let audio_device = audio_subsystem.open_queue::<i16, _>(None, &spec).unwrap();
+
+        let controller = sdl_context.game_controller().unwrap();
 
         let window = video_subsystem
             .window(
@@ -227,28 +351,26 @@ impl SdlSystem {
             canvas,
             event_pump,
             texture_creator,
+
+            controller,
             //audio_device,
         })
     }
 }
 
-#[inline]
 fn buffer_to_texture(nes: &fearless_nes::Nes, texture: &mut Texture) {
     texture
-        .with_lock(None, |buffer: &mut [u8], pitch: usize| {
-            for y in 0..240 {
-                for x in 0..256 {
-                    let texture_address = (y * pitch) + (x * 3);
-                    let framebuffer_address = (y << 8) + x;
+        .with_lock(None, |buffer: &mut [u8], _pitch: usize| {
+            for (i, pixel_color) in nes.get_frame_buffer().iter().enumerate() {
+                let rgb_address = (pixel_color * 3) as usize;
+                let buffer_addr = i * 3;
 
-                    let pixel_colour = nes.ppu.output_buffer[framebuffer_address];
+                // This speeds things up a little bit and should be totally safe
+                buffer[buffer_addr] = PALETTE[rgb_address];
 
-                    let palette_address = (pixel_colour * 3) as usize;
+                buffer[buffer_addr + 1] = PALETTE[rgb_address + 1];
 
-                    buffer[texture_address] = PALETTE[palette_address];
-                    buffer[texture_address + 1] = PALETTE[palette_address + 1];
-                    buffer[texture_address + 2] = PALETTE[palette_address + 2];
-                }
+                buffer[buffer_addr + 2] = PALETTE[rgb_address + 2];
             }
         })
         .unwrap();

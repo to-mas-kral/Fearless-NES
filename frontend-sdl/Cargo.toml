@@ -2,10 +2,10 @@
 name = "frontend-sdl"
 version = "0.1.0"
 authors = ["TomasKralCZ <tomas@kral.hk>"]
+edition = "2018"
 default-run = "frontend-sdl"
 
 [dependencies]
 fearless_nes = { path = "../nes" }
-sdl2 = "0.33.0"
 clap = "2.33.0"
-rand = "0.7.3"
+sdl2 = "0.34.0"

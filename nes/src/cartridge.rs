@@ -1,17 +1,8 @@
-use std::fs::File;
-use std::io::Read;
+use serde::{Deserialize, Serialize};
+
+use std::{fs::File, io::Read};
 
 use super::NesError;
-
-//TODO: FDS, UNIF, NFS file formats
-
-pub struct Cartridge {
-    pub header: InesHeader,
-
-    pub prg_rom: Vec<u8>,
-    pub prg_ram: Vec<u8>,
-    pub chr: Vec<u8>,
-}
 
 pub(crate) fn parse_rom(f: &mut File) -> Result<Cartridge, NesError> {
     let _bytes: Result<Vec<u8>, _> = f.bytes().collect();
@@ -21,13 +12,13 @@ pub(crate) fn parse_rom(f: &mut File) -> Result<Cartridge, NesError> {
 
     let rom: Vec<u8> = rom.iter().cloned().skip(16).collect();
 
-    let prg_end = 0x4000 * header.prg_rom_size as usize;
+    let prg_end = 0x4000 * header.prg_rom_count as usize;
 
     let mut prg_rom = Vec::new();
     prg_rom.extend_from_slice(&rom[0..prg_end]);
 
-    let chr = if header.chr_rom_size != 0 {
-        let chr_end = prg_end + 0x2000 * header.chr_rom_size as usize;
+    let chr = if header.chr_rom_count != 0 {
+        let chr_end = prg_end + 0x2000 * header.chr_rom_count as usize;
         let mut chr = Vec::new();
         chr.extend_from_slice(&rom[prg_end..chr_end]);
         chr
@@ -36,8 +27,8 @@ pub(crate) fn parse_rom(f: &mut File) -> Result<Cartridge, NesError> {
         chr
     };
 
-    let prg_ram = if header.prg_ram_size != 0 {
-        vec![0; 0x2000 * header.prg_ram_size as usize]
+    let prg_ram = if header.prg_ram_count != 0 {
+        vec![0; 0x2000 * header.prg_ram_count as usize]
     } else {
         vec![0; 0x2000]
     };
@@ -51,15 +42,57 @@ pub(crate) fn parse_rom(f: &mut File) -> Result<Cartridge, NesError> {
     })
 }
 
-#[derive(Debug)]
+// TODO cleanup cartridge api
+
+#[derive(Serialize, Deserialize)]
+pub struct Cartridge {
+    pub header: InesHeader,
+
+    prg_rom: Vec<u8>,
+    prg_ram: Vec<u8>,
+    chr: Vec<u8>,
+}
+
+// Banks are indexed from 1
+impl Cartridge {
+    pub fn read_prg_rom(&self, addr: usize, bank: u8, bank_size: BankSize) -> u8 {
+        self.prg_rom[addr + (bank as usize - 1) * bank_size as usize]
+    }
+
+    pub fn read_prg_ram(&self, addr: usize, bank: u8, bank_size: BankSize) -> u8 {
+        self.prg_ram[addr + (bank as usize - 1) * bank_size as usize]
+    }
+
+    pub fn write_prg_ram(&mut self, addr: usize, bank: u8, bank_size: BankSize, val: u8) {
+        self.prg_ram[addr + (bank as usize - 1) * bank_size as usize] = val;
+    }
+
+    pub fn read_chr(&self, addr: usize, bank: u8, bank_size: BankSize) -> u8 {
+        self.chr[addr + (bank as usize - 1) * bank_size as usize]
+    }
+
+    pub fn write_chr(&mut self, addr: usize, bank: u8, bank_size: BankSize, val: u8) {
+        self.chr[addr + (bank as usize - 1) * bank_size as usize] = val
+    }
+}
+
+pub enum BankSize {
+    Kb1 = 0x400,
+    Kb2 = 0x800,
+    Kb4 = 0x1000,
+    Kb8 = 0x2000,
+    Kb16 = 0x4000,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct InesHeader {
-    pub prg_rom_size: u8,
-    pub prg_ram_size: u8,
-    pub chr_rom_size: u8,
+    pub prg_rom_count: u8, // 16 KB units
+    pub prg_ram_count: u8, // 8 KB units
+    pub chr_rom_count: u8, // 8 KB units
     pub mirroring: Mirroring,
     pub has_battery: bool,
     pub has_trainer: bool,
-    pub mapper: u32,
+    pub mapper_id: u32,
 }
 
 static NES_CONSTANT: [u8; 4] = [0x4E, 0x45, 0x53, 0x1A];
@@ -103,17 +136,17 @@ fn parse_header(rom: &Vec<u8>) -> Result<InesHeader, NesError> {
     }
 
     Ok(InesHeader {
-        prg_rom_size: rom[4],
-        chr_rom_size: rom[5],
-        prg_ram_size: rom[8],
+        prg_rom_count: rom[4],
+        chr_rom_count: rom[5],
+        prg_ram_count: rom[8],
         mirroring,
         has_battery,
         has_trainer,
-        mapper,
+        mapper_id: mapper,
     })
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Mirroring {
     Horizontal,
     Vertical,

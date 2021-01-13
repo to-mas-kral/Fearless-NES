@@ -34,6 +34,8 @@ Run these with 'cargo test'.
 - [ ] rest of the APU
 - [ ] advanced mappers such as MMC3, MMC5
 - [ ] various accuracy tests
+- [x] save states
+- [ ] controller support
 
 # Controls
 | NES controller  | Keyboard |

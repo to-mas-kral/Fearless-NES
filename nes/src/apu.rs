@@ -1,7 +1,10 @@
+use serde::{Deserialize, Serialize};
+
 use super::Nes;
 
 static SAMPLE_FREQ: u32 = 40;
 
+#[derive(Serialize, Deserialize)]
 pub struct Apu {
     cycles: u16,
     sample_counter: u32,
@@ -287,6 +290,7 @@ static DUTY_SEQUENCE: [bool; 0x20] = [
 //$4002 / $4006   TTTT TTTT   Timer low (T)
 //$4003 / $4007   LLLL LTTT   Length counter load (L), timer high (T)
 //  Side effects: The sequencer is immediately restarted at the first value of the current sequence. The envelope is also restarted. The period divider is not reset.
+#[derive(Serialize, Deserialize)]
 struct Pulse {
     duty_cycle: u8,
     duty_seq: u8,
@@ -405,6 +409,7 @@ impl Pulse {
 //$400B   llll.lHHH   Length counter load and timer high (write)
 //bits 2-0---- -HHH   Timer high 3 bits
 //Side effects: Sets the linear counter reload flag
+#[derive(Serialize, Deserialize)]
 struct Triangle {
     counter_control: bool,
     counter_reload: u8,
@@ -451,6 +456,7 @@ impl Triangle {
 //$400C   --LC NNNN   Loop envelope/disable length counter, constant volume, envelope period/volume
 //$400E   L--- PPPP   Loop noise, noise period
 //$400F   LLLL L---   Length counter load (also starts envelope)
+#[derive(Serialize, Deserialize)]
 struct Noise {
     constant_volume: bool,
     volume: u8,
@@ -497,6 +503,7 @@ impl Noise {
 //$4011   -DDD DDDD   Direct load
 //$4012   AAAA AAAA   Sample address %11AAAAAA.AA000000
 //$4013   LLLL LLLL   Sample length %0000LLLL.LLLL0001
+#[derive(Serialize, Deserialize)]
 struct Dmc {
     irq_enable: bool,
     loop_sample: bool,
@@ -552,6 +559,7 @@ impl Dmc {
 //otherwise it is unaffected.
 //Side effects: After 3 or 4 CPU clock cycles*, the timer is reset.
 //If the mode flag is set, then both "quarter frame" and "half frame" signals are also generated
+#[derive(Serialize, Deserialize)]
 struct FrameCounter {
     mode: bool, //true -5-step, false-4-step
     odd_cycle: bool,
@@ -579,6 +587,7 @@ static LENGTH_TABLE: [u8; 0x20] = [
     96, 22, 192, 24, 72, 26, 16, 28, 32, 30,
 ];
 
+#[derive(Serialize, Deserialize)]
 struct LengthCounter {
     enabled: bool,
     counter: u8,
@@ -607,6 +616,7 @@ impl LengthCounter {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 struct Sweep {
     enabled: bool,
     negate: bool,
@@ -691,6 +701,7 @@ impl Sweep {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 struct Envelope {
     start: bool,
     period: u8,
