@@ -1,11 +1,9 @@
-#![feature(test)]
-
 mod tests;
 
-pub mod cpu;
 pub mod apu;
 pub mod cartridge;
 pub mod controller;
+pub mod cpu;
 pub mod mapper;
 pub mod ppu;
 

@@ -1,5 +1,3 @@
-use clap::{value_t, App, Arg};
-
 use sdl2::{
     controller::{Axis, Button},
     event::Event,
@@ -12,8 +10,7 @@ use sdl2::{
 };
 
 use std::{
-    path::Path,
-    thread,
+    env, thread,
     time::{Duration, Instant},
 };
 
@@ -23,31 +20,16 @@ use fearless_nes::{controller, ppu::PALETTE};
 const NTSC_FRAME_DURATION: Duration = Duration::from_nanos(16639267);
 
 fn main() {
-    let matches = App::new("Fearless-NES")
-        .version("0.1.0")
-        .author("Tomáš Král <kral.hk@tomas>")
-        .about("A NES emulator written in Rust")
-        .arg(
-            Arg::with_name("rom")
-                .short("r")
-                .long("rom")
-                .help("Sets the ROM input file to use")
-                .takes_value(true)
-                .required(true),
-        )
-        .arg(
-            Arg::with_name("scale")
-                .short("s")
-                .long("scale")
-                .help("Sets the screen size scaling")
-                .takes_value(true)
-                .required(false),
-        )
-        .get_matches();
+    let args: Vec<String> = env::args().collect();
+    assert!(args.len() > 1);
 
-    let rom_path = matches.value_of("rom").unwrap();
+    let rom_path = &args[1];
 
-    let scale = value_t!(matches, "scale", f32).unwrap_or(4f32);
+    let scale = if args.len() > 1 {
+        args[2].parse::<f32>().unwrap()
+    } else {
+        4.0
+    };
 
     let mut sdl = match SdlSystem::new(scale) {
         Ok(sdl) => sdl,
@@ -280,7 +262,6 @@ fn main() {
         let emu_end = Instant::now();
 
         durs.push(emu_end.duration_since(emu_start));
-        //dbg!(emu_end.duration_since(emu_start));
 
         buffer_to_texture(&nes, &mut texture);
 
@@ -313,22 +294,12 @@ struct SdlSystem {
     texture_creator: TextureCreator<WindowContext>,
 
     controller: GameControllerSubsystem,
-    //audio_device: AudioQueue<i16>,
 }
 
 impl SdlSystem {
     pub fn new(scale: f32) -> Result<SdlSystem, Error> {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
-        //let audio_subsystem = sdl_context.audio().unwrap();
-
-        /* let spec = AudioSpecDesired {
-            freq: Some(44100),
-            channels: Some(1),
-            samples: Some(4),
-        }; */
-
-        //let audio_device = audio_subsystem.open_queue::<i16, _>(None, &spec).unwrap();
 
         let controller = sdl_context.game_controller().unwrap();
 

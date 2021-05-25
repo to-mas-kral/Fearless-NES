@@ -53,26 +53,30 @@ pub struct Cartridge {
     chr: Vec<u8>,
 }
 
-// Banks are indexed from 1
+// Banks are indexed from 0
 impl Cartridge {
     pub fn read_prg_rom(&self, addr: usize, bank: u8, bank_size: BankSize) -> u8 {
-        self.prg_rom[addr + (bank as usize - 1) * bank_size as usize]
+        self.prg_rom[addr + bank as usize * bank_size as usize]
     }
 
     pub fn read_prg_ram(&self, addr: usize, bank: u8, bank_size: BankSize) -> u8 {
-        self.prg_ram[addr + (bank as usize - 1) * bank_size as usize]
+        self.prg_ram[addr + bank as usize * bank_size as usize]
     }
 
     pub fn write_prg_ram(&mut self, addr: usize, bank: u8, bank_size: BankSize, val: u8) {
-        self.prg_ram[addr + (bank as usize - 1) * bank_size as usize] = val;
+        self.prg_ram[addr + bank as usize * bank_size as usize] = val;
     }
 
     pub fn read_chr(&self, addr: usize, bank: u8, bank_size: BankSize) -> u8 {
-        self.chr[addr + (bank as usize - 1) * bank_size as usize]
+        self.chr[addr + bank as usize * bank_size as usize]
     }
 
     pub fn write_chr(&mut self, addr: usize, bank: u8, bank_size: BankSize, val: u8) {
-        self.chr[addr + (bank as usize - 1) * bank_size as usize] = val
+        self.chr[addr + bank as usize * bank_size as usize] = val
+    }
+
+    pub fn prg_rom_bank_count(&self, bank_size: BankSize) -> u8 {
+        ((self.header.prg_rom_count as usize * 0x4000) / bank_size as usize) as u8
     }
 }
 
@@ -111,6 +115,7 @@ fn parse_header(rom: &Vec<u8>) -> Result<InesHeader, NesError> {
     for i in 10..15 {
         if rom[i] != 0 {
             println!("iNES 2.0 rom file");
+            break;
             //TODO: handle iNES 2.0
         }
     }

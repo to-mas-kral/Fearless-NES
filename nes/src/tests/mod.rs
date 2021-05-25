@@ -1,21 +1,14 @@
 #![allow(unused_imports)]
-extern crate test;
-
 use std::env;
 use std::path::Path;
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
-use std::io::BufRead;
-use std::io::BufReader;
 
 use super::Nes;
 
 mod cpu;
 mod ppu;
-
-use test::black_box;
-use test::Bencher;
 
 #[macro_export]
 macro_rules! blargg_test {
@@ -79,43 +72,4 @@ macro_rules! hash_test {
             assert_eq!(hasher.finish(), $hash);
         }
     };
-}
-
-#[bench]
-fn nes_bencher(b: &mut Bencher) {
-    let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let bench_path = base_dir + "/src/tests/SPRITE.NES";
-
-    let mut nes =
-        Nes::new(&bench_path).expect("error when creating bencher NES instance");
-
-    b.iter(|| {
-        black_box(nes.run_one_frame());
-    });
-}
-
-#[bench]
-fn test_bencher_1(b: &mut Bencher) {
-    let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let bench_path = base_dir + "/src/tests/ppu/scanline/scanline.nes";
-
-    let mut nes =
-        Nes::new(&bench_path).expect("error when creating bencher NES instance");
-
-    b.iter(|| {
-        black_box(nes.run_one_frame());
-    });
-}
-
-#[bench]
-fn test_bencher_2(b: &mut Bencher) {
-    let base_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let bench_path = base_dir + "/src/tests/cpu/blargg_instr/all_instrs.nes";
-
-    let mut nes =
-        Nes::new(&bench_path).expect("error when creating bencher NES instance");
-
-    b.iter(|| {
-        black_box(nes.run_one_frame());
-    });
 }

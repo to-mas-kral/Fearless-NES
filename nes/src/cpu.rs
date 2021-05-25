@@ -2044,6 +2044,7 @@ impl Nes {
     }
 
     fn halt(&mut self, _: u8) {
+        // TODO: shouldn't panic here
         panic!("The CPU executed a halt instruction, this implieas either an emulator bug, or a game bug.");
     }
 }

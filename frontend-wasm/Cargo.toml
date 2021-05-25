@@ -1,10 +1,8 @@
 [package]
-name = "frontend-sdl"
+name = "frontend-wasm"
 version = "0.1.0"
 authors = ["TomasKralCZ <tomas@kral.hk>"]
-edition = "2018"
-default-run = "frontend-sdl"
 
 [dependencies]
 fearless_nes = { path = "../nes" }
-sdl2 = "0.34.0"
+#stdweb = "0.4.7"

@@ -36,16 +36,16 @@ impl Nes {
             0x6000..=0x7FFF => {
                 self.mapper
                     .cartridge
-                    .read_prg_ram(addr - 0x6000, 1, BankSize::Kb8)
+                    .read_prg_ram(addr - 0x6000, 0, BankSize::Kb8)
             }
             0x8000..=0xBFFF => {
                 self.mapper
                     .cartridge
-                    .read_prg_rom(addr - 0x8000, 1, BankSize::Kb16)
+                    .read_prg_rom(addr - 0x8000, 0, BankSize::Kb16)
             }
             0xC000..=0xFFFF => self.mapper.cartridge.read_prg_rom(
                 addr - 0xC000,
-                self.mapper.prg_rom_count,
+                self.mapper.prg_rom_count - 1,
                 BankSize::Kb16,
             ),
             _ => 0,
@@ -57,16 +57,16 @@ impl Nes {
             0x6000..=0x7FFF => {
                 self.mapper
                     .cartridge
-                    .read_prg_ram(addr - 0x6000, 1, BankSize::Kb8)
+                    .read_prg_ram(addr - 0x6000, 0, BankSize::Kb8)
             }
             0x8000..=0xBFFF => {
                 self.mapper
                     .cartridge
-                    .read_prg_rom(addr - 0x8000, 1, BankSize::Kb16)
+                    .read_prg_rom(addr - 0x8000, 0, BankSize::Kb16)
             }
             0xC000..=0xFFFF => self.mapper.cartridge.read_prg_rom(
                 addr - 0xC000,
-                self.mapper.prg_rom_count,
+                self.mapper.prg_rom_count - 1,
                 BankSize::Kb16,
             ),
             _ => self.cpu.open_bus,
@@ -77,17 +77,17 @@ impl Nes {
         if let 0x6000..=0x7FFF = addr {
             self.mapper
                 .cartridge
-                .write_prg_ram(addr - 0x6000, 1, BankSize::Kb8, val);
+                .write_prg_ram(addr - 0x6000, 0, BankSize::Kb8, val);
         }
     }
 
     pub(crate) fn _0_nrom_read_chr(&mut self, addr: usize) -> u8 {
-        self.mapper.cartridge.read_chr(addr, 1, BankSize::Kb8)
+        self.mapper.cartridge.read_chr(addr, 0, BankSize::Kb8)
     }
 
     pub(crate) fn _0_nrom_write_chr(&mut self, addr: usize, val: u8) {
         if self.mapper.cartridge.header.chr_rom_count == 0 {
-            self.mapper.cartridge.write_chr(addr, 1, BankSize::Kb8, val);
+            self.mapper.cartridge.write_chr(addr, 0, BankSize::Kb8, val);
         }
     }
 
