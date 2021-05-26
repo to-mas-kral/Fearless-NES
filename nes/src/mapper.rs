@@ -6,19 +6,19 @@ use super::{
 };
 
 mod _0_nrom;
-/* mod _1_mmc1;
+mod _1_mmc1;
 mod _2_uxrom;
 mod _3_cnrom;
-mod _7_axrom; */
+mod _7_axrom;
 
 impl Nes {
     pub(crate) fn initialize_mapper(cartridge: Cartridge) -> Mapper {
         match cartridge.header.mapper_id {
             0 => Nes::_0_nrom_initialize(cartridge),
-/*             1 => Nes::_1_mmc1_initialize(cartridge),
+            1 => Nes::_1_mmc1_initialize(cartridge),
             2 => Nes::_2_uxrom_initialize(cartridge),
             3 => Nes::_3_cnrom_initialize(cartridge),
-            7 => Nes::_7_axrom_initialize(cartridge), */
+            7 => Nes::_7_axrom_initialize(cartridge),
             _ => {
                 panic!(
                     "mapper number {} is unsupported",
@@ -30,11 +30,11 @@ impl Nes {
 
     pub(crate) fn reaload_mapper_pointers(&mut self) {
         match self.mapper.cartridge.header.mapper_id {
-            0 => Nes::_0_nrom_load_ptrs(self),
-/*             1 => Nes::_1_mmc1_reload(self),
-            2 => Nes::_2_uxrom_reload(self),
+            0 => Nes::_0_nrom_reload(self),
+            1 => Nes::_1_mmc1_reload(self),
             3 => Nes::_3_cnrom_reload(self),
-            7 => Nes::_7_axrom_reload(self), */
+            2 => Nes::_2_uxrom_reload(self),
+            7 => Nes::_7_axrom_reload(self),
             _ => {
                 panic!(
                     "mapper number {} is unsupported",
@@ -46,7 +46,9 @@ impl Nes {
 }
 
 /*
-    Here I wanted to avoid Rc<RefCell<dyn Mapper>> for performance reassons
+    Using functions rather than Trait objects provides more versatility.
+    It's also necessary to implement more complicated mappers such as
+    MMC3 / MMC5 which require access to nes state.
 */
 
 #[derive(Serialize, Deserialize)]
@@ -79,7 +81,7 @@ pub struct Mapper {
     chr_indices: Vec<u8>,
 
     // State for specific mappers
-    // 0
+    // 0 - NROM
     // 1 - MMC1
     pub shift: u8,
     prg_mode: u8,
@@ -133,7 +135,7 @@ impl Mapper {
     }
 }
 
-//Structs have to be used here for implementing Default, which is used for Serde
+// Structs have to be used here for implementing Default, which is used for Serde
 
 pub struct MapperRead {
     pub ptr: fn(_: &mut Nes, _: usize) -> u8,

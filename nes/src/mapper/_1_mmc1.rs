@@ -1,6 +1,6 @@
 use super::{
     super::{
-        cartridge::{Cartridge, Mirroring},
+        cartridge::{BankSize, Cartridge, Mirroring},
         Nes,
     },
     Mapper,
@@ -25,6 +25,9 @@ impl Nes {
         mapper.enable_ram = false;
 
         mapper.ignore_write = 0;
+
+        mapper.prg_rom_indices = vec![0, mapper.cartridge.header.prg_rom_count - 1];
+        mapper.chr_indices = vec![0, 0];
 
         mapper.cpu_read.ptr = Nes::_1_mmc1_cpu_read;
         mapper.cpu_peek.ptr = Nes::_1_mmc1_cpu_peek;
@@ -71,10 +74,10 @@ impl Nes {
         self.mapper.prg_mode = (val & 0xC) >> 2;
         match self.mapper.prg_mode {
             0 | 1 => (),
-            2 => self.mapper.prg_1 = 0,
+            2 => self.mapper.prg_rom_indices[0] = 0,
             3 => {
-                self.mapper.prg_2 =
-                    (self.mapper.cartridge.header.prg_rom_count as usize - 1) * 0x4000
+                self.mapper.prg_rom_indices[1] =
+                    self.mapper.cartridge.header.prg_rom_count - 1
             }
             _ => unreachable!(),
         }
@@ -93,10 +96,10 @@ impl Nes {
     #[inline]
     pub(crate) fn _1_mmc1_write_chr_0(&mut self, val: u8) {
         if self.mapper.chr_mode == 1 {
-            self.mapper.chr_1 = 0x1000 * (val & self.mapper.chr_mask) as usize;
+            self.mapper.chr_indices[0] = val & self.mapper.chr_mask;
         } else {
-            self.mapper.chr_1 = 0x1000 * (val as usize & 0xFE);
-            self.mapper.chr_2 = self.mapper.chr_1 + 0x1000;
+            self.mapper.chr_indices[0] = val & 0xFE;
+            self.mapper.chr_indices[1] = self.mapper.chr_indices[0] + 1;
         }
     }
 
@@ -109,7 +112,7 @@ impl Nes {
     #[inline]
     pub(crate) fn _1_mmc1_write_chr_1(&mut self, val: u8) {
         if self.mapper.chr_mode == 1 {
-            self.mapper.chr_2 = 0x1000 * (val & self.mapper.chr_mask) as usize;
+            self.mapper.chr_indices[1] = val & self.mapper.chr_mask;
         }
     }
 
@@ -125,39 +128,35 @@ impl Nes {
         self.mapper.enable_ram = val & 0x10 == 0;
         match self.mapper.prg_mode {
             0 | 1 => {
-                self.mapper.prg_1 = 0x4000 * (val as usize & 0xE);
-                self.mapper.prg_2 = self.mapper.prg_1 + 0x4000;
+                self.mapper.prg_rom_indices[0] = val & 0xE;
+                self.mapper.prg_rom_indices[1] = self.mapper.prg_rom_indices[0] + 1;
             }
-            2 => self.mapper.prg_2 = 0x4000 * (val as usize & 0xF),
-            3 => self.mapper.prg_1 = 0x4000 * (val as usize & 0xF),
+            2 => self.mapper.prg_rom_indices[1] = val & 0xF,
+            3 => self.mapper.prg_rom_indices[0] = val & 0xF,
             _ => unreachable!(),
         }
     }
 
     pub(crate) fn _1_mmc1_cpu_peek(&mut self, addr: usize) -> u8 {
-        match addr {
-            0x6000..=0x7FFF => self.mapper.cartridge.prg_ram[addr - 0x6000],
-            0x8000..=0xBFFF => {
-                self.mapper.cartridge.prg_rom[self.mapper.prg_1 + (addr - 0x8000)]
-            }
-            0xC000..=0xFFFF => {
-                self.mapper.cartridge.prg_rom[self.mapper.prg_2 + (addr - 0xC000)]
-            }
-            _ => 0,
-        }
+        self._1_mmc1_cpu_read(addr)
     }
 
     pub(crate) fn _1_mmc1_cpu_read(&mut self, addr: usize) -> u8 {
         match addr {
-            0x6000..=0x7FFF if self.mapper.enable_ram => {
-                self.mapper.cartridge.prg_ram[addr - 0x6000]
-            }
-            0x8000..=0xBFFF => {
-                self.mapper.cartridge.prg_rom[self.mapper.prg_1 + (addr - 0x8000)]
-            }
-            0xC000..=0xFFFF => {
-                self.mapper.cartridge.prg_rom[self.mapper.prg_2 + (addr - 0xC000)]
-            }
+            0x6000..=0x7FFF if self.mapper.enable_ram => self
+                .mapper
+                .cartridge
+                .read_prg_ram(addr - 0x6000, 0, BankSize::Kb8),
+            0x8000..=0xBFFF => self.mapper.cartridge.read_prg_rom(
+                addr - 0x8000,
+                self.mapper.prg_rom_indices[0],
+                BankSize::Kb16,
+            ),
+            0xC000..=0xFFFF => self.mapper.cartridge.read_prg_rom(
+                addr - 0xC000,
+                self.mapper.prg_rom_indices[1],
+                BankSize::Kb16,
+            ),
             _ => self.cpu.open_bus,
         }
     }
@@ -165,7 +164,9 @@ impl Nes {
     pub(crate) fn _1_mmc1_cpu_write(&mut self, addr: usize, val: u8) {
         match addr {
             0x6000..=0x7FFF if self.mapper.enable_ram => {
-                self.mapper.cartridge.prg_ram[addr - 0x6000] = val
+                self.mapper
+                    .cartridge
+                    .write_prg_ram(addr - 0x6000, 0, BankSize::Kb8, val);
             }
             0x8000..=0xFFFF => {
                 //When the CPU writes to the serial port on consecutive cycles, the MMC1 ignores
@@ -216,20 +217,34 @@ impl Nes {
 
     pub(crate) fn _1_mmc1_read_chr(&mut self, addr: usize) -> u8 {
         match addr {
-            0..=0xFFF => self.mapper.cartridge.chr[self.mapper.chr_1 + addr],
-            0x1000..=0x1FFF => {
-                self.mapper.cartridge.chr[self.mapper.chr_2 + (addr & 0xFFF)]
-            }
+            0..=0xFFF => self.mapper.cartridge.read_chr(
+                addr,
+                self.mapper.chr_indices[0],
+                BankSize::Kb4,
+            ),
+            0x1000..=0x1FFF => self.mapper.cartridge.read_chr(
+                addr & 0xFFF,
+                self.mapper.chr_indices[1],
+                BankSize::Kb4,
+            ),
             _ => unreachable!(),
         }
     }
 
     pub(crate) fn _1_mmc1_write_chr(&mut self, addr: usize, val: u8) {
         match addr {
-            0..=0xFFF => self.mapper.cartridge.chr[self.mapper.chr_1 + addr] = val,
-            0x1000..=0x1FFF => {
-                self.mapper.cartridge.chr[self.mapper.chr_2 + (addr & 0xFFF)] = val
-            }
+            0..=0xFFF => self.mapper.cartridge.write_chr(
+                addr,
+                self.mapper.chr_indices[0],
+                BankSize::Kb4,
+                val,
+            ),
+            0x1000..=0x1FFF => self.mapper.cartridge.write_chr(
+                addr & 0xFFF,
+                self.mapper.chr_indices[1],
+                BankSize::Kb4,
+                val,
+            ),
             _ => unreachable!(),
         }
     }

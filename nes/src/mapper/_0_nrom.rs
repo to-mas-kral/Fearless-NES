@@ -21,7 +21,7 @@ impl Nes {
         mapper
     }
 
-    pub(crate) fn _0_nrom_load_ptrs(&mut self) {
+    pub(crate) fn _0_nrom_reload(&mut self) {
         self.mapper.cpu_read.ptr = Nes::_0_nrom_cpu_read;
         self.mapper.cpu_peek.ptr = Nes::_0_nrom_cpu_peek;
         self.mapper.cpu_write.ptr = Nes::_0_nrom_cpu_write;

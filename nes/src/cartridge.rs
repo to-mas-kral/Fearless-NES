@@ -86,6 +86,7 @@ pub enum BankSize {
     Kb4 = 0x1000,
     Kb8 = 0x2000,
     Kb16 = 0x4000,
+    Kb32 = 0x8000,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

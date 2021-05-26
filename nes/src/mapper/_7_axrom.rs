@@ -1,13 +1,17 @@
-use super::super::cartridge::Cartridge;
-use super::super::cartridge::Mirroring;
-use super::super::Nes;
-use super::Mapper;
+use super::{
+    super::{
+        cartridge::{BankSize, Cartridge, Mirroring},
+        Nes,
+    },
+    Mapper,
+};
 
 impl Nes {
     pub(crate) fn _7_axrom_initialize(cartridge: Cartridge) -> Mapper {
         let mut mapper = Mapper::new(cartridge);
 
-        mapper.prg_1 = 0;
+        mapper.prg_rom_indices = vec![0];
+
         mapper.nt_ram = vec![0; 0x1000];
         mapper.mirroring = Mirroring::SingleScreenLow;
 
@@ -33,26 +37,23 @@ impl Nes {
     }
 
     pub(crate) fn _7_axrom_cpu_peek(&mut self, addr: usize) -> u8 {
-        match addr {
-            0x8000..=0xFFFF => {
-                self.mapper.cartridge.prg_rom[self.mapper.prg_1 + (addr - 0x8000)]
-            }
-            _ => 0,
-        }
+        self._7_axrom_cpu_read(addr)
     }
 
     pub(crate) fn _7_axrom_cpu_read(&mut self, addr: usize) -> u8 {
         match addr {
-            0x8000..=0xFFFF => {
-                self.mapper.cartridge.prg_rom[self.mapper.prg_1 + (addr - 0x8000)]
-            }
+            0x8000..=0xFFFF => self.mapper.cartridge.read_prg_rom(
+                addr - 0x8000,
+                self.mapper.prg_rom_indices[0],
+                BankSize::Kb32,
+            ),
             _ => self.cpu.open_bus,
         }
     }
 
     pub(crate) fn _7_axrom_cpu_write(&mut self, addr: usize, val: u8) {
         if let 0x8000..=0xFFFF = addr {
-            self.mapper.prg_1 = 0x8000 * (val & 7) as usize;
+            self.mapper.prg_rom_indices[0] = val & 7;
 
             self.mapper.mirroring = if val & 0x10 != 0 {
                 Mirroring::SingleScreenHigh
@@ -63,12 +64,12 @@ impl Nes {
     }
 
     pub(crate) fn _7_axrom_read_chr(&mut self, addr: usize) -> u8 {
-        self.mapper.cartridge.chr[addr]
+        self.mapper.cartridge.read_chr(addr, 0, BankSize::Kb8)
     }
 
     pub(crate) fn _7_axrom_write_chr(&mut self, addr: usize, val: u8) {
         if self.mapper.cartridge.header.chr_rom_count == 0 {
-            self.mapper.cartridge.chr[addr] = val;
+            self.mapper.cartridge.write_chr(addr, 0, BankSize::Kb8, val);
         }
     }
 

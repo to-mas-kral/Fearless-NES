@@ -25,10 +25,10 @@ fn main() {
 
     let rom_path = &args[1];
 
-    let scale = if args.len() > 1 {
+    let scale = if args.len() > 2 {
         args[2].parse::<f32>().unwrap()
     } else {
-        4.0
+        8.0
     };
 
     let mut sdl = match SdlSystem::new(scale) {
