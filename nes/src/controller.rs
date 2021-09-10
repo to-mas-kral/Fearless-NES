@@ -52,6 +52,7 @@ impl Controller {
     }
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub enum Button {
     A,
     B,

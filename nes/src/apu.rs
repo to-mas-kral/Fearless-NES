@@ -278,9 +278,9 @@ impl Nes {
 //3     1 1 1 1 1 1 0 0         1 0 0 1 1 1 1 1 (25% negated)
 
 static DUTY_SEQUENCE: [bool; 0x20] = [
-    false, false, false, false, false, false, false, true, false, false, false, false,
-    false, false, true, true, false, false, false, false, true, true, true, true, true,
-    true, true, true, true, true, false, false,
+    false, false, false, false, false, false, false, true, false, false, false, false, false,
+    false, true, true, false, false, false, false, true, true, true, true, true, true, true, true,
+    true, true, false, false,
 ];
 
 //The pulse channels produce a variable-width pulse signal, controlled by volume, envelope, length, and sweep units.
@@ -583,8 +583,8 @@ impl FrameCounter {
 }
 
 static LENGTH_TABLE: [u8; 0x20] = [
-    10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14, 12, 26, 14, 12, 16, 24, 18, 48, 20,
-    96, 22, 192, 24, 72, 26, 16, 28, 32, 30,
+    10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14, 12, 26, 14, 12, 16, 24, 18, 48, 20, 96, 22,
+    192, 24, 72, 26, 16, 28, 32, 30,
 ];
 
 #[derive(Serialize, Deserialize)]

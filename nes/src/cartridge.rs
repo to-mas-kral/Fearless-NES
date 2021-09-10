@@ -2,6 +2,8 @@ use crate::{ppu::Mirroring, NesError};
 
 use serde::{Deserialize, Serialize};
 
+/* mod gamedb; */
+
 const HEADER_SIZE: usize = 16;
 
 pub(crate) fn parse_rom(rom: &[u8]) -> Result<Cartridge, NesError> {
@@ -14,14 +16,12 @@ pub(crate) fn parse_rom(rom: &[u8]) -> Result<Cartridge, NesError> {
 
     let prg_end = (BankSize::Kb16 as usize) * header.prg_rom_count as usize;
     let mut prg_rom = Vec::with_capacity(prg_end);
-    prg_rom.extend_from_slice(&rom.get(0..prg_end).ok_or(NesError::InvalidRomSize)?);
+    prg_rom.extend_from_slice(rom.get(0..prg_end).ok_or(NesError::InvalidRomSize)?);
 
     let chr = if header.chr_rom_count != 0 {
         let chr_end = prg_end + (BankSize::Kb8 as usize) * header.chr_rom_count as usize;
         let mut chr = Vec::with_capacity(chr_end - prg_end);
-        chr.extend_from_slice(
-            &rom.get(prg_end..chr_end).ok_or(NesError::InvalidRomSize)?,
-        );
+        chr.extend_from_slice(rom.get(prg_end..chr_end).ok_or(NesError::InvalidRomSize)?);
         chr
     } else {
         vec![0; BankSize::Kb8 as usize]
@@ -51,31 +51,39 @@ pub struct Cartridge {
     chr: Vec<u8>,
 }
 
-// Banks are indexed from 0
 impl Cartridge {
-    pub fn read_prg_rom(&self, addr: usize, bank: u8, bank_size: BankSize) -> u8 {
-        self.prg_rom[addr + bank as usize * bank_size as usize]
+    /// Banks are indexed from 0
+    pub fn map_bank(bank: u8, bank_size: BankSize) -> usize {
+        bank as usize * bank_size as usize
     }
 
-    pub fn read_prg_ram(&self, addr: usize, bank: u8, bank_size: BankSize) -> u8 {
-        self.prg_ram[addr + bank as usize * bank_size as usize]
+    #[inline]
+    pub fn read_prg_rom(&self, addr: usize) -> u8 {
+        self.prg_rom[addr]
     }
 
-    pub fn write_prg_ram(&mut self, addr: usize, bank: u8, bank_size: BankSize, val: u8) {
-        self.prg_ram[addr + bank as usize * bank_size as usize] = val;
+    #[inline]
+    pub fn read_prg_ram(&self, addr: usize) -> u8 {
+        self.prg_ram[addr]
     }
 
-    pub fn read_chr(&self, addr: usize, bank: u8, bank_size: BankSize) -> u8 {
-        self.chr[addr + bank as usize * bank_size as usize]
+    #[inline]
+    pub fn write_prg_ram(&mut self, addr: usize, val: u8) {
+        self.prg_ram[addr] = val;
     }
 
-    pub fn write_chr(&mut self, addr: usize, bank: u8, bank_size: BankSize, val: u8) {
-        self.chr[addr + bank as usize * bank_size as usize] = val
+    #[inline]
+    pub fn read_chr(&self, addr: usize) -> u8 {
+        self.chr[addr]
+    }
+
+    #[inline]
+    pub fn write_chr(&mut self, addr: usize, val: u8) {
+        self.chr[addr] = val
     }
 }
 
 pub enum BankSize {
-    #[allow(dead_code)]
     Kb1 = 0x400,
     #[allow(dead_code)]
     Kb2 = 0x800,
@@ -87,9 +95,12 @@ pub enum BankSize {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InesHeader {
-    pub prg_rom_count: u8, // 16 KB units
-    pub prg_ram_count: u8, // 8 KB units
-    pub chr_rom_count: u8, // 8 KB units
+    /// 16 KB units
+    pub prg_rom_count: u8,
+    /// 8 KB units, value 0 infers 8 KB for compatibility
+    pub prg_ram_count: u8,
+    /// 8 KB units
+    pub chr_rom_count: u8,
     pub mirroring: Mirroring,
     pub has_battery: bool,
     pub mapper_id: u32,

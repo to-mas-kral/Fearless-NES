@@ -4,15 +4,14 @@ use super::Nes;
 
 /// This pallete maps the PPU output to RGB (24 bits RGB format)
 pub static PALETTE: [u8; 192] = [
-    84, 84, 84, 0, 30, 116, 8, 16, 144, 48, 0, 136, 68, 0, 100, 92, 0, 48, 84, 4, 0, 60,
-    24, 0, 32, 42, 0, 8, 58, 0, 0, 64, 0, 0, 60, 0, 0, 50, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    152, 150, 152, 8, 76, 196, 48, 50, 236, 92, 30, 228, 136, 20, 176, 160, 20, 100, 152,
-    34, 32, 120, 60, 0, 84, 90, 0, 40, 114, 0, 8, 124, 0, 0, 118, 40, 0, 102, 120, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 236, 238, 236, 76, 154, 236, 120, 124, 236, 176, 98, 236, 228,
-    84, 236, 236, 88, 180, 236, 106, 100, 212, 136, 32, 160, 170, 0, 116, 196, 0, 76,
-    208, 32, 56, 204, 108, 56, 180, 204, 60, 60, 60, 0, 0, 0, 0, 0, 0, 236, 238, 236,
-    168, 204, 236, 188, 188, 236, 212, 178, 236, 236, 174, 236, 236, 174, 212, 236, 180,
-    176, 228, 196, 144, 204, 210, 120, 180, 222, 120, 168, 226, 144, 152, 226, 180, 160,
+    84, 84, 84, 0, 30, 116, 8, 16, 144, 48, 0, 136, 68, 0, 100, 92, 0, 48, 84, 4, 0, 60, 24, 0, 32,
+    42, 0, 8, 58, 0, 0, 64, 0, 0, 60, 0, 0, 50, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 152, 150, 152, 8,
+    76, 196, 48, 50, 236, 92, 30, 228, 136, 20, 176, 160, 20, 100, 152, 34, 32, 120, 60, 0, 84, 90,
+    0, 40, 114, 0, 8, 124, 0, 0, 118, 40, 0, 102, 120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 236, 238, 236,
+    76, 154, 236, 120, 124, 236, 176, 98, 236, 228, 84, 236, 236, 88, 180, 236, 106, 100, 212, 136,
+    32, 160, 170, 0, 116, 196, 0, 76, 208, 32, 56, 204, 108, 56, 180, 204, 60, 60, 60, 0, 0, 0, 0,
+    0, 0, 236, 238, 236, 168, 204, 236, 188, 188, 236, 212, 178, 236, 236, 174, 236, 236, 174, 212,
+    236, 180, 176, 228, 196, 144, 204, 210, 120, 180, 222, 120, 168, 226, 144, 152, 226, 180, 160,
     214, 228, 160, 162, 160, 0, 0, 0, 0, 0, 0,
 ];
 
@@ -32,7 +31,8 @@ struct Sprite {
     x: u8,
     index: u16,
     palette: u8,
-    priority: bool, //O - in front, 1 - behind background
+    ///O - in front, 1 - behind background
+    priority: bool,
     horizontal_flip: bool,
     vertical_flip: bool,
     tile_low: u8,
@@ -59,9 +59,6 @@ impl Sprite {
 pub struct Ppu {
     pub output_buffer: Vec<u8>,
 
-    suppress_nmi: bool,
-    prev_nmi: bool,
-
     pub oam: Vec<u8>,
     secondary_oam: Vec<u8>,
     palettes: Vec<u8>,
@@ -84,8 +81,9 @@ pub struct Ppu {
     temp_vram_addr: usize,
     x_fine_scroll: u8,
 
-    xpos: u16,
-    scanline: u16,
+    pub xpos: u16,
+    pub scanline: u16,
+    pub cycle_count: u32,
     odd_frame: bool,
 
     nametable_byte: u8,
@@ -109,7 +107,13 @@ pub struct Ppu {
     sp_pattern_table_addr: usize,
     bg_pattern_table_addr: usize,
     sp_size: u8,
+
+    /// https://wiki.nesdev.com/w/index.php?title=NMI#Operation
     nmi_on_vblank: bool,
+    /// By toggling NMI_output (PPUCTRL.7) during vertical blank without reading PPUSTATUS,
+    /// a program can cause /NMI to be pulled low multiple times, causing multiple NMIs to be generated.
+    prev_nmi: bool,
+    suppress_nmi: bool,
 
     greyscale: bool,
     bg_left_clip: u8,
@@ -125,20 +129,13 @@ pub struct Ppu {
 impl Ppu {
     pub(crate) fn new() -> Ppu {
         let palettes = vec![
-            0x09, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x0D, 0x08, 0x10, 0x08, 0x24, 0x00,
-            0x00, 0x04, 0x2C, 0x09, 0x01, 0x34, 0x03, 0x00, 0x04, 0x00, 0x14, 0x08, 0x3A,
-            0x00, 0x02, 0x00, 0x20, 0x2C, 0x08,
+            0x09, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x0D, 0x08, 0x10, 0x08, 0x24, 0x00, 0x00,
+            0x04, 0x2C, 0x09, 0x01, 0x34, 0x03, 0x00, 0x04, 0x00, 0x14, 0x08, 0x3A, 0x00, 0x02,
+            0x00, 0x20, 0x2C, 0x08,
         ];
 
         Ppu {
             output_buffer: vec![0; 256 * 240],
-
-            suppress_nmi: false,
-            prev_nmi: false,
-
-            xpos: 0,
-            scanline: 0,
-            odd_frame: false,
 
             oam: vec![0; 0x100],
             secondary_oam: vec![0; 0x20],
@@ -158,6 +155,15 @@ impl Ppu {
             sprite_buffer: vec![Sprite::new(); 8],
             sprite_cache: vec![false; 0x101],
 
+            vram_addr: 0,
+            temp_vram_addr: 0,
+            x_fine_scroll: 0,
+
+            xpos: 0,
+            scanline: 0,
+            cycle_count: 0,
+            odd_frame: false,
+
             nametable_byte: 0,
             attribute: 0,
             tile_addr: 0,
@@ -165,10 +171,6 @@ impl Ppu {
             tile_hb: 0,
             shift_low: 0,
             shift_high: 0,
-
-            vram_addr: 0,
-            temp_vram_addr: 0,
-            x_fine_scroll: 0,
 
             ignore_writes: true,
 
@@ -183,7 +185,10 @@ impl Ppu {
             sp_pattern_table_addr: 0,
             bg_pattern_table_addr: 0,
             sp_size: 8,
+
             nmi_on_vblank: false,
+            prev_nmi: false,
+            suppress_nmi: false,
 
             greyscale: false,
             bg_left_clip: 0,
@@ -199,46 +204,15 @@ impl Ppu {
 }
 
 impl Nes {
-    //TODO: latch decay ?
-    //TODO: open bus masks
-    #[inline]
-    pub(crate) fn ppu_read_reg(&mut self, addr: usize) -> u8 {
-        match addr & 7 {
-            0 | 1 | 3 | 5 | 6 => (),
-            2 => self.read_ppustatus(),
-            4 => self.read_oamdata(),
-            7 => self.read_ppudata(),
-            _ => unreachable!(),
-        };
-
-        self.ppu.latch
-    }
-
-    #[inline]
-    pub(crate) fn ppu_write_reg(&mut self, addr: usize, val: u8) {
-        self.ppu.latch = val;
-        match addr & 7 {
-            0 if !self.ppu.ignore_writes => self.write_ppuctrl(),
-            1 if !self.ppu.ignore_writes => self.write_ppumask(),
-            3 => self.write_oamaddr(),
-            4 => self.write_oamdata(),
-            5 if !self.ppu.ignore_writes => self.write_ppuscroll(),
-            6 if !self.ppu.ignore_writes => self.write_ppuaddr(),
-            7 => self.write_ppudata(),
-            _ => (),
-        }
-    }
-
-    #[inline]
-    pub(crate) fn ppu_enable_writes(&mut self) {
-        self.ppu.ignore_writes = false;
-    }
-
     #[inline]
     fn ppu_write(&mut self, mut addr: usize, val: u8) {
         addr &= 0x3FFF;
+
+        self.mapper
+            .notify_a12(addr, self.ppu.cycle_count, &mut self.cpu.irq_signal);
+
         match addr {
-            0..=0x1FFF => (self.mapper.write_chr.ptr)(self, addr, val),
+            0..=0x1FFF => self.mapper.write_chr(addr, val),
             0x2000..=0x3EFF => self.write_nametable(addr & 0xFFF, val),
             0x3F00..=0x3FFF => self.palette_write(addr, val),
             _ => unreachable!(),
@@ -247,70 +221,60 @@ impl Nes {
 
     #[inline]
     fn write_nametable(&mut self, addr: usize, val: u8) {
-        match self.mapper.mirroring {
+        match self.mapper.mirroring() {
             Mirroring::Vertical => match addr {
                 0..=0x3FF => {
-                    (self.mapper.write_nametable.ptr)(self, addr, val);
-                    (self.mapper.write_nametable.ptr)(self, addr + 0x800, val);
+                    self.mapper.write_nametable(addr, val);
+                    self.mapper.write_nametable(addr + 0x800, val);
                 }
                 0x400..=0x7FF => {
-                    (self.mapper.write_nametable.ptr)(self, addr, val);
-                    (self.mapper.write_nametable.ptr)(self, addr + 0x800, val);
+                    self.mapper.write_nametable(addr, val);
+                    self.mapper.write_nametable(addr + 0x800, val);
                 }
                 0x800..=0xBFF => {
-                    (self.mapper.write_nametable.ptr)(self, addr, val);
-                    (self.mapper.write_nametable.ptr)(self, addr - 0x400, val);
+                    self.mapper.write_nametable(addr, val);
+                    self.mapper.write_nametable(addr - 0x400, val);
                 }
                 0xC00..=0xFFF => {
-                    (self.mapper.write_nametable.ptr)(self, addr, val);
-                    (self.mapper.write_nametable.ptr)(self, addr - 0x800, val);
+                    self.mapper.write_nametable(addr, val);
+                    self.mapper.write_nametable(addr - 0x800, val);
                 }
                 _ => unreachable!(),
             },
             Mirroring::Horizontal => match addr {
                 0..=0x3FF => {
-                    (self.mapper.write_nametable.ptr)(self, addr, val);
-                    (self.mapper.write_nametable.ptr)(self, addr + 0x400, val);
+                    self.mapper.write_nametable(addr, val);
+                    self.mapper.write_nametable(addr + 0x400, val);
                 }
                 0x400..=0x7FF => {
-                    (self.mapper.write_nametable.ptr)(self, addr, val);
-                    (self.mapper.write_nametable.ptr)(self, addr - 0x400, val);
+                    self.mapper.write_nametable(addr, val);
+                    self.mapper.write_nametable(addr - 0x400, val);
                 }
                 0x800..=0xBFF => {
-                    (self.mapper.write_nametable.ptr)(self, addr, val);
-                    (self.mapper.write_nametable.ptr)(self, addr + 0x400, val);
+                    self.mapper.write_nametable(addr, val);
+                    self.mapper.write_nametable(addr + 0x400, val);
                 }
                 0xC00..=0xFFF => {
-                    (self.mapper.write_nametable.ptr)(self, addr, val);
-                    (self.mapper.write_nametable.ptr)(self, addr - 0x400, val);
+                    self.mapper.write_nametable(addr, val);
+                    self.mapper.write_nametable(addr - 0x400, val);
                 }
                 _ => unreachable!(),
             },
             Mirroring::SingleScreenLow => match addr {
-                0..=0x3FF => (self.mapper.write_nametable.ptr)(self, addr, val),
-                0x400..=0x7FF => {
-                    (self.mapper.write_nametable.ptr)(self, addr - 0x400, val)
-                }
-                0x800..=0xBFF => {
-                    (self.mapper.write_nametable.ptr)(self, addr - 0x800, val)
-                }
-                0xC00..=0xFFF => {
-                    (self.mapper.write_nametable.ptr)(self, addr - 0xC00, val)
-                }
+                0..=0x3FF => self.mapper.write_nametable(addr, val),
+                0x400..=0x7FF => self.mapper.write_nametable(addr - 0x400, val),
+                0x800..=0xBFF => self.mapper.write_nametable(addr - 0x800, val),
+                0xC00..=0xFFF => self.mapper.write_nametable(addr - 0xC00, val),
                 _ => unreachable!(),
             },
             Mirroring::SingleScreenHigh => match addr {
-                0..=0x3FF => (self.mapper.write_nametable.ptr)(self, addr + 0x400, val),
-                0x400..=0x7FF => (self.mapper.write_nametable.ptr)(self, addr, val),
-                0x800..=0xBFF => {
-                    (self.mapper.write_nametable.ptr)(self, addr - 0x400, val)
-                }
-                0xC00..=0xFFF => {
-                    (self.mapper.write_nametable.ptr)(self, addr - 0x800, val)
-                }
+                0..=0x3FF => self.mapper.write_nametable(addr + 0x400, val),
+                0x400..=0x7FF => self.mapper.write_nametable(addr, val),
+                0x800..=0xBFF => self.mapper.write_nametable(addr - 0x400, val),
+                0xC00..=0xFFF => self.mapper.write_nametable(addr - 0x800, val),
                 _ => unreachable!(),
             },
-            Mirroring::FourScreen => (self.mapper.write_nametable.ptr)(self, addr, val),
+            Mirroring::FourScreen => self.mapper.write_nametable(addr, val),
             m => unimplemented!("{:?} mirroring is unimplemented", m),
         }
     }
@@ -318,8 +282,12 @@ impl Nes {
     #[inline]
     fn ppu_read(&mut self, mut addr: usize) -> u8 {
         addr &= 0x3FFF;
+
+        self.mapper
+            .notify_a12(addr, self.ppu.cycle_count, &mut self.cpu.irq_signal);
+
         match addr {
-            0..=0x1FFF => (self.mapper.read_chr.ptr)(self, addr),
+            0..=0x1FFF => self.mapper.read_chr(addr),
             0x2000..=0x3EFF => self.read_nametable(addr & 0xFFF),
             0x3F00..=0x3FFF => self.palette_read(addr),
             _ => unreachable!(),
@@ -328,25 +296,24 @@ impl Nes {
 
     #[inline]
     fn read_nametable(&mut self, addr: usize) -> u8 {
-        let mapper = &mut self.mapper;
-        match mapper.mirroring {
-            Mirroring::Vertical => (self.mapper.read_nametable.ptr)(self, addr),
-            Mirroring::Horizontal => (self.mapper.read_nametable.ptr)(self, addr),
+        match self.mapper.mirroring() {
+            Mirroring::Vertical => self.mapper.read_nametable(addr),
+            Mirroring::Horizontal => self.mapper.read_nametable(addr),
             Mirroring::SingleScreenLow => match addr {
-                0..=0x3FF => (mapper.read_nametable.ptr)(self, addr),
-                0x400..=0x7FF => (mapper.read_nametable.ptr)(self, addr - 0x400),
-                0x800..=0xBFF => (mapper.read_nametable.ptr)(self, addr - 0x800),
-                0xC00..=0xFFF => (mapper.read_nametable.ptr)(self, addr - 0xC00),
+                0..=0x3FF => self.mapper.read_nametable(addr),
+                0x400..=0x7FF => self.mapper.read_nametable(addr - 0x400),
+                0x800..=0xBFF => self.mapper.read_nametable(addr - 0x800),
+                0xC00..=0xFFF => self.mapper.read_nametable(addr - 0xC00),
                 _ => unreachable!(),
             },
             Mirroring::SingleScreenHigh => match addr {
-                0..=0x3FF => (mapper.read_nametable.ptr)(self, addr + 0x400),
-                0x400..=0x7FF => (mapper.read_nametable.ptr)(self, addr),
-                0x800..=0xBFF => (mapper.read_nametable.ptr)(self, addr - 0x400),
-                0xC00..=0xFFF => (mapper.read_nametable.ptr)(self, addr - 0x800),
+                0..=0x3FF => self.mapper.read_nametable(addr + 0x400),
+                0x400..=0x7FF => self.mapper.read_nametable(addr),
+                0x800..=0xBFF => self.mapper.read_nametable(addr - 0x400),
+                0xC00..=0xFFF => self.mapper.read_nametable(addr - 0x800),
                 _ => unreachable!(),
             },
-            Mirroring::FourScreen => (mapper.read_nametable.ptr)(self, addr),
+            Mirroring::FourScreen => self.mapper.read_nametable(addr),
             m => unimplemented!("{:?} mirroring is unimplemented", m),
         }
     }
@@ -393,14 +360,49 @@ impl Nes {
         index
     }
 
-    //Ppuctrl
-    //    N -- 00000011 -- Name table address (0 = 0x2000; 1 = 0x2400; 2 = 0x2800; 3 = 0x2C00)
-    //    I -- 00000100 -- PPU address increment (0: add 1, going across; 1: add 32, going down)
-    //    S -- 00001000 -- Sprite pattern table address (0: 0x0000; 1: 0x1000; ignored in 8x16 mode)
-    //    B -- 00010000 -- Background pattern table address (0: 0x0000; 1: 0x1000)
-    //    H -- 00100000 -- Sprite size (0: 8x8, 1: 8x16)
-    //    P -- 01000000 -- PPU master/slave select (0: read backdrop from EXT pins; 1: output color on EXT pins)
-    //    V -- 10000000 -- Execute NMI on vblank
+    //TODO: latch decay ?
+    //TODO: open bus masks
+    #[inline]
+    pub(crate) fn ppu_read_reg(&mut self, addr: usize) -> u8 {
+        match addr & 7 {
+            0 | 1 | 3 | 5 | 6 => (),
+            2 => self.read_ppustatus(),
+            4 => self.read_oamdata(),
+            7 => self.read_ppudata(),
+            _ => unreachable!(),
+        };
+
+        self.ppu.latch
+    }
+
+    #[inline]
+    pub(crate) fn ppu_write_reg(&mut self, addr: usize, val: u8) {
+        self.ppu.latch = val;
+        match addr & 7 {
+            0 if !self.ppu.ignore_writes => self.write_ppuctrl(),
+            1 if !self.ppu.ignore_writes => self.write_ppumask(),
+            3 => self.write_oamaddr(),
+            4 => self.write_oamdata(),
+            5 if !self.ppu.ignore_writes => self.write_ppuscroll(),
+            6 if !self.ppu.ignore_writes => self.write_ppuaddr(),
+            7 => self.write_ppudata(),
+            _ => (),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn ppu_enable_writes(&mut self) {
+        self.ppu.ignore_writes = false;
+    }
+
+    /** Ppuctrl
+    N -- 00000011 -- Name table address (0 = 0x2000; 1 = 0x2400; 2 = 0x2800; 3 = 0x2C00)
+    I -- 00000100 -- PPU address increment (0: add 1, going across; 1: add 32, going down)
+    S -- 00001000 -- Sprite pattern table address (0: 0x0000; 1: 0x1000; ignored in 8x16 mode)
+    B -- 00010000 -- Background pattern table address (0: 0x0000; 1: 0x1000)
+    H -- 00100000 -- Sprite size (0: 8x8, 1: 8x16)
+    P -- 01000000 -- PPU master/slave select (0: read backdrop from EXT pins; 1: output color on EXT pins)
+    V -- 10000000 -- Execute NMI on vblank **/
     #[inline]
     fn write_ppuctrl(&mut self) {
         //TODO: bit 0 bus conflict
@@ -420,22 +422,18 @@ impl Nes {
         self.ppu.bg_pattern_table_addr = if val & (1 << 4) == 0 { 0 } else { 0x1000 };
         self.ppu.sp_size = if val & (1 << 5) == 0 { 8 } else { 16 };
 
-        //if self.nmi_on_vblank && val & (1 << 7) == 0 && self.scanline == 241 {
-        //    println!("disabling NMI, cycle {:?}", self.xpos);
-        //}
-
         self.ppu.nmi_on_vblank = val & (1 << 7) != 0;
     }
 
-    //Ppumask
-    //    g -- 00000001 -- Greyscale (0: normal color, 1: produce a greyscale display)
-    //    m -- 00000010 -- 1: Show background in leftmost 8 pixels of screen, 0: Hide
-    //    M -- 00000100 -- 1: Show sprites in leftmost 8 pixels of screen, 0: Hide
-    //    b -- 00001000 -- 1: Show background, 0: Hide
-    //    s -- 00010000 -- 1: Show sprites, 0: Hide
-    //    R -- 00100000 -- Emphasize red
-    //    G -- 01000000 -- Emphasize green
-    //    B -- 10000000 -- Emphasize blue
+    /** Ppumask
+    g -- 00000001 -- Greyscale (0: normal color, 1: produce a greyscale display)
+    m -- 00000010 -- 1: Show background in leftmost 8 pixels of screen, 0: Hide
+    M -- 00000100 -- 1: Show sprites in leftmost 8 pixels of screen, 0: Hide
+    b -- 00001000 -- 1: Show background, 0: Hide
+    s -- 00010000 -- 1: Show sprites, 0: Hide
+    R -- 00100000 -- Emphasize red
+    G -- 01000000 -- Emphasize green
+    B -- 10000000 -- Emphasize blue **/
     #[inline]
     fn write_ppumask(&mut self) {
         let val = self.ppu.latch;
@@ -450,33 +448,28 @@ impl Nes {
         self.ppu.rendering_enabled = self.ppu.show_bg || self.ppu.show_sp;
     }
 
-    //Ppustatus
-    //    O -- 00100000 -- Sprite overflow
-    //    S -- 01000000 -- Sprite 0 hit
-    //    V -- 10000000 -- Vertical blank has started (0: not in vblank; 1: in vblank)
+    /** Ppustatus
+    O -- 00100000 -- Sprite overflow
+    S -- 01000000 -- Sprite 0 hit
+    V -- 10000000 -- Vertical blank has started (0: not in vblank; 1: in vblank) **/
     #[inline]
     fn read_ppustatus(&mut self) {
         self.ppu.write_toggle = false;
         self.ppu.latch = self.ppu.ppustatus;
         self.ppu.ppustatus &= 0x7F;
 
-        //Reading $2002 within a few PPU clocks of when VBL is set results in special-case behavior.
-        //Reading one PPU clock before reads it as clear and never sets the flag or generates
-        //NMI for that frame. Reading on the same PPU clock or one later reads it as set,
-        //clears it, and suppresses the NMI for that frame.
-
-        //if self.scanline == 241 && self.xpos < 9 {
-        //    println!("reading ppustatus, cycle: {:?}", self.xpos);
-        //}
+        // https://wiki.nesdev.com/w/index.php?title=PPU_frame_timing#VBL_Flag_Timing
+        // Reading $2002 within a few PPU clocks of when VBL is set results in special-case behavior.
+        // Reading one PPU clock before reads it as clear and never sets the flag or generates
+        // NMI for that frame. Reading on the same PPU clock or one later reads it as set,
+        // clears it, and suppresses the NMI for that frame.
 
         if self.ppu.scanline == 241 && (self.ppu.xpos == 2 || self.ppu.xpos == 3) {
             self.ppu.latch |= 0x80;
+            self.ppu.suppress_nmi = true;
             self.cpu.nmi_signal = false;
-            self.ppu.prev_nmi = true;
         } else if self.ppu.scanline == 241 && self.ppu.xpos == 1 {
             self.ppu.latch &= 0x7F;
-            self.cpu.nmi_signal = false;
-            //self.prev_nmi = false;
             self.ppu.suppress_nmi = true;
         }
     }
@@ -497,9 +490,7 @@ impl Nes {
 
     #[inline]
     fn write_oamdata(&mut self) {
-        if self.ppu.rendering_enabled
-            && (self.ppu.scanline <= 239 || self.ppu.scanline == 261)
-        {
+        if self.ppu.rendering_enabled && (self.ppu.scanline <= 239 || self.ppu.scanline == 261) {
             self.ppu.oamaddr = self.ppu.oamaddr.wrapping_add(4);
         } else {
             let val = if self.ppu.oamaddr & 3 == 2 {
@@ -521,8 +512,7 @@ impl Nes {
                 | ((val as usize & 0xF8) << 2)
                 | ((val as usize & 7) << 12);
         } else {
-            self.ppu.temp_vram_addr =
-                (self.ppu.temp_vram_addr & !0x1F) | (val as usize >> 3);
+            self.ppu.temp_vram_addr = (self.ppu.temp_vram_addr & !0x1F) | (val as usize >> 3);
             self.ppu.x_fine_scroll = val & 7;
         }
 
@@ -532,10 +522,17 @@ impl Nes {
     #[inline]
     fn write_ppuaddr(&mut self) {
         let val = self.ppu.latch;
+
         if self.ppu.write_toggle {
             self.ppu.temp_vram_addr = (self.ppu.temp_vram_addr & !0xFF) | val as usize;
             //TODO: add 2-3 cycle delay to the update
             self.ppu.vram_addr = self.ppu.temp_vram_addr;
+
+            self.mapper.notify_a12(
+                self.ppu.vram_addr,
+                self.ppu.cycle_count,
+                &mut self.cpu.irq_signal,
+            );
         } else {
             self.ppu.temp_vram_addr =
                 (self.ppu.temp_vram_addr & !0xFF00) | ((val as usize & 0x3F) << 8);
@@ -551,32 +548,41 @@ impl Nes {
 
         if (self.ppu.vram_addr & 0x3FFF) >= 0x3F00 {
             self.ppu.latch = self.palette_read(self.ppu.vram_addr);
-            self.ppu.read_buffer = (self.mapper.read_nametable.ptr)(
-                self,
-                (self.ppu.vram_addr & 0x3FFF) - 0x3000,
-            );
+            self.ppu.read_buffer = self
+                .mapper
+                .read_nametable((self.ppu.vram_addr & 0x3FFF) - 0x3000);
         }
 
-        if self.ppu.rendering_enabled && self.ppu.scanline < 240 {
+        if self.ppu.rendering_enabled && (self.ppu.scanline < 240 || self.ppu.scanline == 261) {
             self.coarse_x_increment();
             self.y_increment();
         } else {
-            //TODO: trigger some memory read
             self.ppu.vram_addr += self.ppu.addr_increment;
         }
+
+        self.mapper.notify_a12(
+            self.ppu.vram_addr,
+            self.ppu.cycle_count,
+            &mut self.cpu.irq_signal,
+        );
     }
 
     #[inline]
     fn write_ppudata(&mut self) {
         self.ppu_write(self.ppu.vram_addr, self.ppu.latch);
 
-        if self.ppu.rendering_enabled && self.ppu.scanline < 240 {
+        if self.ppu.rendering_enabled && (self.ppu.scanline < 240 || self.ppu.scanline == 261) {
             self.coarse_x_increment();
             self.y_increment();
         } else {
-            //TODO: trigger some memory read
             self.ppu.vram_addr += self.ppu.addr_increment;
         };
+
+        self.mapper.notify_a12(
+            self.ppu.vram_addr,
+            self.ppu.cycle_count,
+            &mut self.cpu.irq_signal,
+        );
     }
 
     #[inline]
@@ -605,14 +611,16 @@ impl Nes {
                 self.ppu.scanline = 0;
             }
         }
+
+        self.ppu.cycle_count = self.ppu.cycle_count.wrapping_add(1);
     }
 
-    //https://wiki.nesdev.com/w/index.php/PPU_rendering
-    //http://wiki.nesdev.com/w/index.php/PPU_scrolling#Tile_and_attribute_fetching
-    //https://wiki.nesdev.com/w/images/d/d1/Ntsc_timing.png
+    /// https://wiki.nesdev.com/w/index.php/PPU_rendering
+    /// https://wiki.nesdev.com/w/images/d/d1/Ntsc_timing.png
     #[inline]
     fn ppu_scanline_tick(&mut self) {
         match self.ppu.scanline {
+            // TODO: correct operation when rendering is disabled
             0..=239 => match self.ppu.xpos {
                 2..=256 => {
                     self.shift_tile_registers();
@@ -633,10 +641,18 @@ impl Nes {
                     self.shift_tile_registers();
                 }
                 258..=320 => self.fetch_sprites(),
+                0 => {
+                    // Uncompleted tile fetch needed for proper MMC3 emulation
+                    let addr = (usize::from(self.ppu.nametable_byte) << 4)
+                        | (self.ppu.vram_addr >> 12)
+                        | self.ppu.bg_pattern_table_addr;
+                    self.mapper
+                        .notify_a12(addr, self.ppu.cycle_count, &mut self.cpu.irq_signal);
+                }
                 1 => {
                     self.fetch_nt();
                     self.draw_pixel();
-                    self.ppu.secondary_oam = vec![0xFF; 0x20];
+                    self.ppu.secondary_oam.fill(0xFF);
                 }
                 257 => {
                     self.t_to_v();
@@ -648,6 +664,15 @@ impl Nes {
                 }
                 _ => (),
             },
+            240 => {
+                if self.ppu.xpos == 1 {
+                    self.mapper.notify_a12(
+                        self.ppu.vram_addr,
+                        self.ppu.cycle_count,
+                        &mut self.cpu.irq_signal,
+                    );
+                }
+            }
             241..=260 => self.vblank(),
             261 => {
                 match self.ppu.xpos {
@@ -670,8 +695,22 @@ impl Nes {
                         self.fetch_bg();
                         self.shift_tile_registers();
                     }
+                    0 => {
+                        // Uncompleted tile fetch needed for proper MMC3 emulation
+                        let addr = (usize::from(self.ppu.nametable_byte) << 4)
+                            | (self.ppu.vram_addr >> 12)
+                            | self.ppu.bg_pattern_table_addr;
+                        self.mapper.notify_a12(
+                            addr,
+                            self.ppu.cycle_count,
+                            &mut self.cpu.irq_signal,
+                        );
+                    }
                     1 => {
                         self.ppu.ppustatus &= !0xE0;
+                        self.cpu.nmi_signal = false;
+                        self.ppu.suppress_nmi = false;
+                        self.ppu.prev_nmi = false;
                         self.fetch_nt();
                         self.oam_refresh_bug();
                     }
@@ -683,13 +722,13 @@ impl Nes {
                         self.ppu_read(self.nametable_addr());
                     }
                     339 => {
-                        self.ppu.sprite_cache = vec![false; 0x101];
+                        self.ppu.sprite_cache.fill(false);
                         self.frame_ready = true;
                         self.ppu_read(self.nametable_addr());
 
-                        //The skipped tick is implemented by jumping directly from (339, 261)
-                        //to (0, 0), meaning the last tick of the last NT fetch takes place at (0, 0)
-                        //on odd frames replacing the idle tick
+                        // The skipped tick is implemented by jumping directly from (339, 261)
+                        // to (0, 0), meaning the last tick of the last NT fetch takes place at (0, 0)
+                        // on odd frames replacing the idle tick
                         if self.ppu.odd_frame & self.ppu.rendering_enabled {
                             self.ppu.xpos = 340;
                         }
@@ -711,32 +750,20 @@ impl Nes {
                     self.ppu.ppustatus |= 0x80;
                 }
 
-                if self.ppu.nmi_on_vblank && !self.ppu.suppress_nmi {
+                if self.ppu.nmi_on_vblank && (self.ppu.ppustatus & 0x80) != 0 {
+                    self.ppu.prev_nmi = true;
                     self.cpu.nmi_signal = true;
-                    self.ppu.prev_nmi = true;
-                } else {
-                    self.ppu.prev_nmi = true;
                 }
-
-                self.ppu.suppress_nmi = false;
             }
             (241, 0) => (),
             _ => {
-                let current_nmi =
-                    self.ppu.nmi_on_vblank && ((self.ppu.ppustatus & 0x80) != 0);
-
-                //if self.scanline == 241 && self.xpos < 9 {
-                //    println!(
-                //        "cycle: {:?}, prev_nmi: {:?}, current_nmi: {:?}",
-                //        self.xpos, self.prev_nmi, current_nmi
-                //    );
-                //}
+                let current_nmi = self.ppu.nmi_on_vblank
+                    && ((self.ppu.ppustatus & 0x80) != 0)
+                    && !self.ppu.suppress_nmi;
 
                 match (self.ppu.prev_nmi, current_nmi) {
-                    (true, true) => (),
-                    (true, false) => (), //nes!(self.nes).cpu.nmi_signal = false
                     (false, true) => self.cpu.nmi_signal = true,
-                    (false, false) => (), //nes!(self.nes).cpu.nmi_signal = false,
+                    _ => (),
                 }
 
                 self.ppu.prev_nmi = current_nmi;
@@ -744,33 +771,33 @@ impl Nes {
         }
     }
 
-    //Tile and attribute fetching
+    /** Tile and attribute fetching
+    http://wiki.nesdev.com/w/index.php/PPU_scrolling#Tile_and_attribute_fetching
 
-    //The high bits of v are used for fine Y during rendering,
-    //and addressing nametable data only requires 12 bits,
-    //with the high 2 CHR addres lines fixed to the 0x2000 region.
-    //The address to be fetched during rendering can be deduced from v in the following way:
+    The high bits of v are used for fine Y during rendering,
+    and addressing nametable data only requires 12 bits,
+    with the high 2 CHR addres lines fixed to the 0x2000 region.
+    The address to be fetched during rendering can be deduced from v in the following way:
 
-    //nametable address = 0x2000 | (v & 0x0FFF)
-    //attribute address = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
-    //tile address low  = (nametable address << 4) | (v >> 12) | background patter table address
-    //tile address high = tile address low + 8
+    nametable address = 0x2000 | (v & 0x0FFF)
+    attribute address = 0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
+    tile address low  = (nametable address << 4) | (v >> 12) | background patter table address
+    tile address high = tile address low + 8
 
-    //The low 12 bits of the attribute address are composed in the following way:
+    The low 12 bits of the attribute address are composed in the following way:
 
-    //NN 1111 YYY XXX
-    //|| |||| ||| +++-- high 3 bits of coarse X (x/4)
-    //|| |||| +++------ high 3 bits of coarse Y (y/4)
-    //|| ++++---------- attribute offset (960 bytes)
-    //++--------------- nametable select
+    NN 1111 YYY XXX
+    || |||| ||| +++-- high 3 bits of coarse X (x/4)
+    || |||| +++------ high 3 bits of coarse Y (y/4)
+    || ++++---------- attribute offset (960 bytes)
+    ++--------------- nametable select
 
-    //The 15 bit registers t and v are composed this way during rendering:
-    //yyy NN YYYYY XXXXX
-    //||| || ||||| +++++-- coarse X scroll
-    //||| || +++++-------- coarse Y scroll
-    //||| ++-------------- nametable select
-    //+++----------------- fine Y scroll
-    //FIXME: optimize
+    The 15 bit registers t and v are composed this way during rendering:
+    yyy NN YYYYY XXXXX
+    ||| || ||||| +++++-- coarse X scroll
+    ||| || +++++-------- coarse Y scroll
+    ||| ++-------------- nametable select
+    +++----------------- fine Y scroll **/
     #[inline(always)]
     fn fetch_bg(&mut self) {
         if self.ppu.rendering_enabled {
@@ -787,14 +814,16 @@ impl Nes {
 
     #[inline(always)]
     fn fetch_nt(&mut self) {
-        //The 2-bit 1-of-4 selector" is used to shift the attribute byte right
-        //by 0, 2, 4, or 6 bits depending on bit 4 of the X and Y pixel position.
-        //Roughly: if (v & 0x40) attrbyte >>= 4; if (v & 0x02) attrbyte >>= 2.
-        self.shift_attrbutes();
-        self.ppu.shift_low |= u16::from(self.ppu.tile_lb);
-        self.ppu.shift_high |= u16::from(self.ppu.tile_hb);
+        // The 2-bit 1-of-4 selector" is used to shift the attribute byte right
+        // by 0, 2, 4, or 6 bits depending on bit 4 of the X and Y pixel position.
+        // Roughly: if (v & 0x40) attrbyte >>= 4; if (v & 0x02) attrbyte >>= 2.
+        if self.ppu.rendering_enabled {
+            self.shift_attrbutes();
+            self.ppu.shift_low |= u16::from(self.ppu.tile_lb);
+            self.ppu.shift_high |= u16::from(self.ppu.tile_hb);
 
-        self.ppu.nametable_byte = self.ppu_read(self.nametable_addr());
+            self.ppu.nametable_byte = self.ppu_read(self.nametable_addr());
+        }
     }
 
     #[inline]
@@ -820,7 +849,7 @@ impl Nes {
     #[inline]
     fn fetch_sprites(&mut self) {
         if self.ppu.xpos == 257 {
-            self.ppu.sprite_cache = vec![false; 0x101];
+            self.ppu.sprite_cache.fill(false);
             self.ppu.sprite_index = 0;
         }
 
@@ -841,10 +870,6 @@ impl Nes {
 
     #[inline]
     fn load_sprite(&mut self) {
-        if self.ppu.sprite_index >= self.ppu.sprite_count {
-            return;
-        }
-
         let sprite_addr = 4 * self.ppu.sprite_index as usize;
         let sprite = &mut self.ppu.sprite_buffer[self.ppu.sprite_index as usize];
         sprite.y = self.ppu.secondary_oam[sprite_addr];
@@ -884,19 +909,18 @@ impl Nes {
             }
 
             let pattern_table_addr = if index & 1 != 0 { 0x1000 } else { 0 };
-            pattern_table_addr | ((u16::from(index & !1) << 4) + y_offset as u16)
+            pattern_table_addr | (u16::from(index & !1) << 4).wrapping_add(y_offset as u16)
         };
 
         let index = sprite.index as usize;
-        self.ppu.sprite_buffer[self.ppu.sprite_index as usize].tile_low =
-            self.ppu_read(index);
-        self.ppu.sprite_buffer[self.ppu.sprite_index as usize].tile_high =
-            self.ppu_read(index + 8);
+        self.ppu.sprite_buffer[self.ppu.sprite_index as usize].tile_low = self.ppu_read(index);
+        // The second read is performed 2 cycles later, but it shouldn't have any efect
+        self.ppu.sprite_buffer[self.ppu.sprite_index as usize].tile_high = self.ppu_read(index + 8);
 
         self.ppu.sprite_index = (self.ppu.sprite_index + 1) & 7;
     }
 
-    //http://wiki.nesdev.com/w/index.php/PPU_sprite_evaluation
+    /// http://wiki.nesdev.com/w/index.php/PPU_sprite_evaluation
     #[inline]
     fn sprite_evaluation(&mut self) {
         if !self.ppu.rendering_enabled {
@@ -922,8 +946,8 @@ impl Nes {
             if self.ppu.oam_copy_done {
                 self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
                 if self.ppu.secondary_oam_addr >= 0x20 {
-                    self.ppu.oamdata_buffer = self.ppu.secondary_oam
-                        [self.ppu.secondary_oam_addr as usize & 0x1F];
+                    self.ppu.oamdata_buffer =
+                        self.ppu.secondary_oam[self.ppu.secondary_oam_addr as usize & 0x1F];
                 }
             } else {
                 //1. Starting at n = 0, read a sprite's Y-coordinate (OAM[n][0], copying it
@@ -955,34 +979,30 @@ impl Nes {
                         if self.ppu.sprite_fetch_step == 4 {
                             self.ppu.sprite_in_range = false;
                             self.ppu.sprite_fetch_step = 0;
-                            self.ppu.sprite_eval_count =
-                                (self.ppu.sprite_eval_count + 1) & 0x3F;
+                            self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
                             if self.ppu.sprite_eval_count == 0 {
                                 self.ppu.oam_copy_done = true;
                             }
                         }
                     } else {
-                        self.ppu.sprite_eval_count =
-                            (self.ppu.sprite_eval_count + 1) & 0x3F;
+                        self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
                         if self.ppu.sprite_eval_count == 0 {
                             self.ppu.oam_copy_done = true;
                         }
                     }
                 } else {
-                    self.ppu.oamdata_buffer = self.ppu.secondary_oam
-                        [self.ppu.secondary_oam_addr as usize & 0x1F];
+                    self.ppu.oamdata_buffer =
+                        self.ppu.secondary_oam[self.ppu.secondary_oam_addr as usize & 0x1F];
 
                     if self.ppu.sprite_in_range {
                         self.ppu.ppustatus |= 0x20;
                         self.ppu.sprite_fetch_step += 1;
                         if self.ppu.sprite_fetch_step == 4 {
-                            self.ppu.sprite_eval_count =
-                                (self.ppu.sprite_eval_count + 1) & 0x3F;
+                            self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
                             self.ppu.sprite_fetch_step = 0;
                         }
                     } else {
-                        self.ppu.sprite_eval_count =
-                            (self.ppu.sprite_eval_count + 1) & 0x3F;
+                        self.ppu.sprite_eval_count = (self.ppu.sprite_eval_count + 1) & 0x3F;
                         self.ppu.sprite_fetch_step = (self.ppu.sprite_fetch_step + 1) & 3;
 
                         if self.ppu.sprite_eval_count == 0 {
@@ -991,12 +1011,11 @@ impl Nes {
                     }
                 }
             }
-            self.ppu.oamaddr =
-                4 * self.ppu.sprite_eval_count + self.ppu.sprite_fetch_step;
+            self.ppu.oamaddr = 4 * self.ppu.sprite_eval_count + self.ppu.sprite_fetch_step;
         }
     }
 
-    //Taken from: http://wiki.nesdev.com/w/index.php/PPU_scrolling
+    /// Taken from: http://wiki.nesdev.com/w/index.php/PPU_scrolling
     #[inline]
     fn y_increment(&mut self) {
         if self.ppu.rendering_enabled {
@@ -1019,7 +1038,7 @@ impl Nes {
         }
     }
 
-    //Taken from: http://wiki.nesdev.com/w/index.php/PPU_scrolling
+    /// Taken from: http://wiki.nesdev.com/w/index.php/PPU_scrolling
     #[inline]
     fn coarse_x_increment(&mut self) {
         if (self.ppu.vram_addr & 0x1F) == 31 {
@@ -1030,22 +1049,21 @@ impl Nes {
         }
     }
 
-    //At dot 257 of each scanline
-    //If rendering is enabled, the PPU copies all bits related to horizontal position from t to v:
-    //v: ....F.. ...EDCBA = t: ....F.. ...EDCBA
+    /// At dot 257 of each scanline
+    /// If rendering is enabled, the PPU copies all bits related to horizontal position from t to v:
+    /// v: ....F.. ...EDCBA = t: ....F.. ...EDCBA
     #[inline]
     fn t_to_v(&mut self) {
         if self.ppu.rendering_enabled {
-            self.ppu.vram_addr =
-                (self.ppu.vram_addr & !0x41F) | (self.ppu.temp_vram_addr & 0x41F);
+            self.ppu.vram_addr = (self.ppu.vram_addr & !0x41F) | (self.ppu.temp_vram_addr & 0x41F);
         }
     }
 
-    //During dots 280 to 304 of the pre-render scanline (end of vblank)
-    //If rendering is enabled, at the end of vblank, shortly after the horizontal
-    //bits are copied from t to v at dot 257, the PPU will repeatedly copy the
-    //vertical bits from t to v from dots 280 to 304, completing the full initialization of v from t:
-    //v: IHGF.ED CBA..... = t: IHGF.ED CBA.....
+    /// During dots 280 to 304 of the pre-render scanline (end of vblank)
+    /// If rendering is enabled, at the end of vblank, shortly after the horizontal
+    /// bits are copied from t to v at dot 257, the PPU will repeatedly copy the
+    /// vertical bits from t to v from dots 280 to 304, completing the full initialization of v from t:
+    /// v: IHGF.ED CBA..... = t: IHGF.ED CBA.....
     #[inline]
     fn v_from_t(&mut self) {
         if self.ppu.rendering_enabled {
@@ -1054,16 +1072,15 @@ impl Nes {
         }
     }
 
-    //If the sprite address (OAMADDR, $2003) is not zero at the beginning of
-    //the pre-render scanline,on the 2C02 an OAM hardware refresh bug will cause the
-    //first 8 bytes of OAM to be overwritten by the 8 bytes beginning at OAMADDR & $F8
-    //before sprite evaluation begins.
+    /// If the sprite address (OAMADDR, $2003) is not zero at the beginning of
+    /// the pre-render scanline,on the 2C02 an OAM hardware refresh bug will cause the
+    /// first 8 bytes of OAM to be overwritten by the 8 bytes beginning at OAMADDR & $F8
+    /// before sprite evaluation begins.
     #[inline]
     fn oam_refresh_bug(&mut self) {
         if self.ppu.oamaddr >= 8 && self.ppu.rendering_enabled {
-            self.ppu.oam[self.ppu.xpos as usize - 1] =
-                self.ppu.oam[(self.ppu.oamaddr as usize & 0xF8)
-                    .wrapping_add(self.ppu.xpos as usize - 1)];
+            self.ppu.oam[self.ppu.xpos as usize - 1] = self.ppu.oam
+                [(self.ppu.oamaddr as usize & 0xF8).wrapping_add(self.ppu.xpos as usize - 1)];
         }
     }
 
@@ -1091,16 +1108,12 @@ impl Nes {
             return self.ppu.vram_addr & 0x1F;
         }
 
-        let bg_index = if self.ppu.show_bg && self.ppu.xpos > self.ppu.bg_left_clip as u16
-        {
-            let tile_h_bit = ((self.ppu.shift_high << u16::from(self.ppu.x_fine_scroll))
-                & 0x8000)
-                >> 14;
-            let tile_l_bit = ((self.ppu.shift_low << u16::from(self.ppu.x_fine_scroll))
-                & 0x8000)
-                >> 15;
-            let attribute = if self.ppu.x_fine_scroll as u16 + (self.ppu.xpos - 1 & 7) < 8
-            {
+        let bg_index = if self.ppu.show_bg && self.ppu.xpos > self.ppu.bg_left_clip as u16 {
+            let tile_h_bit =
+                ((self.ppu.shift_high << u16::from(self.ppu.x_fine_scroll)) & 0x8000) >> 14;
+            let tile_l_bit =
+                ((self.ppu.shift_low << u16::from(self.ppu.x_fine_scroll)) & 0x8000) >> 15;
+            let attribute = if self.ppu.x_fine_scroll as u16 + ((self.ppu.xpos - 1) & 7) < 8 {
                 self.ppu.attribute & 0xC
             } else {
                 (self.ppu.attribute & 0x30) >> 2
@@ -1120,8 +1133,7 @@ impl Nes {
                 let shift = self.ppu.xpos as i32 - spr.x as i32 - 1;
                 if shift >= 0 && shift <= 7 {
                     let sp_color = if spr.horizontal_flip {
-                        ((spr.tile_low >> shift) & 1)
-                            | (((spr.tile_high >> shift) & 1) << 1)
+                        ((spr.tile_low >> shift) & 1) | (((spr.tile_high >> shift) & 1) << 1)
                     } else {
                         (((spr.tile_low << shift) & 0x80) >> 7)
                             | (((spr.tile_high << shift) & 0x80) >> 6)

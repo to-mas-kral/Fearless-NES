@@ -4,6 +4,7 @@ mod controller;
 mod cpu;
 mod mapper;
 mod ppu;
+mod replay;
 
 #[cfg(test)]
 mod tests;
@@ -12,13 +13,14 @@ use apu::Apu;
 use cartridge::InesHeader;
 use controller::Controller;
 use cpu::Cpu;
-use mapper::Mapper;
+use mapper::BaseMapper;
 use ppu::Ppu;
 
 use serde::{Deserialize, Serialize};
 
 pub use controller::Button;
 pub use ppu::PALETTE;
+pub use replay::ReplayInputs;
 
 #[derive(Serialize, Deserialize)]
 pub struct Nes {
@@ -26,13 +28,17 @@ pub struct Nes {
     ppu: Ppu,
     apu: Apu,
 
-    mapper: Mapper,
+    mapper: BaseMapper,
 
     controller: controller::Controller,
 
     frame_ready: bool,
+    /// CPU cycle count
     cycle_count: u64,
+    frame_count: u64,
 }
+
+// TODO: wrap inner NES into some Console struct
 
 /*
     Public API
@@ -46,16 +52,17 @@ impl Nes {
             ppu: Ppu::new(),
             apu: Apu::new(),
 
-            mapper: Nes::initialize_mapper(cartridge)?,
+            mapper: BaseMapper::new(cartridge)?,
 
             controller: Controller::new(),
 
             frame_ready: false,
             cycle_count: 0,
+
+            frame_count: 0,
         };
 
         nes.cpu_gen_reset();
-        nes.cpu_reset_routine();
         Ok(nes)
     }
 
@@ -63,11 +70,17 @@ impl Nes {
         self.controller.set_button(button, state);
     }
 
+    pub fn reset(&mut self) {
+        self.cpu_gen_reset();
+    }
+
     pub fn run_one_frame(&mut self) {
         while !self.frame_ready {
             self.cpu_tick();
         }
         self.frame_ready = false;
+
+        self.frame_count += 1;
     }
 
     pub fn run_cpu_cycle(&mut self) {
@@ -78,17 +91,18 @@ impl Nes {
         &self.ppu.output_buffer
     }
 
-    pub fn load_state(&mut self, save: &[u8]) -> Result<(), Box<bincode::ErrorKind>> {
-        let nes: Nes = bincode::deserialize(&save)?;
-
-        *self = nes;
-        self.reaload_mapper_pointers();
-
-        Ok(())
+    pub fn save_state(&self) -> Result<Vec<u8>, NesError> {
+        bincode::serialize(self).map_err(|_| NesError::InvalidSaveState)
     }
 
-    pub fn save_state(&self) -> Result<Vec<u8>, Box<bincode::ErrorKind>> {
-        bincode::serialize(self)
+    pub fn load_state(save: &[u8]) -> Result<Nes, NesError> {
+        let nes: Nes = bincode::deserialize(save).map_err(|_| NesError::InvalidSaveState)?;
+
+        Ok(nes)
+    }
+
+    pub fn drive_replay_inputs(&mut self, inputs: &ReplayInputs) {
+        self._drive_replay_inputs(inputs)
     }
 
     pub fn get_cpu_state(&mut self) -> &mut Cpu {
@@ -97,6 +111,14 @@ impl Nes {
 
     pub fn get_ines_header(&mut self) -> &InesHeader {
         &self.mapper.cartridge.header
+    }
+
+    pub fn get_frame_count(&self) -> u64 {
+        self.frame_count
+    }
+
+    pub fn get_cycle_count(&self) -> u64 {
+        self.cycle_count
     }
 }
 
@@ -124,4 +146,5 @@ pub enum NesError {
     UnSupportedMapper(u32),
     InvalidInesFormat,
     InvalidRomSize,
+    InvalidSaveState,
 }

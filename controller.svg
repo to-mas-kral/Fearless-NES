@@ -26,9 +26,9 @@
      inkscape:pageshadow="2"
      inkscape:zoom="3.6203867"
      inkscape:cx="279.39004"
-     inkscape:cy="173.18592"
+     inkscape:cy="171.66674"
      inkscape:document-units="px"
-     inkscape:current-layer="layer3"
+     inkscape:current-layer="layer4"
      showgrid="false"
      inkscape:window-width="3760"
      inkscape:window-height="2119"
@@ -54,47 +54,73 @@
   </metadata>
   <g
      inkscape:groupmode="layer"
+     id="layer4"
+     inkscape:label="Background"
+     style="display:inline">
+    <rect
+       style="fill:#ffffff"
+       id="rect692"
+       width="600.48834"
+       height="401.06213"
+       x="-9.9436893"
+       y="-6.9053397"
+       ry="0.757613" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
      id="layer8"
      inkscape:label="face_buttons_text_layer"
-     transform="translate(-154.99045,-304.71875)" />
+     transform="translate(-154.99045,-304.71875)"
+     sodipodi:insensitive="true"
+     style="display:inline" />
   <g
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1"
      style="display:inline"
-     transform="translate(-154.99045,-304.71875)" />
+     transform="translate(-154.99045,-304.71875)"
+     sodipodi:insensitive="true" />
   <g
      inkscape:groupmode="layer"
      id="layer2"
      inkscape:label="Layer"
      style="display:inline"
-     transform="translate(-154.99045,-304.71875)" />
+     transform="translate(-154.99045,-304.71875)"
+     sodipodi:insensitive="true" />
   <g
      style="display:inline"
      inkscape:label="Layer copy"
      id="g3802"
      inkscape:groupmode="layer"
-     transform="translate(-154.99045,-304.71875)" />
+     transform="translate(-154.99045,-304.71875)"
+     sodipodi:insensitive="true" />
   <g
      inkscape:groupmode="layer"
      id="layer6"
      inkscape:label="buttons"
-     transform="translate(-154.99045,-304.71875)" />
+     transform="translate(-154.99045,-304.71875)"
+     sodipodi:insensitive="true"
+     style="display:inline" />
   <g
      inkscape:groupmode="layer"
      id="layer7"
      inkscape:label="face_buttons"
-     transform="translate(-154.99045,-304.71875)" />
+     transform="translate(-154.99045,-304.71875)"
+     sodipodi:insensitive="true"
+     style="display:inline" />
   <g
      inkscape:groupmode="layer"
      id="layer5"
      inkscape:label="dpad"
      style="display:inline"
-     transform="translate(-154.99045,-304.71875)" />
+     transform="translate(-154.99045,-304.71875)"
+     sodipodi:insensitive="true" />
   <g
      inkscape:groupmode="layer"
      id="layer3"
-     inkscape:label="Controls">
+     inkscape:label="Controls"
+     sodipodi:insensitive="true"
+     style="display:inline">
     <g
        id="g69573">
       <g

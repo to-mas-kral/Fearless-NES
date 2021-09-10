@@ -17,6 +17,16 @@ enum DmaHijack {
     None,
 }
 
+/**
+    Most of the documentation for the 6502 can be found on nesdev:
+    http://nesdev.com/6502_cpu.txt
+    However, a few illegal instructions (LAX and XAA) are basically undefined.
+    Some information about those can be found in the visual6502.org wiki:
+    http://visual6502.org/wiki/index.php?title=6502_Unsupported_Opcodes
+    The 6502 has many quirks, some of them (such as the branch behavior) are
+    described on visual6502.org wiki. Some of them are described in numerous
+    random documents found in the hidden corners of the internet.
+**/
 #[derive(Serialize, Deserialize)]
 pub struct Cpu {
     // registers
@@ -46,10 +56,12 @@ pub struct Cpu {
     temp: u16,
     pub open_bus: u8,
 
-    cached_irq: bool,
     pub irq_signal: bool,
-    cached_nmi: bool,
     pub nmi_signal: bool,
+    /// status of the IRQ line sampled at the end of the penultimate cycle of an instruction
+    cached_irq: bool,
+    /// status of the NMI line sampled at the end of the penultimate cycle of an instruction
+    cached_nmi: bool,
     reset_signal: bool,
     take_interrupt: bool,
     interrupt_type: InterruptType,
@@ -108,6 +120,7 @@ impl Cpu {
 
 impl Nes {
     pub(crate) fn cpu_gen_reset(&mut self) {
+        // FIXME: cpu reset is broken...
         self.cpu.current_instruction = 0;
         self.cpu.take_interrupt = true;
         self.cpu.reset_signal = true;
@@ -116,27 +129,24 @@ impl Nes {
         self.cpu.reset_signal = false;
     }
 
-    pub(crate) fn cpu_reset_routine(&mut self) {
-        self.cpu.current_instruction = 0;
-        self.cpu_tick();
-    }
-
     #[inline]
-    pub(crate) fn cpu_read(&mut self, index: usize) {
+    pub(crate) fn cpu_read(&mut self, index: usize) -> u8 {
         self.cpu.open_bus = match index {
-            0x4020..=0xFFFF => (self.mapper.cpu_read.ptr)(self, index),
+            0x4020..=0xFFFF => self.mapper.cpu_read(index, self.cpu.open_bus),
             0..=0x1FFF => self.cpu.ram[index & 0x7FF],
             0x2000..=0x3FFF => self.ppu_read_reg(index),
             0x4000..=0x4014 | 0x4017..=0x401F => self.cpu.open_bus,
             0x4016 => (self.cpu.open_bus & 0xE0) | self.controller.read_reg(),
             0x4015 => self.apu_read_status(),
-            _ => unreachable!("memory access into unmapped address: 0x{:X}", index),
+            _ => panic!("memory access into unmapped address: 0x{:X}", index),
         };
 
         self.cpu.db = self.cpu.open_bus;
         if let DmaHijack::Request = self.cpu.hijack_read {
             self.cpu.hijack_read = DmaHijack::Hijacked;
         }
+
+        return self.cpu.open_bus;
     }
 
     #[inline]
@@ -153,18 +163,10 @@ impl Nes {
             0x4016 => self.controller.write_reg(val),
             0x4017 => self.apu_write_reg(index, val),
             0x4018..=0x401F => (),
-            0x4020..=0xFFFF => (self.mapper.cpu_write.ptr)(self, index, val),
-            _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
-        }
-    }
-
-    // This method allows reading from memory without causing side effect, used in testing
-    #[allow(dead_code)]
-    #[inline]
-    pub(crate) fn cpu_peek(&mut self, index: usize) -> u8 {
-        match index {
-            0..=0x1FFF => self.cpu.ram[index & 0x7FF],
-            0x4020..=0xFFFF => (self.mapper.cpu_peek.ptr)(self, index),
+            0x4020..=0xFFFF => {
+                self.mapper
+                    .cpu_write(index, val, self.cycle_count, &mut self.cpu.irq_signal)
+            }
             _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
         }
     }
@@ -183,7 +185,7 @@ impl Nes {
         } else if self.cpu.dma_cycles >= 1 {
             if self.cpu.dma_cycles & 1 != 0 {
                 self.cpu_read(self.cpu.dma_addr as usize);
-                self.cpu.dma_addr += 1;
+                self.cpu.dma_addr = self.cpu.dma_addr.wrapping_add(1);
                 self.cpu.copy_buffer = self.cpu.db
             } else {
                 self.cpu_write(0x2004, self.cpu.copy_buffer);
@@ -235,17 +237,6 @@ macro_rules! last_cycle {
         check_read_hijack!($self);
     };
 }
-
-/*
-    Most of the documentation for the 6502 can be found on nesdev:
-    http://nesdev.com/6502_cpu.txt
-    However, a few illegal instructions (LAX and XAA) are basically undefined.
-    Some information about those can be found in the visual6502.org wiki:
-    http://visual6502.org/wiki/index.php?title=6502_Unsupported_Opcodes
-    The 6502 has many quirks, some of them (such as the branch behavior) are
-    described on visual6502.org wiki. Some of them are described in numerous
-    random documents found in the hidden corners of the internet.
-*/
 
 impl Nes {
     pub(crate) fn cpu_tick(&mut self) {
@@ -515,7 +506,6 @@ impl Nes {
         };
 
         self.load_next_instruction();
-
         self.clock_ppu_apu();
     }
 }
@@ -761,9 +751,10 @@ impl Nes {
         }
 
         // Cycle 1b
-        penultimate_cycle!(self);
 
-        self.cpu.take_interrupt = false;
+        // FIXME: branch instructions interrupts ?
+        // https://wiki.nesdev.com/w/index.php?title=CPU_interrupts#Branch_instructions_and_interrupts
+        penultimate_cycle!(self);
 
         self.take_branch();
         self.cpu.ab = self.cpu.pc;
@@ -875,8 +866,8 @@ impl Nes {
 
         // Cycle 1
         penultimate_cycle!(self);
-        self.cpu.ab = ((self.cpu.db as u16) << 8)
-            | ((self.cpu.temp as u16 + self.cpu.x as u16) & 0xFF);
+        self.cpu.ab =
+            ((self.cpu.db as u16) << 8) | ((self.cpu.temp as u16 + self.cpu.x as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
@@ -909,8 +900,8 @@ impl Nes {
 
         // Cycle 1
         penultimate_cycle!(self);
-        self.cpu.ab = ((self.cpu.db as u16) << 8)
-            | ((self.cpu.temp as u16 + self.cpu.y as u16) & 0xFF);
+        self.cpu.ab =
+            ((self.cpu.db as u16) << 8) | ((self.cpu.temp as u16 + self.cpu.y as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
@@ -943,8 +934,7 @@ impl Nes {
 
         // Cycle 1
         cycle!(self);
-        self.cpu.ab =
-            ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.x as u16) & 0xFF);
+        self.cpu.ab = ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.x as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
@@ -977,8 +967,7 @@ impl Nes {
 
         // Cycle 1
         cycle!(self);
-        self.cpu.ab =
-            ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
+        self.cpu.ab = ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
@@ -1011,8 +1000,7 @@ impl Nes {
 
         // Cycle 1
         cycle!(self);
-        self.cpu.ab =
-            ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
+        self.cpu.ab = ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
@@ -1216,8 +1204,7 @@ impl Nes {
 
         //Cycle 2
         penultimate_cycle!(self);
-        self.cpu.ab =
-            ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
+        self.cpu.ab = ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
 
         self.clock_ppu_apu();
 
@@ -1255,8 +1242,7 @@ impl Nes {
 
         // Cycle 2
         cycle!(self);
-        self.cpu.ab =
-            ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
+        self.cpu.ab = ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
 
         self.clock_ppu_apu();
 
@@ -1307,8 +1293,7 @@ impl Nes {
 
         // Cycle 2
         cycle!(self);
-        self.cpu.ab =
-            ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
+        self.cpu.ab = ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
 
         self.clock_ppu_apu();
 
@@ -1365,8 +1350,7 @@ impl Nes {
 
         // Cycle 1
         cycle!(self);
-        self.cpu.ab =
-            ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.x as u16) & 0xFF);
+        self.cpu.ab = ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.x as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
         self.clock_ppu_apu();
@@ -1660,10 +1644,9 @@ impl Nes {
     fn adc(&mut self, num: u8) {
         let a = self.cpu.a;
         let b = num;
-        let carry =
-            (u16::from(num) + u16::from(self.cpu.a) + (if self.cpu.c { 1 } else { 0 }))
-                & (1 << 8)
-                != 0;
+        let carry = (u16::from(num) + u16::from(self.cpu.a) + (if self.cpu.c { 1 } else { 0 }))
+            & (1 << 8)
+            != 0;
         let num: i8 = (num as i8).wrapping_add(if self.cpu.c { 1 } else { 0 });
         let num: i8 = (num as i8).wrapping_add(self.cpu.a as i8);
         self.cpu.a = num as u8;
@@ -2065,7 +2048,7 @@ impl Nes {
         let int = if self.cpu.take_interrupt { 0 } else { 1 };
         self.cpu_read(self.cpu.ab as usize);
         check_read_hijack!(self);
-        self.cpu.current_instruction = u8::from(int * self.cpu.db);
+        self.cpu.current_instruction = int * self.cpu.db;
         self.cpu.pc = (self.cpu.pc).wrapping_add(int as u16);
         self.cpu.ab = self.cpu.pc
     }
@@ -2080,7 +2063,6 @@ impl Nes {
     fn check_interrupts(&mut self) {
         if !self.cpu.i && self.cpu.cached_irq {
             self.cpu.cached_irq = false;
-            self.cpu.nmi_signal = false;
             self.cpu.take_interrupt = true;
             self.cpu.interrupt_type = InterruptType::Irq;
         }
@@ -2097,6 +2079,11 @@ impl Nes {
 
     #[inline]
     fn interrupt_address(&mut self) -> u16 {
+        // https://wiki.nesdev.com/w/index.php?title=CPU_interrupts#Interrupt_hijacking
+        // For example, if NMI is asserted during the first four ticks of a BRK instruction,
+        // the BRK instruction will execute normally at first (PC increments will occur and
+        // the status word will be pushed with the B flag set), but execution will branch to
+        // the NMI vector instead of the IRQ/BRK vector
         if self.cpu.nmi_signal {
             return 0xFFFA;
         }
