@@ -1,4 +1,5 @@
 use macroquad::prelude::*;
+use serde::Serialize;
 
 use crate::{NES_HEIGHT, NES_WIDTH};
 use fearless_nes::PALETTE;
@@ -28,7 +29,7 @@ impl NesRender {
         s
     }
 
-    pub fn update_frame(&mut self, nes_framebuffer: &[u8]) {
+    pub fn update_frame(&mut self, nes_framebuffer: &[u8], overscan: &Overscan) {
         for (i, pixel_color) in nes_framebuffer.iter().enumerate() {
             let palette_addr = (pixel_color * 3) as usize;
 
@@ -37,11 +38,17 @@ impl NesRender {
             let b = PALETTE[palette_addr + 2];
 
             // TOOD: filling the image could be slow
-            self.image.set_pixel(
-                (i % NES_WIDTH) as u32,
-                (i / NES_WIDTH) as u32,
-                Color::from_rgba(r, g, b, u8::MAX),
-            );
+
+            let x = (i % NES_WIDTH) as u32;
+            let y = (i / NES_WIDTH) as u32;
+
+            let color = if overscan.contains(x, y) {
+                BLACK
+            } else {
+                Color::from_rgba(r, g, b, u8::MAX)
+            };
+
+            self.image.set_pixel(x, y, color);
         }
     }
 
@@ -71,5 +78,31 @@ impl NesRender {
 
         self.scale = x_scale.min(y_scale) as f32;
         self.draw_pos = (screen_width() - NES_WIDTH as f32 * self.scale) / 2.0;
+    }
+}
+
+#[derive(Serialize)]
+pub struct Overscan {
+    pub top: u32,
+    pub right: u32,
+    pub bottom: u32,
+    pub left: u32,
+}
+
+impl Overscan {
+    pub fn new() -> Self {
+        Self {
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+        }
+    }
+
+    pub fn contains(&self, x: u32, y: u32) -> bool {
+        (x < self.left)
+            || x > (NES_WIDTH as u32 - self.right)
+            || y < self.top
+            || y > (NES_HEIGHT as u32 - self.bottom)
     }
 }

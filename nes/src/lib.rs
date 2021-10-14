@@ -1,3 +1,5 @@
+use thiserror::Error;
+
 mod apu;
 mod cartridge;
 mod controller;
@@ -5,12 +7,11 @@ mod cpu;
 mod mapper;
 mod ppu;
 mod replay;
-
 #[cfg(test)]
 mod tests;
 
 use apu::Apu;
-use cartridge::InesHeader;
+use cartridge::{Cartridge, ConsoleType, Region};
 use controller::Controller;
 use cpu::Cpu;
 use mapper::BaseMapper;
@@ -18,6 +19,7 @@ use ppu::Ppu;
 
 use serde::{Deserialize, Serialize};
 
+pub use cartridge::BankSize;
 pub use controller::Button;
 pub use ppu::PALETTE;
 pub use replay::ReplayInputs;
@@ -40,12 +42,9 @@ pub struct Nes {
 
 // TODO: wrap inner NES into some Console struct
 
-/*
-    Public API
-*/
 impl Nes {
     pub fn new(rom: &[u8]) -> Result<Nes, NesError> {
-        let cartridge = cartridge::parse_rom(rom)?;
+        let cartridge = Cartridge::from_rom(rom)?;
 
         let mut nes = Nes {
             cpu: Cpu::new(),
@@ -105,12 +104,8 @@ impl Nes {
         self._drive_replay_inputs(inputs)
     }
 
-    pub fn get_cpu_state(&mut self) -> &mut Cpu {
-        &mut self.cpu
-    }
-
-    pub fn get_ines_header(&mut self) -> &InesHeader {
-        &self.mapper.cartridge.header
+    pub fn get_cartridge(&mut self) -> &Cartridge {
+        &self.mapper.cartridge
     }
 
     pub fn get_frame_count(&self) -> u64 {
@@ -138,13 +133,26 @@ impl Nes {
     }
 }
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum NesError {
+    #[error("iNES 2.0 binary format is not supported")]
     Ines2Unsupported,
+    #[error("iNES trainers are not supported")]
     TrainerUnsupported,
-    PalUnsupported,
+    #[error("mapper {0} is not supported")]
     UnSupportedMapper(u32),
+    #[error("console type {0} is not supported")]
+    ConsoleUnsupported(ConsoleType),
+    #[error("the {0} region is not supported")]
+    RegionUnsupported(Region),
+    #[error("the provided file is not a valid iNES ROM")]
     InvalidInesFormat,
-    InvalidRomSize,
+    #[error("games with both CHR RAM and ROM are not supported")]
+    ChrRomAndRamUnsupported,
+    #[error("corrupted ROM file")]
+    RomCorrupted,
+    #[error("the provided savestate is corrupted, or it has been created by a incompatible version of Fearless-NES")]
     InvalidSaveState,
+    #[error("the NES 2.0 XML Game Database contains invalid data")]
+    GameDbFormat,
 }

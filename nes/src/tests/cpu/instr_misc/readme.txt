@@ -98,10 +98,10 @@ failure, and 2 or higher indicates a specific reason as listed in the
 source code by the corresponding set_code line. Examples:
 
 	Tones         Binary  Decimal  Meaning
-	- - - - - - - - - - - - - - - - - - - - 
+	- - - - - - - - - - - - - - - - - - - -
 	low              0      0      passed
 	low high        01      1      failed
 	low high low   010      2      error 2
 
--- 
+--
 Shay Green <gblargg@gmail.com>

@@ -70,7 +70,6 @@ fn ppu_vbl_nmi_off_timing() {
 }
 
 #[test]
-#[ignore = "ppu_vbl advanced test don't work yet"]
 fn ppu_vbl_nmi_even_odd_frames() {
     blargg_test(
         "ppu/ppu_vbl_nmi/rom_singles/09-even_odd_frames.nes",

@@ -19,7 +19,7 @@ enum DmaHijack {
 
 /**
     Most of the documentation for the 6502 can be found on nesdev:
-    http://nesdev.com/6502_cpu.txt
+    http://nesdev.org/6502_cpu.txt
     However, a few illegal instructions (LAX and XAA) are basically undefined.
     Some information about those can be found in the visual6502.org wiki:
     http://visual6502.org/wiki/index.php?title=6502_Unsupported_Opcodes
@@ -70,7 +70,6 @@ pub struct Cpu {
     hijack_read: DmaHijack,
     copy_buffer: u8,
     dma_cycles: u16,
-    dmc: bool,
 
     ram: Vec<u8>,
 }
@@ -111,7 +110,6 @@ impl Cpu {
             hijack_read: DmaHijack::None,
             copy_buffer: 0,
             dma_addr: 0,
-            dmc: false,
 
             ram: vec![0; 0x800],
         }
@@ -132,13 +130,13 @@ impl Nes {
     #[inline]
     pub(crate) fn cpu_read(&mut self, index: usize) -> u8 {
         self.cpu.open_bus = match index {
-            0x4020..=0xFFFF => self.mapper.cpu_read(index, self.cpu.open_bus),
+            0x4020..=0xFFFF => self.mapper.cpu_read(index).unwrap_or(self.cpu.open_bus),
             0..=0x1FFF => self.cpu.ram[index & 0x7FF],
             0x2000..=0x3FFF => self.ppu_read_reg(index),
             0x4000..=0x4014 | 0x4017..=0x401F => self.cpu.open_bus,
             0x4016 => (self.cpu.open_bus & 0xE0) | self.controller.read_reg(),
             0x4015 => self.apu_read_status(),
-            _ => panic!("memory access into unmapped address: 0x{:X}", index),
+            _ => unreachable!("memory access into unmapped address: 0x{:X}", index),
         };
 
         self.cpu.db = self.cpu.open_bus;
@@ -167,11 +165,11 @@ impl Nes {
                 self.mapper
                     .cpu_write(index, val, self.cycle_count, &mut self.cpu.irq_signal)
             }
-            _ => panic!("Error: memory access into unmapped address: 0x{:X}", index),
+            _ => unreachable!("Error: memory access into unmapped address: 0x{:X}", index),
         }
     }
 
-    //https://forums.nesdev.com/viewtopic.php?f=3&t=14120
+    //https://forums.nesdev.org/viewtopic.php?f=3&t=14120
     #[inline]
     fn dma(&mut self) {
         if let DmaHijack::Hijacked = self.cpu.hijack_read {
@@ -198,10 +196,6 @@ impl Nes {
                 self.load_next_instruction();
                 self.clock_ppu_apu();
             }
-        }
-
-        if self.cpu.dmc {
-            unimplemented!("DMC DMA is unimplemented");
         }
     }
 }
@@ -751,9 +745,7 @@ impl Nes {
         }
 
         // Cycle 1b
-
-        // FIXME: branch instructions interrupts ?
-        // https://wiki.nesdev.com/w/index.php?title=CPU_interrupts#Branch_instructions_and_interrupts
+        // https://wiki.nesdev.org/w/index.php?title=CPU_interrupts#Branch_instructions_and_interrupts
         penultimate_cycle!(self);
 
         self.take_branch();
@@ -2061,6 +2053,7 @@ impl Nes {
 
     #[inline]
     fn check_interrupts(&mut self) {
+        // TODO: differentiate between different sources of IRQs
         if !self.cpu.i && self.cpu.cached_irq {
             self.cpu.cached_irq = false;
             self.cpu.take_interrupt = true;
@@ -2073,13 +2066,11 @@ impl Nes {
             self.cpu.take_interrupt = true;
             self.cpu.interrupt_type = InterruptType::Nmi;
         }
-
-        //TODO: resets
     }
 
     #[inline]
     fn interrupt_address(&mut self) -> u16 {
-        // https://wiki.nesdev.com/w/index.php?title=CPU_interrupts#Interrupt_hijacking
+        // https://wiki.nesdev.org/w/index.php?title=CPU_interrupts#Interrupt_hijacking
         // For example, if NMI is asserted during the first four ticks of a BRK instruction,
         // the BRK instruction will execute normally at first (PC increments will occur and
         // the status word will be pushed with the B flag set), but execution will branch to

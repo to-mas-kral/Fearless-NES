@@ -1,15 +1,15 @@
 use std::{
     ffi::OsStr,
-    fmt::Display,
     fs::{self, File},
     io::{Read, Write},
     path::{Path, PathBuf},
 };
 
+use anyhow::{anyhow, Context, Result};
 use egui::{CtxRef, TextureId};
-use fearless_nes::{Nes, NesError};
+use fearless_nes::Nes;
 use macroquad::prelude::{ImageFormat, Texture2D};
-use zip::{result::ZipError, write::FileOptions};
+use zip::write::FileOptions;
 
 use crate::{
     app::{report_error, App, Gui},
@@ -37,26 +37,26 @@ impl Saves {
         }
     }
 
-    fn build_saves_view(&mut self) -> Result<(), SaveErr> {
+    fn build_saves_view(&mut self) -> Result<()> {
         self.saves.clear();
 
         let saves_paths: Vec<PathBuf> = fs::read_dir(&self.folder_path)
-            .map_err(|_| SaveErr::DirOpenErr)?
+            .context("couldn't open save directory")?
             .filter_map(|e| e.ok())
             .filter(|de| de.path().extension() == Some(OsStr::new("fnes")))
             .map(|de| de.path())
             .collect();
 
         for path in saves_paths {
-            if let Err(e) = self.push_save_view(&path) {
-                report_error(&format!("{}\n{:?}", e, path));
+            if let Err(_) = self.push_save_view(&path) {
+                report_error(&format!("Could't load the save file:\n{:?}", path));
             }
         }
 
         Ok(())
     }
 
-    fn push_save_view(&mut self, save_path: &Path) -> Result<(), SaveErr> {
+    fn push_save_view(&mut self, save_path: &Path) -> Result<()> {
         let save_file = std::fs::File::open(&save_path)?;
         let mut save_archive = zip::ZipArchive::new(&save_file)?;
 
@@ -73,7 +73,7 @@ impl Saves {
         self.saves.push(Save::new(
             save_path
                 .file_stem()
-                .ok_or(SaveErr::DirContentsErr)?
+                .ok_or(anyhow!(""))?
                 .to_string_lossy()
                 .into_owned(),
             save_file,
@@ -88,7 +88,7 @@ impl Saves {
         nes: &Option<Nes>,
         nesrender: &mut NesRender,
         save_folder_path: &Path,
-    ) -> Result<(), SaveErr> {
+    ) -> Result<()> {
         let path = match get_save_named_path(Some(save_folder_path), "Fearless-NES save", "fnes") {
             Ok(Some(p)) => p,
             Ok(None) | Err(_) => return Ok(()),
@@ -103,7 +103,7 @@ impl Saves {
                     png::Encoder::new(&mut screenshot, NES_WIDTH as u32, NES_HEIGHT as u32);
                 encoder.set_color(png::ColorType::Rgba);
                 encoder.set_depth(png::BitDepth::Eight);
-                let mut writer = encoder.write_header().map_err(|_| SaveErr::SaveErr)?;
+                let mut writer = encoder.write_header()?;
 
                 // TODO: get_image_data() - create PR in Macroquad...
                 let image_data: Vec<u8> = nesrender
@@ -113,15 +113,14 @@ impl Saves {
                     .flat_map(|e| *e)
                     .collect();
 
-                writer
-                    .write_image_data(&image_data)
-                    .map_err(|_| SaveErr::SaveErr)?;
+                writer.write_image_data(&image_data)?;
             };
 
             let file = std::fs::File::create(&path)?;
             let mut zip = zip::ZipWriter::new(file);
 
-            let options = FileOptions::default().compression_method(zip::CompressionMethod::Bzip2);
+            let options =
+                FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
             zip.start_file("screenshot.png", options)?;
             zip.write_all(&screenshot)?;
 
@@ -134,7 +133,7 @@ impl Saves {
         Ok(())
     }
 
-    pub fn load_zipped_save(savefile: &File) -> Result<Nes, SaveErr> {
+    pub fn load_zipped_save(savefile: &File) -> Result<Nes> {
         let mut save_archive = zip::ZipArchive::new(savefile)?;
         let mut savestate_zip = save_archive.by_name(SAVESTATE_PATH)?;
         let mut savestate = Vec::with_capacity(savestate_zip.size() as usize);
@@ -185,7 +184,10 @@ impl Gui for Saves {
                                 {
                                     match Self::load_zipped_save(&save.file) {
                                         Ok(n) => *nes = Some(n),
-                                        Err(e) => report_error(&format!("{}", e)),
+                                        Err(e) => report_error(&format!(
+                                            "Couldn't load the save file. Error: {}",
+                                            e
+                                        )),
                                     }
                                 };
 
@@ -213,44 +215,6 @@ impl Save {
             name,
             file,
             screenshot_texture: screnshot_texture,
-        }
-    }
-}
-
-pub enum SaveErr {
-    DirOpenErr,
-    DirContentsErr,
-    FileLoadErr,
-    InvalidSaveState,
-    SaveErr,
-}
-
-impl From<ZipError> for SaveErr {
-    fn from(_: ZipError) -> Self {
-        SaveErr::FileLoadErr
-    }
-}
-
-impl From<std::io::Error> for SaveErr {
-    fn from(_: std::io::Error) -> Self {
-        SaveErr::FileLoadErr
-    }
-}
-
-impl From<NesError> for SaveErr {
-    fn from(_: NesError) -> Self {
-        SaveErr::InvalidSaveState
-    }
-}
-
-impl Display for SaveErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SaveErr::FileLoadErr => write!(f, "Couldn't load the savefile"),
-            SaveErr::InvalidSaveState => write!(f, "Savefile contained incompatible save version"),
-            SaveErr::DirOpenErr => write!(f, "Couldn't open the save folder"),
-            SaveErr::DirContentsErr => write!(f, "Couldn't process the saves"),
-            SaveErr::SaveErr => write!(f, "Couldn't create the savefile"),
         }
     }
 }

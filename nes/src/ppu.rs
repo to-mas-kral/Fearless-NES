@@ -22,10 +22,9 @@ pub enum Mirroring {
     SingleScreenLow,
     SingleScreenHigh,
     FourScreen,
-    Obscure,
 }
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct Sprite {
     y: u8,
     x: u8,
@@ -108,7 +107,7 @@ pub struct Ppu {
     bg_pattern_table_addr: usize,
     sp_size: u8,
 
-    /// https://wiki.nesdev.com/w/index.php?title=NMI#Operation
+    /// https://wiki.nesdev.org/w/index.php?title=NMI#Operation
     nmi_on_vblank: bool,
     /// By toggling NMI_output (PPUCTRL.7) during vertical blank without reading PPUSTATUS,
     /// a program can cause /NMI to be pulled low multiple times, causing multiple NMIs to be generated.
@@ -275,7 +274,6 @@ impl Nes {
                 _ => unreachable!(),
             },
             Mirroring::FourScreen => self.mapper.write_nametable(addr, val),
-            m => unimplemented!("{:?} mirroring is unimplemented", m),
         }
     }
 
@@ -314,7 +312,6 @@ impl Nes {
                 _ => unreachable!(),
             },
             Mirroring::FourScreen => self.mapper.read_nametable(addr),
-            m => unimplemented!("{:?} mirroring is unimplemented", m),
         }
     }
 
@@ -458,7 +455,7 @@ impl Nes {
         self.ppu.latch = self.ppu.ppustatus;
         self.ppu.ppustatus &= 0x7F;
 
-        // https://wiki.nesdev.com/w/index.php?title=PPU_frame_timing#VBL_Flag_Timing
+        // https://wiki.nesdev.org/w/index.php?title=PPU_frame_timing#VBL_Flag_Timing
         // Reading $2002 within a few PPU clocks of when VBL is set results in special-case behavior.
         // Reading one PPU clock before reads it as clear and never sets the flag or generates
         // NMI for that frame. Reading on the same PPU clock or one later reads it as set,
@@ -615,8 +612,8 @@ impl Nes {
         self.ppu.cycle_count = self.ppu.cycle_count.wrapping_add(1);
     }
 
-    /// https://wiki.nesdev.com/w/index.php/PPU_rendering
-    /// https://wiki.nesdev.com/w/images/d/d1/Ntsc_timing.png
+    /// https://wiki.nesdev.org/w/index.php/PPU_rendering
+    /// https://wiki.nesdev.org/w/images/d/d1/Ntsc_timing.png
     #[inline]
     fn ppu_scanline_tick(&mut self) {
         match self.ppu.scanline {
@@ -729,7 +726,7 @@ impl Nes {
                         // The skipped tick is implemented by jumping directly from (339, 261)
                         // to (0, 0), meaning the last tick of the last NT fetch takes place at (0, 0)
                         // on odd frames replacing the idle tick
-                        if self.ppu.odd_frame & self.ppu.rendering_enabled {
+                        if self.ppu.odd_frame & self.ppu.show_bg {
                             self.ppu.xpos = 340;
                         }
 
@@ -772,7 +769,7 @@ impl Nes {
     }
 
     /** Tile and attribute fetching
-    http://wiki.nesdev.com/w/index.php/PPU_scrolling#Tile_and_attribute_fetching
+    http://wiki.nesdev.org/w/index.php/PPU_scrolling#Tile_and_attribute_fetching
 
     The high bits of v are used for fine Y during rendering,
     and addressing nametable data only requires 12 bits,
@@ -920,7 +917,7 @@ impl Nes {
         self.ppu.sprite_index = (self.ppu.sprite_index + 1) & 7;
     }
 
-    /// http://wiki.nesdev.com/w/index.php/PPU_sprite_evaluation
+    /// http://wiki.nesdev.org/w/index.php/PPU_sprite_evaluation
     #[inline]
     fn sprite_evaluation(&mut self) {
         if !self.ppu.rendering_enabled {
@@ -1015,7 +1012,7 @@ impl Nes {
         }
     }
 
-    /// Taken from: http://wiki.nesdev.com/w/index.php/PPU_scrolling
+    /// Taken from: http://wiki.nesdev.org/w/index.php/PPU_scrolling
     #[inline]
     fn y_increment(&mut self) {
         if self.ppu.rendering_enabled {
@@ -1038,7 +1035,7 @@ impl Nes {
         }
     }
 
-    /// Taken from: http://wiki.nesdev.com/w/index.php/PPU_scrolling
+    /// Taken from: http://wiki.nesdev.org/w/index.php/PPU_scrolling
     #[inline]
     fn coarse_x_increment(&mut self) {
         if (self.ppu.vram_addr & 0x1F) == 31 {

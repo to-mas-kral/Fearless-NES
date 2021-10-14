@@ -53,8 +53,8 @@ async fn main() {
 
         prevent_quit();
         if is_quit_requested() {
-            if let Err(e) = app.config.save() {
-                report_error(&format!("{}", e));
+            if let Err(_) = app.config.save() {
+                report_error(&format!("Couldn't save the configuration file"));
             }
             break;
         }

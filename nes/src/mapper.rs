@@ -26,7 +26,7 @@ pub struct BaseMapper {
 
 impl BaseMapper {
     pub fn new(cartridge: Cartridge) -> Result<Self, NesError> {
-        let chip = match cartridge.header.mapper_id {
+        let chip = match cartridge.header.mapper {
             0 => MapperChip::_0Nrom(_0Nrom::new(&cartridge)),
             1 => MapperChip::_1Mmc1(_1Mmc1::new(&cartridge)),
             2 => MapperChip::_2Uxrom(_2Uxrom::new(&cartridge)),
@@ -43,15 +43,16 @@ impl BaseMapper {
         })
     }
 
+    /// Return None if addr isn't mapped to anything on the cartridge, Some(_) otherwise
     #[inline]
-    pub fn cpu_read(&self, addr: usize, open_bus: u8) -> u8 {
+    pub fn cpu_read(&self, addr: usize) -> Option<u8> {
         match &self.chip {
-            MapperChip::_0Nrom(nrom) => nrom.cpu_read(&self.cartridge, addr, open_bus),
-            MapperChip::_1Mmc1(mmc1) => mmc1.cpu_read(&self.cartridge, addr, open_bus),
-            MapperChip::_2Uxrom(uxrom) => uxrom.cpu_read(&self.cartridge, addr, open_bus),
-            MapperChip::_3Cnrom(cnrom) => cnrom.cpu_read(&self.cartridge, addr, open_bus),
-            MapperChip::_4Mmc3(mmc3) => mmc3.cpu_read(&self.cartridge, addr, open_bus),
-            MapperChip::_7Axrom(axrom) => axrom.cpu_read(&self.cartridge, addr, open_bus),
+            MapperChip::_0Nrom(nrom) => nrom.cpu_read(&self.cartridge, addr),
+            MapperChip::_1Mmc1(mmc1) => mmc1.cpu_read(&self.cartridge, addr),
+            MapperChip::_2Uxrom(uxrom) => uxrom.cpu_read(&self.cartridge, addr),
+            MapperChip::_3Cnrom(cnrom) => cnrom.cpu_read(&self.cartridge, addr),
+            MapperChip::_4Mmc3(mmc3) => mmc3.cpu_read(&self.cartridge, addr),
+            MapperChip::_7Axrom(axrom) => axrom.cpu_read(&self.cartridge, addr),
         }
     }
 

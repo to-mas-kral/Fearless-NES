@@ -1,6 +1,6 @@
 [workspace]
 
-members = ["frontend-macroquad", "nes", "bench"]
+members = ["frontend-macroquad", "nes"]
 
 [profile.dev]
 opt-level = 1

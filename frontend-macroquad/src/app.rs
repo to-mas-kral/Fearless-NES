@@ -10,6 +10,7 @@ mod debug;
 mod nesrender;
 mod replays;
 mod saves;
+mod settings;
 
 pub use config::Config;
 use debug::Debug;
@@ -18,6 +19,7 @@ use native_dialog::FileDialog;
 use nesrender::NesRender;
 pub use replays::{Recording, Replays};
 pub use saves::Saves;
+use settings::Settings;
 
 use crate::create_nes;
 
@@ -33,6 +35,7 @@ pub struct App {
     pub saves: Saves,
     pub debug: Debug,
     pub replays: Replays,
+    pub settings: Settings,
 
     _last_mouse_pos: (f32, f32),
     /// Frame count
@@ -51,6 +54,7 @@ impl App {
             saves: Saves::new(),
             debug: Debug::new(),
             replays: Replays::new(),
+            settings: Settings::new(),
 
             _last_mouse_pos: (0., 0.),
             _mouse_not_moved: 0,
@@ -73,7 +77,8 @@ impl App {
                 self.debug.perf.add_frame_time(duration.as_millis());
             }
 
-            self.render.update_frame(nes.get_frame_buffer());
+            self.render
+                .update_frame(nes.get_frame_buffer(), &self.config.overscan);
         }
     }
 
@@ -184,6 +189,7 @@ impl App {
             App::gui_window(self, egui_ctx);
             Saves::gui_window(self, egui_ctx);
             Debug::gui_window(self, egui_ctx);
+            Settings::gui_window(self, egui_ctx);
         });
     }
 
@@ -198,23 +204,26 @@ impl App {
             let mut fonts = FontDefinitions::default();
 
             fonts.font_data.insert(
-                "bold".to_owned(),
+                "normal".to_owned(),
                 std::borrow::Cow::Borrowed(include_bytes!("Quicksand-Bold.ttf")),
             );
 
-            // Put my font first (highest priority):
+            fonts.font_data.insert(
+                "monospace".to_owned(),
+                std::borrow::Cow::Borrowed(include_bytes!("SourceCodePro-Bold.ttf")),
+            );
+
             fonts
                 .fonts_for_family
                 .get_mut(&FontFamily::Proportional)
                 .unwrap()
-                .insert(0, "bold".to_owned());
+                .insert(0, "normal".to_owned());
 
-            // Put my font as last fallback for monospace:
             fonts
                 .fonts_for_family
                 .get_mut(&FontFamily::Monospace)
                 .unwrap()
-                .push("bold".to_owned());
+                .insert(0, "monospace".to_owned());
 
             egui_ctx.set_fonts(fonts);
         });
@@ -254,7 +263,7 @@ impl Gui for App {
                             &mut app.render,
                             &app.config.save_folder_path,
                         ) {
-                            report_error(&format!("{}", e));
+                            report_error(&format!("Couldn't create the save file. Error: {}", e));
                         }
                     }
 
@@ -270,23 +279,6 @@ impl Gui for App {
                             Ok(None) => (),
                             Err(_) => return,
                         }
-                    }
-                });
-
-                egui::menu::menu(ui, "Settings", |ui| {
-                    let mode_text = if app.config.dark_mode {
-                        "Light mode"
-                    } else {
-                        "Dark mode"
-                    };
-
-                    if ui.button(mode_text).clicked() {
-                        app.config.dark_mode = !app.config.dark_mode;
-                        if app.config.dark_mode {
-                            egui_ctx.set_visuals(egui::Visuals::dark());
-                        } else {
-                            egui_ctx.set_visuals(egui::Visuals::light());
-                        };
                     }
                 });
 
@@ -310,10 +302,6 @@ impl Gui for App {
                     egui::menu::menu(ui, "Debug", |ui| {
                         if ui.button("Controls and Status").clicked() {
                             app.debug.show_controls = true;
-                        }
-
-                        if ui.button("CPU State").clicked() {
-                            app.debug.show_cpu = true;
                         }
 
                         if ui.button("PPU").clicked() {
@@ -346,6 +334,27 @@ impl Gui for App {
                                     app.replays.start_recording();
                                 }
                             }
+                        }
+                    });
+
+                    egui::menu::menu(ui, "Settings", |ui| {
+                        let mode_text = if app.config.dark_mode {
+                            "Light mode"
+                        } else {
+                            "Dark mode"
+                        };
+
+                        if ui.button(mode_text).clicked() {
+                            app.config.dark_mode = !app.config.dark_mode;
+                            if app.config.dark_mode {
+                                egui_ctx.set_visuals(egui::Visuals::dark());
+                            } else {
+                                egui_ctx.set_visuals(egui::Visuals::light());
+                            };
+                        }
+
+                        if ui.button("Overscan").clicked() {
+                            app.settings.overscan.window_shown = true;
                         }
                     });
                 }

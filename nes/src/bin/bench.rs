@@ -11,7 +11,7 @@ fn game_bench(rom_path: &str, inputs_path: &str) {
     let rom = fs::read(Path::new(&rom_path)).unwrap();
     let mut nes = Nes::new(&rom).expect("error when creating test NES instance");
 
-    let inputs_path = base_dir + "/../nes/src/tests/integration/" + inputs_path;
+    let inputs_path = base_dir + "/src/tests/integration/" + inputs_path;
     let inputs = fs::read(Path::new(&inputs_path)).unwrap();
     let inputs = crate::ReplayInputs::load_state(&inputs).unwrap();
 

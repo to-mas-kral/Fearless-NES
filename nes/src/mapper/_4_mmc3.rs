@@ -27,7 +27,7 @@ pub struct _4Mmc3 {
     prg_end_2: usize,
 
     /// 1KB units
-    chr_rom_count: u16,
+    chr_count: u16,
     chr_0: usize,
     chr_1: usize,
     chr_2: usize,
@@ -38,14 +38,17 @@ pub struct _4Mmc3 {
 
 impl _4Mmc3 {
     pub fn new(cartridge: &Cartridge) -> Self {
-        let chr_rom_count = if cartridge.header.chr_rom_count > 0 {
-            cartridge.header.chr_rom_count as u16 * 8
-        } else {
-            // Board uses CHR RAM
-            8
+        // TODO: some MMC3 games use both CHR ROM and CHR RAM
+        let chr_count = match (
+            cartridge.chr_rom_count(BankSize::Kb1),
+            cartridge.chr_ram_count(BankSize::Kb1),
+        ) {
+            (Some(count), None) => count as u16,
+            (None, Some(count)) => count as u16,
+            _ => todo!("handle games with both CHR ROM and CHR RAM"),
         };
 
-        let prg_rom_count = cartridge.header.prg_rom_count * 2;
+        let prg_rom_count = cartridge.prg_rom_count(BankSize::Kb8) as u8;
 
         Self {
             // MMC3 initial state is unspecified
@@ -66,7 +69,7 @@ impl _4Mmc3 {
             prg_end_1: Cartridge::map_bank(prg_rom_count - 1, BankSize::Kb8),
             prg_end_2: Cartridge::map_bank(prg_rom_count - 2, BankSize::Kb8),
 
-            chr_rom_count,
+            chr_count,
             chr_0: 0,
             chr_1: 0,
             chr_2: 0,
@@ -76,21 +79,21 @@ impl _4Mmc3 {
         }
     }
 
-    pub fn cpu_read(&self, cartridge: &Cartridge, addr: usize, open_bus: u8) -> u8 {
+    pub fn cpu_read(&self, cartridge: &Cartridge, addr: usize) -> Option<u8> {
         match addr {
             0x6000..=0x7FFF => cartridge.read_prg_ram(addr - 0x6000),
-            0xA000..=0xBFFF => cartridge.read_prg_rom(self.prg_1 + addr - 0xA000),
-            0xE000..=0xFFFF => cartridge.read_prg_rom(self.prg_end_1 + addr - 0xE000),
+            0xA000..=0xBFFF => Some(cartridge.read_prg_rom(self.prg_1 + addr - 0xA000)),
+            0xE000..=0xFFFF => Some(cartridge.read_prg_rom(self.prg_end_1 + addr - 0xE000)),
             _ => match self.prg_bank_mode {
                 0 => match addr {
-                    0x8000..=0x9FFF => cartridge.read_prg_rom(self.prg_0 + addr - 0x8000),
-                    0xC000..=0xDFFF => cartridge.read_prg_rom(self.prg_end_2 + addr - 0xC000),
-                    _ => open_bus,
+                    0x8000..=0x9FFF => Some(cartridge.read_prg_rom(self.prg_0 + addr - 0x8000)),
+                    0xC000..=0xDFFF => Some(cartridge.read_prg_rom(self.prg_end_2 + addr - 0xC000)),
+                    _ => None,
                 },
                 1 => match addr {
-                    0x8000..=0x9FFF => cartridge.read_prg_rom(self.prg_end_2 + addr - 0x8000),
-                    0xC000..=0xDFFF => cartridge.read_prg_rom(self.prg_0 + addr - 0xC000),
-                    _ => open_bus,
+                    0x8000..=0x9FFF => Some(cartridge.read_prg_rom(self.prg_end_2 + addr - 0x8000)),
+                    0xC000..=0xDFFF => Some(cartridge.read_prg_rom(self.prg_0 + addr - 0xC000)),
+                    _ => None,
                 },
                 _ => unreachable!(),
             },
@@ -119,39 +122,31 @@ impl _4Mmc3 {
                 // banks in 1KB units but odd numbered banks can't be selected.
                 0b000 => {
                     self.chr_0 = Cartridge::map_bank(
-                        ((val & 0xFE) as u16 % self.chr_rom_count) as u8,
+                        ((val & 0xFE) as u16 % self.chr_count) as u8,
                         BankSize::Kb1,
                     )
                 }
                 0b001 => {
                     self.chr_1 = Cartridge::map_bank(
-                        ((val & 0xFE) as u16 % self.chr_rom_count) as u8,
+                        ((val & 0xFE) as u16 % self.chr_count) as u8,
                         BankSize::Kb1,
                     )
                 }
                 0b010 => {
-                    self.chr_2 = Cartridge::map_bank(
-                        ((val) as u16 % self.chr_rom_count) as u8,
-                        BankSize::Kb1,
-                    )
+                    self.chr_2 =
+                        Cartridge::map_bank(((val) as u16 % self.chr_count) as u8, BankSize::Kb1)
                 }
                 0b011 => {
-                    self.chr_3 = Cartridge::map_bank(
-                        ((val) as u16 % self.chr_rom_count) as u8,
-                        BankSize::Kb1,
-                    )
+                    self.chr_3 =
+                        Cartridge::map_bank(((val) as u16 % self.chr_count) as u8, BankSize::Kb1)
                 }
                 0b100 => {
-                    self.chr_4 = Cartridge::map_bank(
-                        ((val) as u16 % self.chr_rom_count) as u8,
-                        BankSize::Kb1,
-                    )
+                    self.chr_4 =
+                        Cartridge::map_bank(((val) as u16 % self.chr_count) as u8, BankSize::Kb1)
                 }
                 0b101 => {
-                    self.chr_5 = Cartridge::map_bank(
-                        ((val) as u16 % self.chr_rom_count) as u8,
-                        BankSize::Kb1,
-                    )
+                    self.chr_5 =
+                        Cartridge::map_bank(((val) as u16 % self.chr_count) as u8, BankSize::Kb1)
                 }
                 0b110 => {
                     self.prg_0 =

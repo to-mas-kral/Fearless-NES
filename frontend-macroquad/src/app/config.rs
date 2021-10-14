@@ -1,15 +1,18 @@
+use anyhow::{anyhow, Result};
 use directories::ProjectDirs;
 use serde::Serialize;
-use toml::{de::Error as TomlError, Value};
+use toml::Value;
 
 use std::{
-    fmt::Display,
+    convert::TryInto,
     fs::{create_dir_all, File, OpenOptions},
     io::{self, Read, Write},
     path::PathBuf,
 };
 
 use crate::{report_error, NES_HEIGHT, NES_WIDTH};
+
+use super::nesrender::Overscan;
 
 #[derive(Serialize)]
 pub struct Config {
@@ -21,6 +24,10 @@ pub struct Config {
     pub rom_folder_path: PathBuf,
 
     pub dark_mode: bool,
+
+    /* TOML docs: "Note that the TOML format has a restriction that if a table itself contains tables,
+    all keys with non-table values must be emitted first." */
+    pub overscan: Overscan,
 }
 
 impl Default for Config {
@@ -33,6 +40,8 @@ impl Default for Config {
             rom_folder_path: PathBuf::from("~"),
 
             dark_mode: true,
+
+            overscan: Overscan::new(),
         }
     }
 }
@@ -44,15 +53,18 @@ impl Config {
         let mut config = Self::default();
 
         if let Err(e) = config.load_config_file() {
-            report_error(&format!("{}", e));
+            report_error(&format!(
+                "Couldn't load the configuration file. Relying on default configuration. Error: {}",
+                e
+            ));
         }
 
         return config;
     }
 
-    fn load_config_file(&mut self) -> Result<(), ConfigErr> {
-        let proj_dirs =
-            ProjectDirs::from("com", "Fearless-NES", "Fearless-NES").ok_or(ConfigErr::NoDir)?;
+    fn load_config_file(&mut self) -> Result<()> {
+        let proj_dirs = ProjectDirs::from("com", "Fearless-NES", "Fearless-NES")
+            .ok_or(anyhow!("Couldn't locate project-dirs"))?;
         let config_path = proj_dirs.config_dir().join(CONFIG_FILENAME);
 
         let mut config_file = File::open(config_path)?;
@@ -62,49 +74,84 @@ impl Config {
             match err.kind() {
                 // Config file doesn't exist, probably the first time using the program
                 io::ErrorKind::NotFound => return Ok(()),
-                _ => return Err(ConfigErr::FileReadErr),
+                _ => return Err(anyhow!("")),
             }
         }
 
-        self.add_config_from_str(&config_contents)?;
+        if let Err(_) = self.add_config_from_str(&config_contents) {
+            report_error(&format!("The configuration file contains invalid data"));
+        }
 
         Ok(())
     }
 
-    fn add_config_from_str(&mut self, config_contents: &str) -> Result<(), ConfigErr> {
+    fn add_config_from_str(&mut self, config_contents: &str) -> Result<()> {
         let value = config_contents.parse::<Value>()?;
 
-        let fields = value.as_table().ok_or(ConfigErr::ParseErr)?;
+        let fields = value.as_table().ok_or(anyhow!("parse error"))?;
 
         self.dark_mode = fields
             .get("dark_mode")
             .and_then(|v| v.as_bool())
-            .ok_or(ConfigErr::ParseErr)?;
+            .ok_or(anyhow!("parse error"))?;
 
         self.rom_folder_path = PathBuf::from(
             fields
                 .get("rom_folder_path")
                 .and_then(|v| v.as_str())
-                .ok_or(ConfigErr::ParseErr)?,
+                .ok_or(anyhow!("parse error"))?,
         );
 
         self.save_folder_path = PathBuf::from(
             fields
                 .get("save_folder_path")
                 .and_then(|v| v.as_str())
-                .ok_or(ConfigErr::ParseErr)?,
+                .ok_or(anyhow!("parse error"))?,
         );
+
+        let overscan = fields
+            .get("overscan")
+            .and_then(|v| v.as_table())
+            .ok_or(anyhow!("parse error"))?;
+
+        self.overscan.top = overscan
+            .get("top")
+            .and_then(|v| v.as_integer())
+            .ok_or(anyhow!("parse error"))?
+            .try_into()
+            .map_err(|_| anyhow!("parse error"))?;
+
+        self.overscan.right = overscan
+            .get("right")
+            .and_then(|v| v.as_integer())
+            .ok_or(anyhow!("parse error"))?
+            .try_into()
+            .map_err(|_| anyhow!("parse error"))?;
+
+        self.overscan.bottom = overscan
+            .get("bottom")
+            .and_then(|v| v.as_integer())
+            .ok_or(anyhow!("parse error"))?
+            .try_into()
+            .map_err(|_| anyhow!("parse error"))?;
+
+        self.overscan.left = overscan
+            .get("left")
+            .and_then(|v| v.as_integer())
+            .ok_or(anyhow!("parse error"))?
+            .try_into()
+            .map_err(|_| anyhow!("parse error"))?;
 
         Ok(())
     }
 
-    pub fn save(&self) -> Result<(), ConfigErr> {
-        let contents = toml::to_string(self).map_err(|_| ConfigErr::SaveErr)?;
+    pub fn save(&self) -> Result<()> {
+        let contents = toml::to_string(self)?;
 
-        let proj_dirs =
-            ProjectDirs::from("com", "Fearless-NES", "Fearless-NES").ok_or(ConfigErr::SaveErr)?;
+        let proj_dirs = ProjectDirs::from("com", "Fearless-NES", "Fearless-NES")
+            .ok_or(anyhow!("Couldn't locate project-dirs"))?;
 
-        create_dir_all(proj_dirs.config_dir()).map_err(|_| ConfigErr::SaveErr)?;
+        create_dir_all(proj_dirs.config_dir())?;
 
         let config_path = proj_dirs.config_dir().join(CONFIG_FILENAME);
 
@@ -116,35 +163,5 @@ impl Config {
         config_file.write_all(contents.as_bytes())?;
 
         Ok(())
-    }
-}
-
-pub enum ConfigErr {
-    NoDir,
-    FileReadErr,
-    ParseErr,
-    SaveErr,
-}
-
-impl From<TomlError> for ConfigErr {
-    fn from(_: TomlError) -> Self {
-        ConfigErr::ParseErr
-    }
-}
-
-impl From<io::Error> for ConfigErr {
-    fn from(_: io::Error) -> Self {
-        ConfigErr::FileReadErr
-    }
-}
-
-impl Display for ConfigErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConfigErr::NoDir => write!(f, "Couldn't find the configuration folder"),
-            ConfigErr::FileReadErr => write!(f, "Couldn't read from the configuration file"),
-            ConfigErr::ParseErr => write!(f, "Config file has invalid format"),
-            ConfigErr::SaveErr => write!(f, "Couldn't save the configuration file"),
-        }
     }
 }

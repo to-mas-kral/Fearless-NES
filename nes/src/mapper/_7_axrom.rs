@@ -21,10 +21,10 @@ impl _7Axrom {
         }
     }
 
-    pub fn cpu_read(&self, cartridge: &Cartridge, addr: usize, open_bus: u8) -> u8 {
+    pub fn cpu_read(&self, cartridge: &Cartridge, addr: usize) -> Option<u8> {
         match addr {
-            0x8000..=0xFFFF => cartridge.read_prg_rom(self.prg_0 + addr - 0x8000),
-            _ => open_bus,
+            0x8000..=0xFFFF => Some(cartridge.read_prg_rom(self.prg_0 + addr - 0x8000)),
+            _ => None,
         }
     }
 
@@ -45,7 +45,7 @@ impl _7Axrom {
     }
 
     pub fn write_chr(&mut self, cartridge: &mut Cartridge, addr: usize, val: u8) {
-        if cartridge.header.chr_rom_count == 0 {
+        if cartridge.has_chr_ram() {
             cartridge.write_chr(addr, val);
         }
     }

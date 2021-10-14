@@ -1,8 +1,0 @@
-[package]
-name = "bench"
-version = "0.1.0"
-authors = ["TomasKralCZ <tomas@kral.hk>"]
-edition = "2018"
-
-[dependencies]
-fearless_nes = { path = "../nes" }

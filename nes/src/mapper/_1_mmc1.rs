@@ -15,6 +15,7 @@ pub struct _1Mmc1 {
     ignore_write_cycle: u64,
     mirroring: Mirroring,
 
+    prg_banks: u8,
     prg_0: usize,
     prg_1: usize,
 
@@ -24,11 +25,17 @@ pub struct _1Mmc1 {
 
 impl _1Mmc1 {
     pub fn new(cartridge: &Cartridge) -> Self {
-        let chr_mask = if cartridge.header.chr_rom_count <= 1 {
+        // FIXME: only 8KB CHR RAM, emulate submappers (chr select...)
+        // https://wiki.nesdev.org/w/index.php?title=NES_2.0_submappers#001:_MMC1
+        let chr_mask = if cartridge.has_chr_ram()
+            && cartridge.header.chr_ram_size == Some(BankSize::Kb8 as u32)
+        {
             1
         } else {
             0xFF
         };
+
+        let prg_banks = cartridge.prg_rom_count(BankSize::Kb16) as u8;
 
         Self {
             shift: 0x10,
@@ -39,20 +46,21 @@ impl _1Mmc1 {
             ignore_write_cycle: 0,
             mirroring: Mirroring::Horizontal,
 
+            prg_banks,
             prg_0: 0,
-            prg_1: Cartridge::map_bank(cartridge.header.prg_rom_count - 1, BankSize::Kb16),
+            prg_1: Cartridge::map_bank(prg_banks - 1, BankSize::Kb16),
 
             chr_0: 0,
             chr_1: 0,
         }
     }
 
-    pub fn cpu_read(&self, cartridge: &Cartridge, addr: usize, open_bus: u8) -> u8 {
+    pub fn cpu_read(&self, cartridge: &Cartridge, addr: usize) -> Option<u8> {
         match addr {
             0x6000..=0x7FFF if self.enable_ram => cartridge.read_prg_ram(addr - 0x6000),
-            0x8000..=0xBFFF => cartridge.read_prg_rom(self.prg_0 + addr - 0x8000),
-            0xC000..=0xFFFF => cartridge.read_prg_rom(self.prg_1 + addr - 0xC000),
-            _ => open_bus,
+            0x8000..=0xBFFF => Some(cartridge.read_prg_rom(self.prg_0 + addr - 0x8000)),
+            0xC000..=0xFFFF => Some(cartridge.read_prg_rom(self.prg_1 + addr - 0xC000)),
+            _ => None,
         }
     }
 
@@ -86,7 +94,7 @@ impl _1Mmc1 {
 
                     if self.shift & 1 != 0 {
                         match addr & 0x6000 {
-                            0 => self.write_control(cartridge, shift),
+                            0 => self.write_control(shift),
                             0x2000 => self.select_chr_0(shift),
                             0x4000 => self.select_chr_1(shift),
                             0x6000 => self.select_prg(shift),
@@ -117,7 +125,7 @@ impl _1Mmc1 {
     |                         3: fix last bank at $C000 and switch 16 KB bank at $8000)
     +----- CHR ROM bank mode (0: switch 8 KB at a time; 1: switch two separate 4 KB banks) */
     #[inline]
-    fn write_control(&mut self, cartridge: &Cartridge, val: u8) {
+    fn write_control(&mut self, val: u8) {
         self.mirroring = match val & 3 {
             0 => Mirroring::SingleScreenLow,
             1 => Mirroring::SingleScreenHigh,
@@ -130,9 +138,7 @@ impl _1Mmc1 {
         match self.prg_mode {
             0 | 1 => (),
             2 => self.prg_0 = 0,
-            3 => {
-                self.prg_1 = Cartridge::map_bank(cartridge.header.prg_rom_count - 1, BankSize::Kb16)
-            }
+            3 => self.prg_1 = Cartridge::map_bank(self.prg_banks - 1, BankSize::Kb16),
             _ => unreachable!(),
         }
 

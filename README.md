@@ -10,6 +10,15 @@ Fearless-NES is a work-in-progress Nintendo enterntainment system emulator writt
 ![Battletoads](https://raw.githubusercontent.com/TomasKralCZ/Fearless-NES/master/screenshots/Battletoads.png)
 ![Super Mario Bros](https://raw.githubusercontent.com/TomasKralCZ/Fearless-NES/master/screenshots/SuperMarioBros.png)
 
+# Features
+- Cycle-accurate CPU emulation
+- Very accurate PPU emulation
+- Basic mapper support
+- Basic GUI
+- Save states
+- Gamepad support
+- Controllable overscan
+- Game loading using the NES 2.0 XML Game Database
 
 # Build instructions:
 1. Install [Macroquad dependencies](https://github.com/not-fl3/macroquad#linux) if you use Linux.
@@ -33,20 +42,17 @@ Run these with 'cargo test'.
 
 With these mappers, Fearless-NES supports 84 % of commercial NES games.
 
-# TODO (with descending priority)
-- [ ] (frontend) use the NES 2.0 XML game database in addition to iNES headers
-- [ ] (frontend) controllable overscan
-- [ ] (frontend) memory editor
-- [ ] (frontend) PPU viewer
-- [ ] (core) rest of the APU
-- [ ] (dev) change the zip dependency to something pure rust
+# TODO
 - [ ] (frontend) user-defined RGB palettes
-- [ ] (core) various accuracy tests
+- [ ] (frontend) auto-hide mouse (when possible with Macroquad)
+- [ ] (frontend) NTSC filter
+
+- [ ] (core) iNES 2.0 support
+- [ ] (core) rest of the APU
 - [ ] (core) advanced mappers such as MMC5, VRC2/4...
-- [ ] (dev) more integration tests
-- [x] (frontend) persistent configuration
-- [x] (frontend) save states
-- [x] (frontend) controller support
+- [ ] (core) various accuracy tests
+
+- [ ] (dev) better (and more) integration tests
 
 # Controls
 ### Keyboard

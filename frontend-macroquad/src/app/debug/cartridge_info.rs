@@ -1,4 +1,5 @@
 use egui::Label;
+use fearless_nes::BankSize;
 
 use crate::app::Gui;
 
@@ -23,9 +24,10 @@ impl Gui for CartridgeInfo {
                     .resizable(false)
                     .default_width(0.)
                     .show(egui_ctx, |ui| {
-                        let header = nes.get_ines_header();
+                        let cartridge = nes.get_cartridge();
+                        let header = &cartridge.header;
 
-                        egui::Grid::new("iNes Header Grid")
+                        egui::Grid::new("Header Grid")
                             .striped(true)
                             .spacing([20., 5.])
                             .show(ui, |ui| {
@@ -33,29 +35,68 @@ impl Gui for CartridgeInfo {
                                 ui.add(Label::new("Value").heading().strong());
                                 ui.end_row();
 
-                                ui.label("Mapper");
-                                ui.add(Label::new(format!("{}", header.mapper_id)).monospace());
+                                ui.label("Header source");
+                                ui.add(Label::new(format!("{}", header.source)));
+                                ui.end_row();
+
+                                ui.label("Name");
+                                ui.add(Label::new(format!("{}", header.name)));
+                                ui.end_row();
+
+                                ui.label("Mapper : Submapper");
+                                ui.add(
+                                    Label::new(format!("{} : {}", header.mapper, header.submapper))
+                                        .monospace(),
+                                );
                                 ui.end_row();
 
                                 ui.label("PRG ROM count");
                                 ui.add(
-                                    Label::new(format!("{} * 16KB", header.prg_rom_count))
-                                        .monospace(),
+                                    Label::new(format!(
+                                        "{} KB",
+                                        cartridge.prg_rom_count(BankSize::Kb1)
+                                    ))
+                                    .monospace(),
+                                );
+                                ui.end_row();
+
+                                ui.label("PRG RAM count");
+                                ui.add(
+                                    Label::new(format!(
+                                        "{} KB",
+                                        cartridge.prg_ram_count(BankSize::Kb1).unwrap_or(0)
+                                    ))
+                                    .monospace(),
+                                );
+                                ui.end_row();
+
+                                ui.label("PRG NVRAM count");
+                                ui.add(
+                                    Label::new(format!(
+                                        "{} KB",
+                                        cartridge.prg_nvram_count(BankSize::Kb1).unwrap_or(0)
+                                    ))
+                                    .monospace(),
                                 );
                                 ui.end_row();
 
                                 ui.label("CHR ROM count");
                                 ui.add(
-                                    Label::new(format!("{} * 8KB", header.chr_rom_count))
-                                        .monospace(),
-                                )
-                                .on_hover_text("0 CHR ROM count means that the board uses CHR RAM");
+                                    Label::new(format!(
+                                        "{} KB",
+                                        cartridge.chr_rom_count(BankSize::Kb1).unwrap_or(0)
+                                    ))
+                                    .monospace(),
+                                );
                                 ui.end_row();
 
-                                ui.label("PRG RAM count");
+                                ui.label("CHR RAM count");
                                 ui.add(
-                                    Label::new(format!("{} * 8KB", header.prg_ram_count))
-                                        .monospace(),
+                                    Label::new(format!(
+                                        "{} KB",
+                                        cartridge.chr_ram_count(BankSize::Kb1).unwrap_or(0)
+                                    ))
+                                    .monospace(),
                                 );
                                 ui.end_row();
 
@@ -64,7 +105,19 @@ impl Gui for CartridgeInfo {
                                 ui.end_row();
 
                                 ui.label("Has Battery");
-                                ui.add(Label::new(format!("{}", header.has_battery)));
+                                ui.add(Label::new(format!("{}", header.battery)));
+                                ui.end_row();
+
+                                ui.label("Console Type");
+                                ui.add(Label::new(format!("{}", header.console_typ)));
+                                ui.end_row();
+
+                                ui.label("Region");
+                                ui.add(Label::new(format!("{}", header.region)));
+                                ui.end_row();
+
+                                ui.label("Expansion device");
+                                ui.add(Label::new(format!("{}", header.expansion)));
                                 ui.end_row();
                             });
                     });

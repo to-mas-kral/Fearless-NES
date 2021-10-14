@@ -6,11 +6,10 @@ mod ppu;
 use cartridge_info::CartridgeInfo;
 use ppu::Ppu;
 
-use super::App;
+use crate::App;
 
 pub struct Debug {
     pub show_controls: bool,
-    pub show_cpu: bool,
     pub cartridge_info: CartridgeInfo,
     pub ppu: Ppu,
     pub perf: Perf,
@@ -20,7 +19,6 @@ impl Debug {
     pub fn new() -> Self {
         Self {
             show_controls: false,
-            show_cpu: false,
             cartridge_info: CartridgeInfo::new(),
             ppu: Ppu::new(),
             perf: Perf::new(),
@@ -31,92 +29,6 @@ impl Debug {
 impl Gui for Debug {
     fn gui_window(app: &mut super::App, egui_ctx: &egui::CtxRef) {
         if let Some(ref mut nes) = app.nes {
-            if app.debug.show_cpu {
-                egui::Window::new("CPU State")
-                    .open(&mut app.debug.show_cpu)
-                    .resizable(false)
-                    .default_width(0.)
-                    .show(egui_ctx, |ui| {
-                        let cpu = nes.get_cpu_state();
-
-                        ui.columns(2, |columns| {
-                            columns[0].group(|ui| {
-                                egui::Grid::new("Registers")
-                                    .num_columns(2)
-                                    .striped(true)
-                                    .show(ui, |ui| {
-                                        ui.add(egui::Label::new("Registers").heading().strong());
-                                        ui.add(egui::Label::new("Value").heading().strong());
-                                        ui.end_row();
-
-                                        ui.label("A").on_hover_text("accumulator");
-                                        ui.add(
-                                            egui::Label::new(format!("{:#x}", cpu.a))
-                                                .text_style(egui::TextStyle::Monospace),
-                                        );
-                                        ui.end_row();
-
-                                        ui.label("X").on_hover_text("X index");
-                                        ui.add(
-                                            egui::Label::new(format!("{:#x}", cpu.x))
-                                                .text_style(egui::TextStyle::Monospace),
-                                        );
-                                        ui.end_row();
-
-                                        ui.label("Y").on_hover_text("Y index");
-                                        ui.add(
-                                            egui::Label::new(format!("{:#x}", cpu.y))
-                                                .text_style(egui::TextStyle::Monospace),
-                                        );
-                                        ui.end_row();
-
-                                        ui.label("PC").on_hover_text("program counter");
-                                        ui.add(
-                                            egui::Label::new(format!("{:#x}", cpu.pc))
-                                                .text_style(egui::TextStyle::Monospace),
-                                        );
-                                        ui.end_row();
-
-                                        ui.label("SP").on_hover_text("stack pointer");
-                                        ui.add(
-                                            egui::Label::new(format!("{:#x}", cpu.sp))
-                                                .text_style(egui::TextStyle::Monospace),
-                                        );
-                                        ui.end_row();
-                                    });
-                            });
-
-                            columns[1].group(|ui| {
-                                egui::Grid::new("Flags").striped(true).show(ui, |ui| {
-                                    ui.add(egui::Label::new("Flag").heading().strong());
-                                    ui.add(egui::Label::new("Value").heading().strong());
-                                    ui.end_row();
-
-                                    ui.label("N").on_hover_text("negative");
-                                    ui.checkbox(&mut cpu.n, "");
-                                    ui.end_row();
-
-                                    ui.label("V").on_hover_text("overflow");
-                                    ui.checkbox(&mut cpu.v, "");
-                                    ui.end_row();
-
-                                    ui.label("I").on_hover_text("irq inhibit");
-                                    ui.checkbox(&mut cpu.i, "");
-                                    ui.end_row();
-
-                                    ui.label("Z").on_hover_text("zero");
-                                    ui.checkbox(&mut cpu.z, "");
-                                    ui.end_row();
-
-                                    ui.label("C").on_hover_text("carry");
-                                    ui.checkbox(&mut cpu.c, "");
-                                    ui.end_row();
-                                });
-                            });
-                        });
-                    });
-            }
-
             let paused = &mut app.paused;
 
             if app.debug.show_controls {
@@ -180,7 +92,7 @@ impl Gui for Perf {
         let total_frames = &mut perf.total_frames;
         let perf_window_active = &mut perf.window_active;
 
-        egui::Window::new("PPU")
+        egui::Window::new("Performance")
             .open(perf_window_active)
             .resizable(false)
             .show(egui_ctx, |ui| {
