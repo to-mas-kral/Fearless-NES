@@ -1,3 +1,5 @@
+![build badge](https://github.com/TomasKralCZ/Fearless-NES/actions/workflows/build.yml/badge.svg)
+
 # Fearless-NES
 Fearless-NES is a work-in-progress Nintendo enterntainment system emulator written in Rust.
 
