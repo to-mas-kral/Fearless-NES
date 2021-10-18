@@ -52,7 +52,7 @@ impl Nes {
                 self.run_one_frame();
             }
 
-            self.set_button_state(ic.button.clone(), ic.state);
+            self.set_button_state(ic.button, ic.state);
         }
 
         while self.frame_count < inputs.end_frame {

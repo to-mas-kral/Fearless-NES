@@ -52,7 +52,7 @@ impl Controller {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Button {
     A,
     B,
@@ -62,4 +62,19 @@ pub enum Button {
     Down,
     Left,
     Right,
+}
+
+impl Button {
+    pub fn name(self) -> &'static str {
+        match self {
+            Button::A => "A",
+            Button::B => "B",
+            Button::Start => "Start",
+            Button::Select => "Select",
+            Button::Up => "Up",
+            Button::Right => "Right",
+            Button::Down => "Down",
+            Button::Left => "Left",
+        }
+    }
 }

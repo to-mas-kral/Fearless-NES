@@ -1,6 +1,5 @@
 use std::{env, fs, path::PathBuf};
 
-use gilrs::Gilrs;
 use macroquad::prelude::*;
 
 use fearless_nes::Nes;
@@ -32,29 +31,18 @@ async fn main() {
         app.nes = create_nes(PathBuf::from(p)).ok()
     }
 
-    let mut gilrs = match Gilrs::new() {
-        Ok(g) => Some(g),
-        Err(_) => {
-            report_error("Couldn't initialize gamepad input library");
-            None
-        }
-    };
-
     loop {
-        app.handle_input(&mut gilrs);
-
-        app.run_nes_frame();
-
         app.draw_gui();
-
+        app.handle_input();
+        app.run_nes_frame();
         app.draw_nes();
 
         egui_macroquad::draw();
 
         prevent_quit();
         if is_quit_requested() {
-            if let Err(_) = app.config.save() {
-                report_error(&format!("Couldn't save the configuration file"));
+            if let Err(e) = app.config.save() {
+                report_error(&format!("Couldn't save the configuration file: {}", e));
             }
             break;
         }

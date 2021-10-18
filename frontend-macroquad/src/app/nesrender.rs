@@ -1,5 +1,5 @@
 use macroquad::prelude::*;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 use crate::{NES_HEIGHT, NES_WIDTH};
 use fearless_nes::PALETTE;
@@ -81,7 +81,7 @@ impl NesRender {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Overscan {
     pub top: u32,
     pub right: u32,

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use egui::{CtxRef, FontDefinitions, FontFamily, Ui};
-use gilrs::{Axis, Button as GButton, EventType, Gilrs};
+use gilrs::{Axis, EventType, Gilrs};
 
 use fearless_nes::{Button as NesButton, Nes};
 
@@ -14,7 +14,7 @@ mod settings;
 
 pub use config::Config;
 use debug::Debug;
-use macroquad::prelude::{is_key_pressed, is_key_released, KeyCode};
+use macroquad::prelude::{is_key_pressed, is_key_released, mouse_position, show_mouse};
 use native_dialog::FileDialog;
 use nesrender::NesRender;
 pub use replays::{Recording, Replays};
@@ -37,13 +37,20 @@ pub struct App {
     pub replays: Replays,
     pub settings: Settings,
 
-    _last_mouse_pos: (f32, f32),
+    gilrs: Option<Gilrs>,
+
+    last_mouse_pos: (f32, f32),
     /// Frame count
-    _mouse_not_moved: u32,
+    mouse_not_moved: u32,
 }
 
 impl App {
     pub fn new(config: Config) -> Self {
+        let gilrs = Gilrs::new().map(|g| Some(g)).unwrap_or_else(|_| {
+            report_error("Couldn't initialize gamepad input library");
+            None
+        });
+
         let app = Self {
             config,
 
@@ -56,8 +63,10 @@ impl App {
             replays: Replays::new(),
             settings: Settings::new(),
 
-            _last_mouse_pos: (0., 0.),
-            _mouse_not_moved: 0,
+            gilrs,
+
+            last_mouse_pos: (0., 0.),
+            mouse_not_moved: 0,
         };
 
         app.init_egui_style();
@@ -86,68 +95,70 @@ impl App {
         self.render.draw_nes();
     }
 
+    const HIDE_MOUSE_FRAMES: u32 = 180;
+
     #[rustfmt::skip]
-    pub fn handle_input(&mut self, gilrs: &mut Option<Gilrs>) {
-        // TODO: auto-hide mouse cursor and GUI - show_mouse(false) isn't working...
-        /* let current_mouse_pos = mouse_position();
+    pub fn handle_input(&mut self) {
+        let current_mouse_pos = mouse_position();
         if current_mouse_pos != self.last_mouse_pos {
             self.last_mouse_pos = current_mouse_pos;
             self.mouse_not_moved = 0;
-            //show_mouse(true);
+            show_mouse(true);
         } else {
             self.mouse_not_moved += 1;
         }
 
-        if self.mouse_not_moved >= 300 {
+        if self.mouse_not_moved >= Self::HIDE_MOUSE_FRAMES {
             show_mouse(false);
-        } */
+        }
+
+        let gilrs = &mut self.gilrs;
+        let nes = &mut self.nes;
+        let replays = &mut self.replays;
+
+        let binds = &self.config.keybinds;
 
         if let Some(gilrs) = gilrs {
             while let Some(gilrs::Event { event, .. }) = gilrs.next_event() {
                 match event {
-                    EventType::ButtonPressed(button, ..) => match button {
-                        GButton::East => self.set_button_state(NesButton::A, true),
-                        GButton::West => self.set_button_state(NesButton::B, true),
-                        GButton::Start => self.set_button_state(NesButton::Start, true),
-                        GButton::Select => self.set_button_state(NesButton::Select, true),
-                        GButton::DPadUp => self.set_button_state(NesButton::Up, true),
-                        GButton::DPadRight => self.set_button_state(NesButton::Right, true),
-                        GButton::DPadDown => self.set_button_state(NesButton::Down, true),
-                        GButton::DPadLeft => self.set_button_state(NesButton::Left, true),
-                        GButton::Mode => {
-                            self.paused = !self.paused;
-                        }
-                        _ => (),
-                    },
-                    EventType::ButtonReleased(button, ..) => match button {
-                        GButton::East => self.set_button_state(NesButton::A, false),
-                        GButton::West => self.set_button_state(NesButton::B, false),
-                        GButton::Start => self.set_button_state(NesButton::Start, false),
-                        GButton::Select => self.set_button_state(NesButton::Select, false),
-                        GButton::DPadUp => self.set_button_state(NesButton::Up, false),
-                        GButton::DPadRight => self.set_button_state(NesButton::Right, false),
-                        GButton::DPadDown => self.set_button_state(NesButton::Down, false),
-                        GButton::DPadLeft => self.set_button_state(NesButton::Left, false),
-                        _ => (),
-                    },
+                    EventType::ButtonPressed(b, ..) => {
+                        if b == binds.a.ctrl { Self::set_button(nes, replays, NesButton::A, true) }
+                        if b == binds.b.ctrl { Self::set_button(nes, replays, NesButton::B, true) }
+                        if b == binds.start.ctrl { Self::set_button(nes, replays, NesButton::Start, true) }
+                        if b == binds.select.ctrl { Self::set_button(nes, replays, NesButton::Select, true) }
+                        if b == binds.up.ctrl { Self::set_button(nes, replays, NesButton::Up, true) }
+                        if b == binds.right.ctrl { Self::set_button(nes, replays, NesButton::Right, true) }
+                        if b == binds.down.ctrl { Self::set_button(nes, replays, NesButton::Down, true) }
+                        if b == binds.left.ctrl { Self::set_button(nes, replays, NesButton::Left, true) }
+                    }
+                    EventType::ButtonReleased(b, ..) => {
+                        if b == binds.a.ctrl { Self::set_button(nes, replays, NesButton::A, false) }
+                        if b == binds.b.ctrl { Self::set_button(nes, replays, NesButton::B, false) }
+                        if b == binds.start.ctrl { Self::set_button(nes, replays, NesButton::Start, false) }
+                        if b == binds.select.ctrl { Self::set_button(nes, replays, NesButton::Select, false) }
+                        if b == binds.up.ctrl { Self::set_button(nes, replays, NesButton::Up, false) }
+                        if b == binds.right.ctrl { Self::set_button(nes, replays, NesButton::Right, false) }
+                        if b == binds.down.ctrl { Self::set_button(nes, replays, NesButton::Down, false) }
+                        if b == binds.left.ctrl { Self::set_button(nes, replays, NesButton::Left, false) }
+                    }
                     EventType::AxisChanged(Axis::LeftStickX, val, ..) => {
                         if val > 0.5 {
-                            self.set_button_state(NesButton::Right, true);
+                            Self::set_button(nes, replays, NesButton::Right, true);
                         } else if val < -0.5 {
-                            self.set_button_state(NesButton::Left, true);
+                            Self::set_button(nes, replays, NesButton::Left, true);
                         } else {
-                            self.set_button_state(NesButton::Right, false);
-                            self.set_button_state(NesButton::Left, false);
+                            Self::set_button(nes, replays, NesButton::Right, false);
+                            Self::set_button(nes, replays, NesButton::Left, false);
                         }
                     }
                     EventType::AxisChanged(Axis::LeftStickY, val, ..) => {
                         if val > 0.5 {
-                            self.set_button_state(NesButton::Up, true);
+                            Self::set_button(nes, replays, NesButton::Up, true);
                         } else if val < -0.5 {
-                            self.set_button_state(NesButton::Down, true);
+                            Self::set_button(nes, replays, NesButton::Down, true);
                         } else {
-                            self.set_button_state(NesButton::Up, false);
-                            self.set_button_state(NesButton::Down, false);
+                            Self::set_button(nes, replays, NesButton::Up, false);
+                            Self::set_button(nes, replays, NesButton::Down, false);
                         }
                     }
                     _ => (),
@@ -155,30 +166,30 @@ impl App {
             }
         }
 
-        if is_key_pressed(KeyCode::Up) { self.set_button_state(NesButton::Up, true) }
-        if is_key_pressed(KeyCode::Right) { self.set_button_state(NesButton::Right, true) }
-        if is_key_pressed(KeyCode::Down) { self.set_button_state(NesButton::Down, true) }
-        if is_key_pressed(KeyCode::Left) { self.set_button_state(NesButton::Left, true) }
-        if is_key_pressed(KeyCode::Enter) { self.set_button_state(NesButton::Start, true) }
-        if is_key_pressed(KeyCode::Space) { self.set_button_state(NesButton::Select, true) }
-        if is_key_pressed(KeyCode::D) { self.set_button_state(NesButton::B, true) }
-        if is_key_pressed(KeyCode::F) { self.set_button_state(NesButton::A, true) }
+        if is_key_pressed(binds.up.kbd) { Self::set_button(nes, replays, NesButton::Up, true) }
+        if is_key_pressed(binds.right.kbd) { Self::set_button(nes, replays, NesButton::Right, true) }
+        if is_key_pressed(binds.down.kbd) { Self::set_button(nes, replays, NesButton::Down, true) }
+        if is_key_pressed(binds.left.kbd) { Self::set_button(nes, replays, NesButton::Left, true) }
+        if is_key_pressed(binds.start.kbd) { Self::set_button(nes, replays, NesButton::Start, true) }
+        if is_key_pressed(binds.select.kbd) { Self::set_button(nes, replays, NesButton::Select, true) }
+        if is_key_pressed(binds.b.kbd) { Self::set_button(nes, replays, NesButton::B, true) }
+        if is_key_pressed(binds.a.kbd) { Self::set_button(nes, replays, NesButton::A, true) }
 
-        if is_key_released(KeyCode::Up) { self.set_button_state(NesButton::Up, false) }
-        if is_key_released(KeyCode::Right) { self.set_button_state(NesButton::Right, false) }
-        if is_key_released(KeyCode::Down) { self.set_button_state(NesButton::Down, false) }
-        if is_key_released(KeyCode::Left) { self.set_button_state(NesButton::Left, false) }
-        if is_key_released(KeyCode::Enter) { self.set_button_state(NesButton::Start, false) }
-        if is_key_released(KeyCode::Space) { self.set_button_state(NesButton::Select, false) }
-        if is_key_released(KeyCode::D) { self.set_button_state(NesButton::B, false) }
-        if is_key_released(KeyCode::F) { self.set_button_state(NesButton::A, false) }
+        if is_key_released(binds.up.kbd) { Self::set_button(nes, replays, NesButton::Up, false) }
+        if is_key_released(binds.right.kbd) { Self::set_button(nes, replays, NesButton::Right, false) }
+        if is_key_released(binds.down.kbd) { Self::set_button(nes, replays, NesButton::Down, false) }
+        if is_key_released(binds.left.kbd) { Self::set_button(nes, replays, NesButton::Left, false) }
+        if is_key_released(binds.start.kbd) { Self::set_button(nes, replays, NesButton::Start, false) }
+        if is_key_released(binds.select.kbd) { Self::set_button(nes, replays, NesButton::Select, false) }
+        if is_key_released(binds.b.kbd) { Self::set_button(nes, replays, NesButton::B, false) }
+        if is_key_released(binds.a.kbd) { Self::set_button(nes, replays, NesButton::A, false) }
     }
 
-    fn set_button_state(&mut self, button: NesButton, state: bool) {
-        if let Some(nes) = &mut self.nes {
-            nes.set_button_state(button.clone(), state);
+    fn set_button(nes: &mut Option<Nes>, replays: &mut Replays, button: NesButton, state: bool) {
+        if let Some(nes) = nes {
+            nes.set_button_state(button, state);
 
-            if let Recording::On { replay_inputs, .. } = &mut self.replays.recording {
+            if let Recording::On { replay_inputs, .. } = &mut replays.recording {
                 replay_inputs.add_input_change(nes.get_frame_count(), button, state);
             }
         };
@@ -282,7 +293,7 @@ impl Gui for App {
                     }
                 });
 
-                if let Some(_) = app.nes {
+                if app.nes.is_some() {
                     egui::menu::menu(ui, "Controls", |ui| {
                         let button_text = match app.paused {
                             true => "Resume",
@@ -325,7 +336,7 @@ impl Gui for App {
                                     // a Nes instance
                                     app.replays.stop_recording(
                                         &mut app.paused,
-                                        &app.nes.as_ref().unwrap(),
+                                        app.nes.as_ref().unwrap(),
                                     );
                                 }
                             }
@@ -356,6 +367,10 @@ impl Gui for App {
                         if ui.button("Overscan").clicked() {
                             app.settings.overscan.window_shown = true;
                         }
+
+                        if ui.button("Key bindings").clicked() {
+                            app.settings.keybinds.window_shown = true;
+                        }
                     });
                 }
             });
@@ -371,7 +386,7 @@ pub trait Gui {
 
 fn get_folder_path(location: Option<&Path>) -> Result<Option<PathBuf>, ()> {
     match FileDialog::new()
-        .set_location(location.unwrap_or(Path::new("~/")))
+        .set_location(location.unwrap_or_else(|| Path::new("~/")))
         .show_open_single_dir()
     {
         Ok(Some(p)) => return Ok(Some(p)),
@@ -389,7 +404,7 @@ fn get_save_named_path(
     filter_ext: &str,
 ) -> Result<Option<PathBuf>, ()> {
     match FileDialog::new()
-        .set_location(location.unwrap_or(Path::new("~/")))
+        .set_location(location.unwrap_or_else(|| Path::new("~/")))
         .add_filter(filter_desc, &[filter_ext])
         .show_save_single_file()
     {
@@ -404,7 +419,7 @@ fn get_save_named_path(
 
 fn get_open_file_path(location: Option<&Path>) -> Result<Option<PathBuf>, ()> {
     match FileDialog::new()
-        .set_location(location.unwrap_or(Path::new("~/")))
+        .set_location(location.unwrap_or_else(|| Path::new("~/")))
         .show_open_single_file()
     {
         Ok(Some(p)) => return Ok(Some(p)),

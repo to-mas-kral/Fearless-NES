@@ -83,11 +83,7 @@ impl Cartridge {
 
     #[inline]
     pub fn read_prg_ram(&self, addr: usize) -> Option<u8> {
-        if let Some(ref prg_ram) = self.prg_wram {
-            Some(prg_ram[addr])
-        } else {
-            None
-        }
+        self.prg_wram.as_ref().map(|prg_ram| prg_ram[addr])
     }
 
     #[inline]
@@ -115,30 +111,22 @@ impl Cartridge {
 
     #[inline]
     pub fn prg_ram_count(&self, unit: BankSize) -> Option<u32> {
-        self.header
-            .prg_ram_size
-            .and_then(|size| Some(size / unit as u32))
+        self.header.prg_ram_size.map(|size| size / unit as u32)
     }
 
     #[inline]
     pub fn prg_nvram_count(&self, unit: BankSize) -> Option<u32> {
-        self.header
-            .prg_nvram_size
-            .and_then(|size| Some(size / unit as u32))
+        self.header.prg_nvram_size.map(|size| size / unit as u32)
     }
 
     #[inline]
     pub fn chr_rom_count(&self, unit: BankSize) -> Option<u32> {
-        self.header
-            .chr_rom_size
-            .and_then(|size| Some(size / unit as u32))
+        self.header.chr_rom_size.map(|size| size / unit as u32)
     }
 
     #[inline]
     pub fn chr_ram_count(&self, unit: BankSize) -> Option<u32> {
-        self.header
-            .chr_ram_size
-            .and_then(|size| Some(size / unit as u32))
+        self.header.chr_ram_size.map(|size| size / unit as u32)
     }
 
     #[inline]

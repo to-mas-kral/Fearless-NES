@@ -36,7 +36,7 @@ fn game_bench(rom_path: &str, inputs_path: &str) {
             }
         }
 
-        nes.set_button_state(ic.button.clone(), ic.state);
+        nes.set_button_state(ic.button, ic.state);
     }
 
     while nes.get_frame_count() < inputs.end_frame {

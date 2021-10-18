@@ -5,12 +5,13 @@ Fearless-NES is a work-in-progress Nintendo enterntainment system emulator writt
 
 # Screenshots
 
-![Kirby's Adventure](https://raw.githubusercontent.com/TomasKralCZ/Fearless-NES/master/screenshots/Kirby'sAdventure.png)
-![Super Mario Bros. 3](https://raw.githubusercontent.com/TomasKralCZ/Fearless-NES/master/screenshots/SuperMarioBros3.png)
-![Legend Of Zelda](https://raw.githubusercontent.com/TomasKralCZ/Fearless-NES/master/screenshots/LegendOfZelda.png)
-![Mega Man III](https://raw.githubusercontent.com/TomasKralCZ/Fearless-NES/master/screenshots/MegaManIII.png)
-![Battletoads](https://raw.githubusercontent.com/TomasKralCZ/Fearless-NES/master/screenshots/Battletoads.png)
-![Super Mario Bros](https://raw.githubusercontent.com/TomasKralCZ/Fearless-NES/master/screenshots/SuperMarioBros.png)
+![GUI](screenshots/GUI.png)
+![Kirby's Adventure](screenshots/Kirby'sAdventure.png)
+![Super Mario Bros. 3](screenshots/SuperMarioBros3.png)
+![Legend Of Zelda](screenshots/LegendOfZelda.png)
+![Mega Man III](screenshots/MegaManIII.png)
+![Battletoads](screenshots/Battletoads.png)
+![Super Mario Bros](screenshots/SuperMarioBros.png)
 
 # Features
 - Cycle-accurate CPU emulation
@@ -21,6 +22,7 @@ Fearless-NES is a work-in-progress Nintendo enterntainment system emulator writt
 - Gamepad support
 - Controllable overscan
 - Game loading using the NES 2.0 XML Game Database
+- Custom key bindings and mouse cursor auto-hide
 
 # Build instructions:
 1. Install [Macroquad dependencies](https://github.com/not-fl3/macroquad#linux) if you use Linux.
@@ -46,7 +48,6 @@ With these mappers, Fearless-NES supports 84 % of commercial NES games.
 
 # TODO
 - [ ] (frontend) user-defined RGB palettes
-- [ ] (frontend) auto-hide mouse (when possible with Macroquad)
 - [ ] (frontend) NTSC filter
 
 - [ ] (core) iNES 2.0 support

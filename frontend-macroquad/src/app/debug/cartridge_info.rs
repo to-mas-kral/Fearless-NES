@@ -27,7 +27,7 @@ impl Gui for CartridgeInfo {
                         let cartridge = nes.get_cartridge();
                         let header = &cartridge.header;
 
-                        egui::Grid::new("Header Grid")
+                        egui::Grid::new("Cartridge Header Grid")
                             .striped(true)
                             .spacing([20., 5.])
                             .show(ui, |ui| {
@@ -40,7 +40,7 @@ impl Gui for CartridgeInfo {
                                 ui.end_row();
 
                                 ui.label("Name");
-                                ui.add(Label::new(format!("{}", header.name)));
+                                ui.add(Label::new(&header.name));
                                 ui.end_row();
 
                                 ui.label("Mapper : Submapper");

@@ -15,7 +15,7 @@ const GAMEDB: &str = include_str!("nes20db.xml");
 impl Header {
     pub fn from_prg_chr(prg: &[u8], chr: Option<&[u8]>) -> Result<Option<Self>, NesError> {
         let prg_sha1 = Self::arr_to_hex(Sha1::digest(prg).as_slice());
-        let chr_sha1 = chr.and_then(|chr| Some(Self::arr_to_hex(Sha1::digest(chr).as_slice())));
+        let chr_sha1 = chr.map(|chr| Self::arr_to_hex(Sha1::digest(chr).as_slice()));
 
         Self::find_game(&prg_sha1, chr_sha1.as_deref())
     }
@@ -118,7 +118,7 @@ impl Header {
             .children()
             .find(|n| n.tag_name().name() == "chrrom")
             .and_then(|chr| chr.attribute("size"))
-            .and_then(|size| Some(size.parse::<u32>()))
+            .map(|size| size.parse::<u32>())
             .transpose()
             .map_err(|_| NesError::GameDbFormat)?;
 
@@ -126,7 +126,7 @@ impl Header {
             .children()
             .find(|n| n.tag_name().name() == "chrram")
             .and_then(|chr| chr.attribute("size"))
-            .and_then(|size| Some(size.parse::<u32>()))
+            .map(|size| size.parse::<u32>())
             .transpose()
             .map_err(|_| NesError::GameDbFormat)?;
 
@@ -134,7 +134,7 @@ impl Header {
             .children()
             .find(|n| n.tag_name().name() == "prgram")
             .and_then(|chr| chr.attribute("size"))
-            .and_then(|size| Some(size.parse::<u32>()))
+            .map(|size| size.parse::<u32>())
             .transpose()
             .map_err(|_| NesError::GameDbFormat)?;
 
@@ -142,7 +142,7 @@ impl Header {
             .children()
             .find(|n| n.tag_name().name() == "prgnvram")
             .and_then(|chr| chr.attribute("size"))
-            .and_then(|size| Some(size.parse::<u32>()))
+            .map(|size| size.parse::<u32>())
             .transpose()
             .map_err(|_| NesError::GameDbFormat)?;
 
