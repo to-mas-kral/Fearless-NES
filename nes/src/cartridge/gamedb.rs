@@ -1,12 +1,9 @@
-use std::convert::TryFrom;
+use std::str::FromStr;
 
+use roxmltree::Node;
 use sha1::{Digest, Sha1};
 
-use crate::{
-    cartridge::{ConsoleType, Header, Region},
-    ppu::Mirroring,
-    NesError,
-};
+use crate::{cartridge::Header, NesError};
 
 use super::HeaderSource;
 
@@ -92,6 +89,7 @@ impl Header {
             .ok_or(NesError::GameDbFormat)?
             .text()
             .ok_or(NesError::GameDbFormat)?;
+
         let name = String::from(
             name_comment
                 .split_once("\\")
@@ -100,92 +98,30 @@ impl Header {
                 .trim_end_matches(".nes"),
         );
 
-        let pcb = game
-            .children()
-            .find(|n| n.tag_name().name() == "pcb")
-            .ok_or(NesError::GameDbFormat)?;
+        let pcb = Self::find_child_tag(game, "pcb").ok_or(NesError::GameDbFormat)?;
 
-        let prg_rom_size = game
-            .children()
-            .find(|n| n.tag_name().name() == "prgrom")
-            .ok_or(NesError::GameDbFormat)?
-            .attribute("size")
-            .ok_or(NesError::GameDbFormat)?
-            .parse::<u32>()
-            .map_err(|_| NesError::GameDbFormat)?;
+        let prg_rom_size = Self::find_child_tag(game, "prgrom").ok_or(NesError::GameDbFormat)?;
+        let prg_rom_size = Self::parse_attr_required::<u32>(prg_rom_size, "size")?;
+        let chr_rom_size = Self::find_child_tag(game, "chrrom");
+        let chr_rom_size = Self::parse_attr(chr_rom_size, "size")?;
+        let chr_ram_size = Self::find_child_tag(game, "chrram");
+        let chr_ram_size = Self::parse_attr(chr_ram_size, "size")?;
+        let prg_ram_size = Self::find_child_tag(game, "prgram");
+        let prg_ram_size = Self::parse_attr(prg_ram_size, "size")?;
+        let prg_nvram_size = Self::find_child_tag(game, "prgnvram");
+        let prg_nvram_size = Self::parse_attr(prg_nvram_size, "size")?;
 
-        let chr_rom_size = game
-            .children()
-            .find(|n| n.tag_name().name() == "chrrom")
-            .and_then(|chr| chr.attribute("size"))
-            .map(|size| size.parse::<u32>())
-            .transpose()
-            .map_err(|_| NesError::GameDbFormat)?;
+        let mapper = Self::parse_attr_required(pcb, "mapper")?;
+        let submapper = Self::parse_attr_required(pcb, "submapper")?;
+        let mirroring = Self::parse_attr_required(pcb, "mirroring")?;
+        let battery = Self::parse_attr_required::<u32>(pcb, "battery")? != 0;
 
-        let chr_ram_size = game
-            .children()
-            .find(|n| n.tag_name().name() == "chrram")
-            .and_then(|chr| chr.attribute("size"))
-            .map(|size| size.parse::<u32>())
-            .transpose()
-            .map_err(|_| NesError::GameDbFormat)?;
+        let console = Self::find_child_tag(game, "console").ok_or(NesError::GameDbFormat)?;
+        let console_typ = Self::parse_attr_required(console, "type")?;
+        let region = Self::parse_attr_required::<super::Region>(console, "region")?;
 
-        let prg_ram_size = game
-            .children()
-            .find(|n| n.tag_name().name() == "prgram")
-            .and_then(|chr| chr.attribute("size"))
-            .map(|size| size.parse::<u32>())
-            .transpose()
-            .map_err(|_| NesError::GameDbFormat)?;
-
-        let prg_nvram_size = game
-            .children()
-            .find(|n| n.tag_name().name() == "prgnvram")
-            .and_then(|chr| chr.attribute("size"))
-            .map(|size| size.parse::<u32>())
-            .transpose()
-            .map_err(|_| NesError::GameDbFormat)?;
-
-        let mapper = pcb
-            .attribute("mapper")
-            .ok_or(NesError::GameDbFormat)?
-            .parse::<u32>()
-            .map_err(|_| NesError::GameDbFormat)?;
-
-        let submapper = pcb
-            .attribute("submapper")
-            .ok_or(NesError::GameDbFormat)?
-            .parse::<u32>()
-            .map_err(|_| NesError::GameDbFormat)?;
-
-        let mirroring =
-            Mirroring::try_from(pcb.attribute("mirroring").ok_or(NesError::GameDbFormat)?)?;
-
-        let battery = pcb
-            .attribute("battery")
-            .ok_or(NesError::GameDbFormat)?
-            .parse::<u32>()
-            .map_err(|_| NesError::GameDbFormat)?
-            != 0;
-
-        let console = game
-            .children()
-            .find(|n| n.tag_name().name() == "console")
-            .ok_or(NesError::GameDbFormat)?;
-
-        let console_typ =
-            ConsoleType::try_from(console.attribute("type").ok_or(NesError::GameDbFormat)?)?;
-
-        let region = Region::try_from(console.attribute("region").ok_or(NesError::GameDbFormat)?)?;
-
-        let expansion = game
-            .children()
-            .find(|n| n.tag_name().name() == "expansion")
-            .ok_or(NesError::GameDbFormat)?
-            .attribute("type")
-            .ok_or(NesError::GameDbFormat)?
-            .parse::<u32>()
-            .map_err(|_| NesError::GameDbFormat)?;
+        let expansion = Self::find_child_tag(game, "expansion").ok_or(NesError::GameDbFormat)?;
+        let expansion = Self::parse_attr_required(expansion, "type")?;
 
         Ok(Header {
             source: HeaderSource::GameDb,
@@ -209,4 +145,26 @@ impl Header {
             expansion,
         })
     }
+
+    fn find_child_tag<'n>(node: Node<'n, '_>, name: &str) -> Option<Node<'n, 'n>> {
+        node.children().find(|n| n.tag_name().name() == name)
+    }
+
+    fn parse_attr_required<T: FromStr>(node: Node, attr: &str) -> Result<T, NesError> {
+        Ok(node
+            .attribute(attr)
+            .ok_or(NesError::GameDbFormat)?
+            .parse::<T>()
+            .map_err(|_| NesError::GameDbFormat)?)
+    }
+
+    fn parse_attr<T: FromStr>(node: Option<Node>, attr: &str) -> Result<Option<T>, NesError> {
+        Ok(node
+            .and_then(|chr| chr.attribute(attr))
+            .map(|size| size.parse::<T>())
+            .transpose()
+            .map_err(|_| NesError::GameDbFormat))?
+    }
 }
+
+// TODO: write tests for iNES 2.0 parsing

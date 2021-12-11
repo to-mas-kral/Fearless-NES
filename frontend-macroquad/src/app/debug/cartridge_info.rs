@@ -50,7 +50,7 @@ impl Gui for CartridgeInfo {
                                 );
                                 ui.end_row();
 
-                                ui.label("PRG ROM count");
+                                ui.label("PRG ROM size");
                                 ui.add(
                                     Label::new(format!(
                                         "{} KB",
@@ -60,7 +60,7 @@ impl Gui for CartridgeInfo {
                                 );
                                 ui.end_row();
 
-                                ui.label("PRG RAM count");
+                                ui.label("PRG RAM size");
                                 ui.add(
                                     Label::new(format!(
                                         "{} KB",
@@ -70,7 +70,7 @@ impl Gui for CartridgeInfo {
                                 );
                                 ui.end_row();
 
-                                ui.label("PRG NVRAM count");
+                                ui.label("PRG NVRAM size");
                                 ui.add(
                                     Label::new(format!(
                                         "{} KB",
@@ -80,7 +80,7 @@ impl Gui for CartridgeInfo {
                                 );
                                 ui.end_row();
 
-                                ui.label("CHR ROM count");
+                                ui.label("CHR ROM size");
                                 ui.add(
                                     Label::new(format!(
                                         "{} KB",
@@ -90,7 +90,7 @@ impl Gui for CartridgeInfo {
                                 );
                                 ui.end_row();
 
-                                ui.label("CHR RAM count");
+                                ui.label("CHR RAM size");
                                 ui.add(
                                     Label::new(format!(
                                         "{} KB",

@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, fmt::Display};
+use std::{convert::TryFrom, fmt::Display, str::FromStr};
 
 use crate::{ppu::Mirroring, NesError};
 
@@ -278,10 +278,10 @@ impl Display for ConsoleType {
     }
 }
 
-impl TryFrom<&str> for ConsoleType {
-    type Error = NesError;
+impl FromStr for ConsoleType {
+    type Err = NesError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "0" => Ok(ConsoleType::Standard),
             "1" => Ok(ConsoleType::VsSystem),
@@ -311,10 +311,10 @@ impl Display for Region {
     }
 }
 
-impl TryFrom<&str> for Region {
-    type Error = NesError;
+impl FromStr for Region {
+    type Err = NesError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "0" => Ok(Region::Ntsc),
             "1" => Ok(Region::Pal),
@@ -337,10 +337,10 @@ impl TryFrom<u8> for Region {
     }
 }
 
-impl TryFrom<&str> for Mirroring {
-    type Error = NesError;
+impl FromStr for Mirroring {
+    type Err = NesError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "V" => Ok(Mirroring::Vertical),
             "H" => Ok(Mirroring::Horizontal),
