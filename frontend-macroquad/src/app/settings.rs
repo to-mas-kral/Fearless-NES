@@ -28,6 +28,26 @@ impl Gui for Settings {
         OverscanUi::gui_window(app, egui_ctx);
         KeybindsUi::gui_window(app, egui_ctx);
     }
+
+    fn gui_embed(app: &mut App, ui: &mut Ui) {
+        let mode_text = if app.config.dark_mode {
+            "Light mode"
+        } else {
+            "Dark mode"
+        };
+
+        if ui.button(mode_text).clicked() {
+            app.config.dark_mode = !app.config.dark_mode;
+        }
+
+        if ui.button("Overscan").clicked() {
+            app.settings.overscan.window_shown = true;
+        }
+
+        if ui.button("Key bindings").clicked() {
+            app.settings.keybinds.window_shown = true;
+        }
+    }
 }
 
 pub struct OverscanUi {

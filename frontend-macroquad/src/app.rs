@@ -239,6 +239,28 @@ impl App {
             egui_ctx.set_fonts(fonts);
         });
     }
+
+    fn load_rom(&mut self) {
+        loop {
+            let rom_path = match get_open_file_path(Some(&self.config.rom_folder_path)) {
+                Ok(Some(p)) => {
+                    self.config.rom_folder_path = p.clone();
+                    self.config.rom_folder_path.pop(); // Remove the file, we only want the folder
+                    p
+                }
+                Ok(None) => break,
+                Err(_) => return,
+            };
+
+            match create_nes(rom_path) {
+                Ok(n) => {
+                    self.nes = Some(n);
+                    break;
+                }
+                Err(_) => continue,
+            }
+        }
+    }
 }
 
 impl Gui for App {
@@ -246,51 +268,11 @@ impl Gui for App {
         egui::TopBottomPanel::top("TopPanel").show(egui_ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 if ui.button("Load ROM").clicked() {
-                    loop {
-                        let rom_path = match get_open_file_path(Some(&app.config.rom_folder_path)) {
-                            Ok(Some(p)) => {
-                                app.config.rom_folder_path = p.clone();
-                                app.config.rom_folder_path.pop(); // Remove the file, we only want the folder
-                                p
-                            }
-                            Ok(None) => break,
-                            Err(_) => return,
-                        };
-
-                        match create_nes(rom_path) {
-                            Ok(n) => {
-                                app.nes = Some(n);
-                                break;
-                            }
-                            Err(_) => continue,
-                        }
-                    }
+                    app.load_rom();
                 }
 
                 egui::menu::menu(ui, "Saves", |ui| {
-                    if app.nes.is_some() && ui.button("Save").clicked() {
-                        if let Err(e) = app.saves.create_save(
-                            &app.nes,
-                            &mut app.render,
-                            &app.config.save_folder_path,
-                        ) {
-                            report_error(&format!("Couldn't create the save file. Error: {}", e));
-                        }
-                    }
-
-                    if ui.button("Load saves from folder").clicked() {
-                        match get_folder_path(Some(app.config.save_folder_path.as_ref())) {
-                            Ok(Some(p)) => {
-                                app.saves.window_shown = true;
-                                app.saves.folder_path = p.clone();
-                                app.saves.folder_changed = true;
-
-                                app.config.save_folder_path = p;
-                            }
-                            Ok(None) => (),
-                            Err(_) => return,
-                        }
-                    }
+                    Saves::gui_embed(app, ui);
                 });
 
                 if app.nes.is_some() {
@@ -311,66 +293,20 @@ impl Gui for App {
                     });
 
                     egui::menu::menu(ui, "Debug", |ui| {
-                        if ui.button("Controls and Status").clicked() {
-                            app.debug.show_controls = true;
-                        }
-
-                        if ui.button("PPU").clicked() {
-                            app.debug.ppu.window_active = true;
-                        }
-
-                        if ui.button("Cartridge Info").clicked() {
-                            app.debug.cartridge_info.window_active = true;
-                        }
-
-                        if ui.button("Performance").clicked() {
-                            app.debug.perf.window_active = true;
-                        }
+                        Debug::gui_embed(app, ui);
                     });
 
                     egui::menu::menu(ui, "Record inputs", |ui| {
-                        match &mut app.replays.recording {
-                            Recording::On { .. } => {
-                                if ui.button("Stop recording").clicked() {
-                                    // We can unwrap app.nes, because recording can only exist if we have
-                                    // a Nes instance
-                                    app.replays.stop_recording(
-                                        &mut app.paused,
-                                        app.nes.as_ref().unwrap(),
-                                    );
-                                }
-                            }
-                            Recording::Off => {
-                                if ui.button("Start recording").clicked() {
-                                    app.replays.start_recording();
-                                }
-                            }
-                        }
+                        Replays::gui_embed(app, ui);
                     });
 
                     egui::menu::menu(ui, "Settings", |ui| {
-                        let mode_text = if app.config.dark_mode {
-                            "Light mode"
+                        Settings::gui_embed(app, ui);
+                        if app.config.dark_mode {
+                            egui_ctx.set_visuals(egui::Visuals::dark());
                         } else {
-                            "Dark mode"
+                            egui_ctx.set_visuals(egui::Visuals::light());
                         };
-
-                        if ui.button(mode_text).clicked() {
-                            app.config.dark_mode = !app.config.dark_mode;
-                            if app.config.dark_mode {
-                                egui_ctx.set_visuals(egui::Visuals::dark());
-                            } else {
-                                egui_ctx.set_visuals(egui::Visuals::light());
-                            };
-                        }
-
-                        if ui.button("Overscan").clicked() {
-                            app.settings.overscan.window_shown = true;
-                        }
-
-                        if ui.button("Key bindings").clicked() {
-                            app.settings.keybinds.window_shown = true;
-                        }
                     });
                 }
             });

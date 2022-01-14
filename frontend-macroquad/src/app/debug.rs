@@ -56,6 +56,24 @@ impl Gui for Debug {
             Perf::gui_window(app, egui_ctx);
         }
     }
+
+    fn gui_embed(app: &mut App, ui: &mut egui::Ui) {
+        if ui.button("Controls and Status").clicked() {
+            app.debug.show_controls = true;
+        }
+
+        if ui.button("PPU").clicked() {
+            app.debug.ppu.window_active = true;
+        }
+
+        if ui.button("Cartridge Info").clicked() {
+            app.debug.cartridge_info.window_active = true;
+        }
+
+        if ui.button("Performance").clicked() {
+            app.debug.perf.window_active = true;
+        }
+    }
 }
 
 pub struct Perf {

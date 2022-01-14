@@ -103,38 +103,42 @@ impl Cartridge {
         self.chr[addr] = val
     }
 
-    // FIXME: should probably ceil() these "count" calculations...
     #[inline]
     pub fn prg_rom_count(&self, unit: BankSize) -> u32 {
-        self.header.prg_rom_size / unit as u32
+        Self::ceil_div(self.header.prg_rom_size, unit)
     }
 
     #[inline]
     pub fn prg_ram_count(&self, unit: BankSize) -> Option<u32> {
-        self.header.prg_ram_size.map(|size| size / unit as u32)
+        self.header.prg_ram_size.map(|s| Self::ceil_div(s, unit))
     }
 
     #[inline]
     pub fn prg_nvram_count(&self, unit: BankSize) -> Option<u32> {
-        self.header.prg_nvram_size.map(|size| size / unit as u32)
+        self.header.prg_nvram_size.map(|s| Self::ceil_div(s, unit))
     }
 
     #[inline]
     pub fn chr_rom_count(&self, unit: BankSize) -> Option<u32> {
-        self.header.chr_rom_size.map(|size| size / unit as u32)
+        self.header.chr_rom_size.map(|s| Self::ceil_div(s, unit))
     }
 
     #[inline]
     pub fn chr_ram_count(&self, unit: BankSize) -> Option<u32> {
-        self.header.chr_ram_size.map(|size| size / unit as u32)
+        self.header.chr_ram_size.map(|s| Self::ceil_div(s, unit))
     }
 
     #[inline]
     pub fn has_chr_ram(&self) -> bool {
         self.header.chr_ram_size.is_some()
     }
+
+    fn ceil_div(size: u32, unit: BankSize) -> u32 {
+        (size + unit as u32 - 1) / unit as u32
+    }
 }
 
+#[derive(Clone, Copy)]
 pub enum BankSize {
     Kb1 = 0x400,
     #[allow(dead_code)]

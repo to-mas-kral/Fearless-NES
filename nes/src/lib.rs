@@ -11,7 +11,7 @@ mod replay;
 mod tests;
 
 use apu::Apu;
-use cartridge::{Cartridge, ConsoleType, Region};
+use cartridge::{ConsoleType, Region};
 use controller::Controller;
 use cpu::Cpu;
 use mapper::BaseMapper;
@@ -19,7 +19,7 @@ use ppu::Ppu;
 
 use serde::{Deserialize, Serialize};
 
-pub use cartridge::BankSize;
+pub use cartridge::{BankSize, Cartridge, Header};
 pub use controller::Button;
 pub use ppu::PALETTE;
 pub use replay::ReplayInputs;

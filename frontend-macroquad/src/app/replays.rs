@@ -4,6 +4,8 @@ use fearless_nes::{Nes, ReplayInputs};
 
 use crate::app::{get_save_named_path, report_error};
 
+use super::Gui;
+
 pub enum Recording {
     On { replay_inputs: ReplayInputs },
     Off,
@@ -52,6 +54,26 @@ impl Replays {
                 self.recording = Recording::Off;
             }
             Recording::Off => report_error("No started recording to save"),
+        }
+    }
+}
+
+impl Gui for Replays {
+    fn gui_embed(app: &mut super::App, ui: &mut egui::Ui) {
+        match &mut app.replays.recording {
+            Recording::On { .. } => {
+                if ui.button("Stop recording").clicked() {
+                    // We can unwrap app.nes, because recording can only exist if we have
+                    // a Nes instance
+                    app.replays
+                        .stop_recording(&mut app.paused, app.nes.as_ref().unwrap());
+                }
+            }
+            Recording::Off => {
+                if ui.button("Start recording").clicked() {
+                    app.replays.start_recording();
+                }
+            }
         }
     }
 }

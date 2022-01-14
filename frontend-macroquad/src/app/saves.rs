@@ -18,6 +18,8 @@ use crate::{
 
 use crate::app::{get_save_named_path, nesrender::NesRender};
 
+use super::get_folder_path;
+
 pub struct Saves {
     pub saves: Vec<Save>,
 
@@ -37,7 +39,7 @@ impl Saves {
         }
     }
 
-    fn build_saves_view(&mut self) -> Result<()> {
+    fn gather_saves(&mut self) -> Result<()> {
         self.saves.clear();
 
         let saves_paths: Vec<PathBuf> = fs::read_dir(&self.folder_path)
@@ -48,7 +50,7 @@ impl Saves {
             .collect();
 
         for path in saves_paths {
-            if let Err(_) = self.push_save_view(&path) {
+            if let Err(_) = self.load_save(&path) {
                 report_error(&format!("Could't load the save file:\n{:?}", path));
             }
         }
@@ -56,7 +58,7 @@ impl Saves {
         Ok(())
     }
 
-    fn push_save_view(&mut self, save_path: &Path) -> Result<()> {
+    fn load_save(&mut self, save_path: &Path) -> Result<()> {
         let save_file = std::fs::File::open(&save_path)?;
         let mut save_archive = zip::ZipArchive::new(&save_file)?;
 
@@ -141,6 +143,40 @@ impl Saves {
 
         Ok(Nes::load_state(&savestate)?)
     }
+
+    /// GUI: adds a new save imagebutton to the saves window
+    pub fn push_save_view(
+        nes: &mut Option<Nes>,
+        save: &Save,
+        ui: &mut egui::Ui,
+    ) -> egui::InnerResponse<()> {
+        ui.vertical_centered(|ui| {
+            ui.add(
+                egui::Label::new(&save.name)
+                    .text_style(egui::TextStyle::Heading)
+                    .strong(),
+            );
+
+            if ui
+                .add(egui::ImageButton::new(
+                    TextureId::User(
+                        save.screenshot_texture
+                            .raw_miniquad_texture_handle()
+                            .gl_internal_id() as u64,
+                    ),
+                    &[NES_WIDTH as f32, NES_HEIGHT as f32],
+                ))
+                .clicked()
+            {
+                match Self::load_zipped_save(&save.file) {
+                    Ok(n) => *nes = Some(n),
+                    Err(e) => report_error(&format!("Couldn't load the save file. Error: {}", e)),
+                }
+            };
+
+            ui.separator();
+        })
+    }
 }
 
 impl Gui for Saves {
@@ -149,7 +185,7 @@ impl Gui for Saves {
             if app.saves.folder_changed {
                 app.saves.folder_changed = false;
 
-                if let Err(e) = app.saves.build_saves_view() {
+                if let Err(e) = app.saves.gather_saves() {
                     report_error(&format!("{}", e))
                 }
             }
@@ -161,41 +197,39 @@ impl Gui for Saves {
             egui::Window::new("Saves")
                 .open(window_shown)
                 .show(egui_ctx, |ui| {
-                    egui::ScrollArea::from_max_height(f32::INFINITY).show(ui, |ui| {
-                        for save in saves {
-                            ui.vertical_centered(|ui| {
-                                ui.add(
-                                    egui::Label::new(&save.name)
-                                        .text_style(egui::TextStyle::Heading)
-                                        .strong(),
-                                );
-
-                                if ui
-                                    .add(egui::ImageButton::new(
-                                        TextureId::User(
-                                            save.screenshot_texture
-                                                .raw_miniquad_texture_handle()
-                                                .gl_internal_id()
-                                                as u64,
-                                        ),
-                                        &[NES_WIDTH as f32, NES_HEIGHT as f32],
-                                    ))
-                                    .clicked()
-                                {
-                                    match Self::load_zipped_save(&save.file) {
-                                        Ok(n) => *nes = Some(n),
-                                        Err(e) => report_error(&format!(
-                                            "Couldn't load the save file. Error: {}",
-                                            e
-                                        )),
-                                    }
-                                };
-
-                                ui.separator();
-                            });
-                        }
-                    });
+                    egui::ScrollArea::vertical()
+                        .max_height(f32::INFINITY)
+                        .show(ui, |ui| {
+                            for save in saves {
+                                Saves::push_save_view(nes, save, ui);
+                            }
+                        });
                 });
+        }
+    }
+
+    fn gui_embed(app: &mut App, ui: &mut egui::Ui) {
+        if app.nes.is_some() && ui.button("Save").clicked() {
+            if let Err(e) =
+                app.saves
+                    .create_save(&app.nes, &mut app.render, &app.config.save_folder_path)
+            {
+                report_error(&format!("Couldn't create the save file. Error: {}", e));
+            }
+        }
+
+        if ui.button("Load saves from folder").clicked() {
+            match get_folder_path(Some(app.config.save_folder_path.as_ref())) {
+                Ok(Some(p)) => {
+                    app.saves.window_shown = true;
+                    app.saves.folder_path = p.clone();
+                    app.saves.folder_changed = true;
+
+                    app.config.save_folder_path = p;
+                }
+                Ok(None) => (),
+                Err(_) => return,
+            }
         }
     }
 }

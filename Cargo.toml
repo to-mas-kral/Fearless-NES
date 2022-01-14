@@ -7,5 +7,6 @@ opt-level = 1
 [profile.test]
 opt-level = 3
 
-[profile.release]
+[profile.release-lto]
+inherits = "release"
 lto = true
