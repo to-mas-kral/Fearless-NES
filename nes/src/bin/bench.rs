@@ -55,15 +55,15 @@ fn game_bench(rom_path: &str, inputs_path: &str) {
 }
 
 fn main() {
-    game_bench("Super Mario Bros..nes", "SMB.inputs");
+    game_bench("Super Mario Bros..nes", "SMB.fnesinputs");
 
-    game_bench("Mega Man II.nes", "Mega Man II.inputs");
+    game_bench("Mega Man II.nes", "Mega Man II.fnesinputs");
 
-    game_bench("Castlevania.nes", "Castlevania.inputs");
+    game_bench("Castlevania.nes", "Castlevania.fnesinputs");
 
-    game_bench("Solomon's Key.nes", "Solomon's Key.inputs");
+    game_bench("Solomon's Key.nes", "Solomon's Key.fnesinputs");
 
-    game_bench("Adventure Island II.nes", "Adventure Island II.inputs");
+    game_bench("Adventure Island II.nes", "Adventure Island II.fnesinputs");
 
-    game_bench("Battletoads.nes", "Battletoads.inputs");
+    game_bench("Battletoads.nes", "Battletoads.fnesinputs");
 }

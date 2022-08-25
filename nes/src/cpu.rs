@@ -17,6 +17,8 @@ enum DmaHijack {
     None,
 }
 
+const RAM_SIZE: usize = 0x800;
+
 /**
     Most of the documentation for the 6502 can be found on nesdev:
     http://nesdev.org/6502_cpu.txt
@@ -71,7 +73,7 @@ pub struct Cpu {
     copy_buffer: u8,
     dma_cycles: u16,
 
-    ram: Vec<u8>,
+    ram: [u8; RAM_SIZE],
 }
 
 impl Cpu {
@@ -111,7 +113,7 @@ impl Cpu {
             copy_buffer: 0,
             dma_addr: 0,
 
-            ram: vec![0; 0x800],
+            ram: [0; RAM_SIZE],
         }
     }
 }

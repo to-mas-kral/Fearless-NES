@@ -20,7 +20,7 @@ use ppu::Ppu;
 
 pub use cartridge::{BankSize, Cartridge, Header};
 pub use controller::Button;
-pub use ppu::PALETTE;
+pub use ppu::{PALETTE, OUT_BUF_SIZE};
 pub use replay::ReplayInputs;
 
 #[derive(Encode, Decode)]
@@ -85,7 +85,7 @@ impl Nes {
         self.cpu_tick();
     }
 
-    pub fn get_frame_buffer(&self) -> &[u8] {
+    pub fn get_frame_buffer(&self) -> &[u8; ppu::OUT_BUF_SIZE] {
         &self.ppu.output_buffer
     }
 

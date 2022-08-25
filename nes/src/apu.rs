@@ -1,8 +1,11 @@
-use bincode::{Encode, Decode};
+use bincode::{Decode, Encode};
 
 use super::Nes;
 
 static SAMPLE_FREQ: u32 = 40;
+
+const PULSE_TABLE_SIZE: usize = 31;
+const TND_TABLE_SIZE: usize = 203;
 
 #[derive(Decode, Encode)]
 pub struct Apu {
@@ -16,18 +19,18 @@ pub struct Apu {
     dmc: Dmc,
     frame_counter: FrameCounter,
 
-    pulse_table: Vec<f32>,
-    tnd_table: Vec<f32>,
+    pulse_table: [f32; PULSE_TABLE_SIZE],
+    tnd_table: [f32; TND_TABLE_SIZE],
 }
 
 impl Apu {
     pub(crate) fn new() -> Apu {
-        let mut pulse_table = vec![0f32; 31];
+        let mut pulse_table = [0f32; 31];
         for n in 0..31 {
             pulse_table[n] = 95.52 / (8128f32 / n as f32 + 100f32);
         }
 
-        let mut tnd_table = vec![0f32; 203];
+        let mut tnd_table = [0f32; 203];
         for n in 0..203 {
             tnd_table[n] = 163.67 / (24329f32 / n as f32 + 100f32);
         }
@@ -700,13 +703,13 @@ impl<const ADDER: u16> Sweep<ADDER> {
             //Pulse 1 adds the ones' complement (−c − 1). Making 20 negative produces a change amount
             //of −21.
             //Pulse 2 adds the two's complement (−c). Making 20 negative produces a change amount of −20.
-            self.counter = self.period + 1;
+            self.counter = self.period.wrapping_add(1);
 
             let change = self.timer >> self.shift;
             if !self.negate {
-                self.period += change;
+                self.period = self.period.wrapping_add(change);
             } else {
-                self.period += ADDER - change;
+                self.period = self.period.wrapping_sub(change + ADDER);
             }
         }
     }

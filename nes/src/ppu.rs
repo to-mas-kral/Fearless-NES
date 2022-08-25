@@ -1,4 +1,4 @@
-use bincode::{Encode, Decode};
+use bincode::{Decode, Encode};
 
 use super::Nes;
 
@@ -15,8 +15,7 @@ pub static PALETTE: [u8; 192] = [
     214, 228, 160, 162, 160, 0, 0, 0, 0, 0, 0,
 ];
 
-#[derive(Debug, Clone, Copy)]
-#[derive(Decode, Encode)]
+#[derive(Debug, Clone, Copy, Decode, Encode)]
 pub enum Mirroring {
     Horizontal,
     Vertical,
@@ -25,8 +24,7 @@ pub enum Mirroring {
     FourScreen,
 }
 
-#[derive(Clone)]
-#[derive(Decode, Encode)]
+#[derive(Clone, Copy, Decode, Encode)]
 struct Sprite {
     y: u8,
     x: u8,
@@ -56,14 +54,20 @@ impl Sprite {
     }
 }
 
+pub const OUT_BUF_SIZE: usize = 256 * 240;
+const OAM_SIZE: usize = 0x100;
+const SECONDARY_OAM_SIZE: usize = 0x20;
+const PALETTES_SIZE: usize = 0x20;
+const NUM_SPRITES: usize = 8;
+const SPRITE_CACHE_SIZE: usize = 0x101;
+
 #[derive(Decode, Encode)]
 pub struct Ppu {
-    // TODO(rewrite): use boxed slices. Serde doesnt work with big slices. Maybe stop using serde ?
-    pub output_buffer: Vec<u8>,
+    pub output_buffer: [u8; OUT_BUF_SIZE],
 
-    pub oam: Vec<u8>,
-    secondary_oam: Vec<u8>,
-    palettes: Vec<u8>,
+    pub oam: [u8; OAM_SIZE],
+    secondary_oam: [u8; SECONDARY_OAM_SIZE],
+    palettes: [u8; PALETTES_SIZE],
 
     oamdata_buffer: u8,
     sprite_eval_count: u8,
@@ -76,8 +80,8 @@ pub struct Ppu {
     sprite_count: u8,
 
     sprite_index: u8,
-    sprite_buffer: Vec<Sprite>,
-    sprite_cache: Vec<bool>,
+    sprite_buffer: [Sprite; NUM_SPRITES],
+    sprite_cache: [bool; SPRITE_CACHE_SIZE],
 
     vram_addr: usize,
     temp_vram_addr: usize,
@@ -130,18 +134,18 @@ pub struct Ppu {
 
 impl Ppu {
     pub(crate) fn new() -> Ppu {
-        let palettes = vec![
+        let palettes = [
             0x09, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x0D, 0x08, 0x10, 0x08, 0x24, 0x00, 0x00,
             0x04, 0x2C, 0x09, 0x01, 0x34, 0x03, 0x00, 0x04, 0x00, 0x14, 0x08, 0x3A, 0x00, 0x02,
             0x00, 0x20, 0x2C, 0x08,
         ];
 
         Ppu {
-            output_buffer: vec![0; 256 * 240],
+            output_buffer: [0; OUT_BUF_SIZE],
 
-            oam: vec![0; 0x100],
-            secondary_oam: vec![0; 0x20],
-            palettes,
+            oam: [0; OAM_SIZE],
+            secondary_oam: [0; SECONDARY_OAM_SIZE],
+            palettes: palettes,
 
             oamdata_buffer: 0,
             sprite_eval_count: 0,
@@ -154,8 +158,8 @@ impl Ppu {
             sprite_count: 0,
 
             sprite_index: 0,
-            sprite_buffer: vec![Sprite::new(); 8],
-            sprite_cache: vec![false; 0x101],
+            sprite_buffer: [Sprite::new(); 8],
+            sprite_cache: [false; 0x101],
 
             vram_addr: 0,
             temp_vram_addr: 0,

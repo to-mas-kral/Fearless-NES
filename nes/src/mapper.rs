@@ -16,9 +16,11 @@ use _3_cnrom::_3Cnrom;
 use _4_mmc3::_4Mmc3;
 use _7_axrom::_7Axrom;
 
+const NT_RAM_SIZE: usize = 0x1000;
+
 #[derive(Decode, Encode)]
 pub struct BaseMapper {
-    nt_ram: Vec<u8>,
+    nt_ram: [u8; NT_RAM_SIZE],
     pub cartridge: Cartridge,
 
     chip: MapperChip,
@@ -37,7 +39,7 @@ impl BaseMapper {
         };
 
         Ok(BaseMapper {
-            nt_ram: vec![0; 0x1000],
+            nt_ram: [0; 0x1000],
             cartridge,
             chip,
         })
