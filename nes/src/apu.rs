@@ -1,10 +1,10 @@
-use serde::{Deserialize, Serialize};
+use bincode::{Encode, Decode};
 
 use super::Nes;
 
 static SAMPLE_FREQ: u32 = 40;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 pub struct Apu {
     cycles: u16,
     sample_counter: u32,
@@ -315,7 +315,7 @@ static DUTY_SEQUENCE: [bool; 0x20] = [
 ];
 
 /// https://wiki.nesdev.org/w/index.php?title=APU_Pulse
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 struct Pulse<const ADDER: u16> {
     duty_cycle: u8,
     duty_seq: u8,
@@ -419,7 +419,7 @@ impl<const ADDER: u16> Pulse<ADDER> {
 //$400B   llll.lHHH   Length counter load and timer high (write)
 //bits 2-0---- -HHH   Timer high 3 bits
 //Side effects: Sets the linear counter reload flag
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 struct Triangle {
     counter_control: bool,
     counter_reload: u8,
@@ -466,7 +466,7 @@ impl Triangle {
 //$400C   --LC NNNN   Loop envelope/disable length counter, constant volume, envelope period/volume
 //$400E   L--- PPPP   Loop noise, noise period
 //$400F   LLLL L---   Length counter load (also starts envelope)
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 struct Noise {
     constant_volume: bool,
     volume: u8,
@@ -513,7 +513,7 @@ impl Noise {
 //$4011   -DDD DDDD   Direct load
 //$4012   AAAA AAAA   Sample address %11AAAAAA.AA000000
 //$4013   LLLL LLLL   Sample length %0000LLLL.LLLL0001
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 struct Dmc {
     irq_enable: bool,
     loop_sample: bool,
@@ -569,7 +569,7 @@ impl Dmc {
 //otherwise it is unaffected.
 //Side effects: After 3 or 4 CPU clock cycles*, the timer is reset.
 //If the mode flag is set, then both "quarter frame" and "half frame" signals are also generated
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 struct FrameCounter {
     mode: bool, //true -5-step, false-4-step
     odd_cycle: bool,
@@ -602,7 +602,7 @@ static LENGTH_TABLE: [u8; 0x20] = [
     192, 24, 72, 26, 16, 28, 32, 30,
 ];
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 struct LengthCounter {
     enabled: bool,
     counter: u8,
@@ -631,7 +631,7 @@ impl LengthCounter {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 struct Sweep<const ADDER: u16> {
     enabled: bool,
     negate: bool,
@@ -712,7 +712,7 @@ impl<const ADDER: u16> Sweep<ADDER> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 struct Envelope {
     start: bool,
     period: u8,

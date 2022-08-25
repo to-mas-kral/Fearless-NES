@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use bincode::{Decode, Encode};
 
 use super::{cartridge::Cartridge, ppu::Mirroring, NesError};
 
@@ -16,7 +16,7 @@ use _3_cnrom::_3Cnrom;
 use _4_mmc3::_4Mmc3;
 use _7_axrom::_7Axrom;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 pub struct BaseMapper {
     nt_ram: Vec<u8>,
     pub cartridge: Cartridge,
@@ -129,7 +129,7 @@ impl BaseMapper {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 pub enum MapperChip {
     _0Nrom(_0Nrom),
     _1Mmc1(_1Mmc1),

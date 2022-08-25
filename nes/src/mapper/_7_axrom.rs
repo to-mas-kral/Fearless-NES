@@ -1,11 +1,11 @@
-use serde::{Deserialize, Serialize};
+use bincode::{Decode, Encode};
 
 use crate::{
     cartridge::{BankSize, Cartridge},
     ppu::Mirroring,
 };
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 pub struct _7Axrom {
     mirroring: Mirroring,
 

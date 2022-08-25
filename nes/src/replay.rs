@@ -1,8 +1,11 @@
+use bincode::{
+    error::{DecodeError, EncodeError},
+    Decode, Encode,
+};
+
 use crate::{controller::Button, Nes};
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize)]
+#[derive(Encode, Decode)]
 pub struct ReplayInputs {
     pub inputs: Vec<InputChange>,
     pub end_frame: u64,
@@ -24,21 +27,18 @@ impl ReplayInputs {
         });
     }
 
-    pub fn save_with_end_frame(
-        &mut self,
-        end_frame: u64,
-    ) -> Result<Vec<u8>, Box<bincode::ErrorKind>> {
+    pub fn save_with_end_frame(&mut self, end_frame: u64) -> Result<Vec<u8>, EncodeError> {
         self.end_frame = end_frame;
-        bincode::serialize(self)
+        bincode::encode_to_vec(&*self, crate::BINCODE_CONFIG)
     }
 
-    pub fn load_state(save: &[u8]) -> Result<ReplayInputs, Box<bincode::ErrorKind>> {
-        let ri = bincode::deserialize(save)?;
-        Ok(ri)
+    pub fn load_state(save: &[u8]) -> Result<ReplayInputs, DecodeError> {
+        let (replay_inputs, _) = bincode::decode_from_slice(save, crate::BINCODE_CONFIG)?;
+        Ok(replay_inputs)
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Encode, Decode)]
 pub struct InputChange {
     pub frame: u64,
     pub button: Button,

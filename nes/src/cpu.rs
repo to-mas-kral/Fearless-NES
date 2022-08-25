@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
+use bincode::{Decode, Encode};
 
 use super::Nes;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 enum InterruptType {
     Nmi,
     Irq,
@@ -10,7 +10,7 @@ enum InterruptType {
     None,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 enum DmaHijack {
     Request,
     Hijacked,
@@ -27,7 +27,7 @@ enum DmaHijack {
     described on visual6502.org wiki. Some of them are described in numerous
     random documents found in the hidden corners of the internet.
 **/
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 pub struct Cpu {
     // registers
     pub a: u8,

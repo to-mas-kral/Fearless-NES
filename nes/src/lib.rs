@@ -1,3 +1,4 @@
+use bincode::{config::Configuration, Decode, Encode};
 use thiserror::Error;
 
 mod apu;
@@ -17,14 +18,12 @@ use cpu::Cpu;
 use mapper::BaseMapper;
 use ppu::Ppu;
 
-use serde::{Deserialize, Serialize};
-
 pub use cartridge::{BankSize, Cartridge, Header};
 pub use controller::Button;
 pub use ppu::PALETTE;
 pub use replay::ReplayInputs;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Encode, Decode)]
 pub struct Nes {
     cpu: Cpu,
     ppu: Ppu,
@@ -91,11 +90,12 @@ impl Nes {
     }
 
     pub fn save_state(&self) -> Result<Vec<u8>, NesError> {
-        bincode::serialize(self).map_err(|_| NesError::InvalidSaveState)
+        bincode::encode_to_vec(self, BINCODE_CONFIG).map_err(|_| NesError::InvalidSaveState)
     }
 
     pub fn load_state(save: &[u8]) -> Result<Nes, NesError> {
-        let nes: Nes = bincode::deserialize(save).map_err(|_| NesError::InvalidSaveState)?;
+        let (nes, _): (Nes, usize) = bincode::decode_from_slice(save, BINCODE_CONFIG)
+            .map_err(|_| NesError::InvalidSaveState)?;
 
         Ok(nes)
     }
@@ -156,3 +156,5 @@ pub enum NesError {
     #[error("the NES 2.0 XML Game Database contains invalid data")]
     GameDbFormat,
 }
+
+const BINCODE_CONFIG: Configuration = bincode::config::standard();

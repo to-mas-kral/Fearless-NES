@@ -2,13 +2,13 @@ use std::{convert::TryFrom, fmt::Display, str::FromStr};
 
 use crate::{ppu::Mirroring, NesError};
 
-use serde::{Deserialize, Serialize};
+use bincode::{Decode, Encode};
 
 mod gamedb;
 
 const HEADER_SIZE: usize = 16;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 pub struct Cartridge {
     pub header: Header,
     prg_rom: Vec<u8>,
@@ -150,7 +150,7 @@ pub enum BankSize {
 }
 
 /** https://wiki.nesdev.org/w/index.php?title=NES_2.0 **/
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 pub struct Header {
     /// Whether this information comes from iNES 1/2 or the 2.0 Game Database
     pub source: HeaderSource,
@@ -245,7 +245,7 @@ impl Header {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 pub enum HeaderSource {
     Ines1,
     Ines2,
@@ -262,7 +262,7 @@ impl Display for HeaderSource {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Decode, Encode)]
 pub enum ConsoleType {
     /// NES / Famicom
     Standard = 0,
@@ -296,7 +296,7 @@ impl FromStr for ConsoleType {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Decode, Encode)]
 pub enum Region {
     Ntsc = 0,
     Pal = 1,

@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use bincode::{Encode, Decode};
 
 use super::Nes;
 
@@ -15,7 +15,8 @@ pub static PALETTE: [u8; 192] = [
     214, 228, 160, 162, 160, 0, 0, 0, 0, 0, 0,
 ];
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy)]
+#[derive(Decode, Encode)]
 pub enum Mirroring {
     Horizontal,
     Vertical,
@@ -24,7 +25,8 @@ pub enum Mirroring {
     FourScreen,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
+#[derive(Decode, Encode)]
 struct Sprite {
     y: u8,
     x: u8,
@@ -54,8 +56,9 @@ impl Sprite {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 pub struct Ppu {
+    // TODO(rewrite): use boxed slices. Serde doesnt work with big slices. Maybe stop using serde ?
     pub output_buffer: Vec<u8>,
 
     pub oam: Vec<u8>,

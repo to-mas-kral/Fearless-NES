@@ -3,9 +3,9 @@ use crate::{
     ppu::Mirroring,
 };
 
-use serde::{Deserialize, Serialize};
+use bincode::{Decode, Encode};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 pub struct _1Mmc1 {
     shift: u8,
     prg_mode: u8,

@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
+use bincode::{Decode, Encode};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 pub struct Controller {
     strobe: bool,
     shifter: u8,
@@ -52,7 +52,8 @@ impl Controller {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq)]
+#[derive(Decode, Encode)]
 pub enum Button {
     A,
     B,

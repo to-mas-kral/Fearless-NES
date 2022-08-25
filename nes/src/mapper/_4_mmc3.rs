@@ -1,11 +1,11 @@
-use serde::{Deserialize, Serialize};
+use bincode::{Decode, Encode};
 
 use crate::{
     cartridge::{BankSize, Cartridge},
     ppu::Mirroring,
 };
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 pub struct _4Mmc3 {
     prg_bank_mode: u8,
     chr_bank_mode: u8,

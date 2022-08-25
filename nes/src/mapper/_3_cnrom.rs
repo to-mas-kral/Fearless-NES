@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
+use bincode::{Decode, Encode};
 
 use crate::cartridge::{BankSize, Cartridge};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Decode, Encode)]
 pub struct _3Cnrom {
     prg_1: usize,
 
