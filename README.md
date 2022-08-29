@@ -25,8 +25,7 @@ Fearless-NES is a work-in-progress Nintendo enterntainment system emulator writt
 - Custom key bindings and mouse cursor auto-hide
 
 # Build instructions:
-1. Install [Macroquad dependencies](https://github.com/not-fl3/macroquad#linux) if you use Linux.
-2. Build with `cargo run --release` and enjoy !
+1. Build with `cargo run --profile=release-lto` and enjoy !
 
 # Accuracy
 For accuracy tests, see TESTS.md.
