@@ -1,9 +1,8 @@
-use egui::{Button, Color32, Label, Ui};
-use gilrs::{EventType, Gilrs};
-use macroquad::prelude::get_last_key_pressed;
+use egui_glium::egui_winit::egui::{self, Button, RichText, Ui};
+use gilrs::Button as GButton;
+use winit::event::VirtualKeyCode;
 
 use crate::app::config::Keybinds;
-use crate::app::Gui;
 
 use fearless_nes::Button as NesButton;
 
@@ -21,15 +20,13 @@ impl Settings {
             keybinds: KeybindsUi::new(),
         }
     }
-}
 
-impl Gui for Settings {
-    fn gui_window(app: &mut crate::App, egui_ctx: &egui::CtxRef) {
+    pub fn gui_window(app: &mut crate::App, egui_ctx: &egui::Context) {
         OverscanUi::gui_window(app, egui_ctx);
         KeybindsUi::gui_window(app, egui_ctx);
     }
 
-    fn gui_embed(app: &mut App, ui: &mut Ui) {
+    pub fn gui_embed(app: &mut App, ui: &mut Ui) {
         let mode_text = if app.config.dark_mode {
             "Light mode"
         } else {
@@ -60,10 +57,8 @@ impl OverscanUi {
             window_shown: false,
         }
     }
-}
 
-impl Gui for OverscanUi {
-    fn gui_window(app: &mut crate::App, egui_ctx: &egui::CtxRef) {
+    pub fn gui_window(app: &mut crate::App, egui_ctx: &egui::Context) {
         let window_shown = &mut app.settings.overscan.window_shown;
         let top = &mut app.config.overscan.top;
         let right = &mut app.config.overscan.right;
@@ -107,14 +102,16 @@ impl Gui for OverscanUi {
 
 pub struct KeybindsUi {
     pub window_shown: bool,
-    selected: SelectedButton,
+    pub selected_nesbtn: SelectedButton,
+    pub input_btn: Option<InputButton>,
 }
 
 impl KeybindsUi {
     pub fn new() -> Self {
         Self {
             window_shown: false,
-            selected: SelectedButton::None,
+            selected_nesbtn: SelectedButton::None,
+            input_btn: None,
         }
     }
 
@@ -128,14 +125,19 @@ impl KeybindsUi {
 
         ui.label(btn.name());
 
+        let txt_color = ui.style().visuals.text_color();
+        let highlight_color = ui.style().visuals.warn_fg_color;
+
         let (ctrl_color, kbd_color) = match *selected {
-            SelectedButton::Controller(sbtn) if sbtn == btn => (Some(Color32::RED), None),
-            SelectedButton::Keyboard(sbtn) if sbtn == btn => (None, Some(Color32::RED)),
-            _ => (None, None),
+            SelectedButton::Controller(sbtn) if sbtn == btn => (highlight_color, txt_color),
+            SelectedButton::Keyboard(sbtn) if sbtn == btn => (txt_color, highlight_color),
+            _ => (txt_color, txt_color),
         };
 
         if ui
-            .add(Button::new(format!("{:?}", bind.ctrl)).text_color_opt(ctrl_color))
+            .add(Button::new(
+                RichText::new(format!("{:?}", bind.ctrl)).color(ctrl_color),
+            ))
             .clicked()
         {
             if *selected == SelectedButton::Controller(btn) {
@@ -146,7 +148,9 @@ impl KeybindsUi {
         }
 
         if ui
-            .add(Button::new(format!("{:?}", bind.kbd)).text_color_opt(kbd_color))
+            .add(Button::new(
+                RichText::new(format!("{:?}", bind.kbd)).color(kbd_color),
+            ))
             .clicked()
         {
             if *selected == SelectedButton::Keyboard(btn) {
@@ -160,53 +164,38 @@ impl KeybindsUi {
     }
 
     fn change_keybind(
-        gilrs: &mut Option<Gilrs>,
         binds: &mut Keybinds,
         selected: &mut SelectedButton,
+        input_button: &mut Option<InputButton>,
     ) {
         match *selected {
             SelectedButton::None => (),
             SelectedButton::Controller(btn) => {
-                if let Some(gilrs) = gilrs {
-                    while let Some(gilrs::Event { event, .. }) = gilrs.next_event() {
-                        match event {
-                            EventType::ButtonPressed(b, ..) => {
-                                if !binds.ctrl_btn_used(b) {
-                                    binds[btn].ctrl = b;
-                                    *selected = SelectedButton::None;
-                                }
-                            }
-                            _ => (),
-                        }
+                if let Some(InputButton::Gamepad(b)) = input_button {
+                    if !binds.ctrl_btn_used(*b) {
+                        binds[btn].ctrl = *b;
+                        *selected = SelectedButton::None;
+                        *input_button = None;
                     }
                 }
             }
             SelectedButton::Keyboard(btn) => {
-                if let Some(key) = get_last_key_pressed() {
-                    if !binds.key_used(key) {
-                        binds[btn].kbd = key;
+                if let Some(InputButton::Keyboard(key)) = input_button {
+                    if !binds.key_used(*key) {
+                        binds[btn].kbd = *key;
                         *selected = SelectedButton::None;
+                        *input_button = None;
                     }
                 }
             }
         }
     }
-}
 
-#[derive(PartialEq)]
-enum SelectedButton {
-    Controller(NesButton),
-    Keyboard(NesButton),
-    None,
-}
-
-impl Gui for KeybindsUi {
-    fn gui_window(app: &mut App, egui_ctx: &egui::CtxRef) {
+    pub fn gui_window(app: &mut App, egui_ctx: &egui::Context) {
         let window_shown = &mut app.settings.keybinds.window_shown;
-        let selected = &mut app.settings.keybinds.selected;
-
+        let selected = &mut app.settings.keybinds.selected_nesbtn;
+        let input_button = &mut app.settings.keybinds.input_btn;
         let binds = &mut app.config.keybinds;
-        let gilrs = &mut app.gilrs;
 
         egui::Window::new("Key bindings")
             .open(window_shown)
@@ -216,9 +205,9 @@ impl Gui for KeybindsUi {
                     .striped(true)
                     .spacing([20., 5.])
                     .show(ui, |ui| {
-                        ui.add(Label::new("NES button").heading().strong());
-                        ui.add(Label::new("Controller").heading().strong());
-                        ui.add(Label::new("Keyboard").heading().strong());
+                        ui.label(RichText::new("NES button").heading().strong());
+                        ui.label(RichText::new("Controller").heading().strong());
+                        ui.label(RichText::new("Keyboard").heading().strong());
                         ui.end_row();
 
                         KeybindsUi::display_keybind(binds, NesButton::A, ui, selected);
@@ -232,6 +221,18 @@ impl Gui for KeybindsUi {
                     })
             });
 
-        KeybindsUi::change_keybind(gilrs, binds, selected);
+        KeybindsUi::change_keybind(binds, selected, input_button);
     }
+}
+
+#[derive(PartialEq)]
+pub enum SelectedButton {
+    Controller(NesButton),
+    Keyboard(NesButton),
+    None,
+}
+
+pub enum InputButton {
+    Gamepad(GButton),
+    Keyboard(VirtualKeyCode),
 }

@@ -1,6 +1,5 @@
+use egui_glium::egui_winit::egui;
 use std::{collections::hash_map::DefaultHasher, hash::Hasher};
-
-use crate::app::Gui;
 
 pub struct Ppu {
     pub window_active: bool,
@@ -14,8 +13,8 @@ impl Ppu {
     }
 }
 
-impl Gui for Ppu {
-    fn gui_window(app: &mut crate::app::App, egui_ctx: &egui::CtxRef) {
+impl Ppu {
+    pub fn gui_window(app: &mut crate::app::App, egui_ctx: &egui::Context) {
         let ppu_window_active = &mut app.debug.ppu.window_active;
         let nes = &app.nes;
 
@@ -24,7 +23,9 @@ impl Gui for Ppu {
                 .open(ppu_window_active)
                 .resizable(false)
                 .show(egui_ctx, |ui| {
-                    if let Some(ref nes) = nes {
+                    if let Some(nes) = nes {
+                        let nes = nes.lock().unwrap();
+
                         let mut hasher = DefaultHasher::new();
                         hasher.write(nes.get_frame_buffer());
                         let hash = hasher.finish();

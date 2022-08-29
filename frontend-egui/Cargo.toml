@@ -1,0 +1,23 @@
+[package]
+name = "frontend-egui"
+version = "0.1.0"
+authors = ["TomasKralCZ <tomas@kral.hk>"]
+edition = "2021"
+default-run = "frontend-egui"
+
+[dependencies]
+fearless_nes = { path = "../nes" }
+egui_glium = "0.19"
+glium = "0.32"
+winit = {version = "0.27", features = ["serde"]}
+spin_sleep = "1.1.1"
+crossbeam = "0.8.2"
+bytemuck = "1.12.1"
+native-dialog = "0.6"
+gilrs = { version = "0.9", features = ["serde-serialize"] }
+zip = { version = "0.6.2", default-features = false, features = ["deflate"] }
+png = "0.17"
+directories = "4"
+serde = { version = "1", features = ["derive"] }
+toml = "0.5"
+eyre = "0.6"

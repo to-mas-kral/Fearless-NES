@@ -1,7 +1,5 @@
-use egui::Label;
+use egui_glium::egui_winit::egui::{self, Label, RichText};
 use fearless_nes::{BankSize, Cartridge, Header};
-
-use crate::app::Gui;
 
 pub struct CartridgeInfo {
     pub window_active: bool,
@@ -15,8 +13,8 @@ impl CartridgeInfo {
     }
 }
 
-impl Gui for CartridgeInfo {
-    fn gui_window(app: &mut crate::app::App, egui_ctx: &egui::CtxRef) {
+impl CartridgeInfo {
+    pub fn gui_window(app: &mut crate::app::App, egui_ctx: &egui::Context) {
         match (&mut app.nes, app.debug.cartridge_info.window_active) {
             (Some(nes), true) => {
                 egui::Window::new("Cartridge Info")
@@ -24,6 +22,7 @@ impl Gui for CartridgeInfo {
                     .resizable(false)
                     .default_width(0.)
                     .show(egui_ctx, |ui| {
+                        let mut nes = nes.lock().unwrap();
                         let cartridge = nes.get_cartridge();
                         let header = &cartridge.header;
 
@@ -41,8 +40,9 @@ impl Gui for CartridgeInfo {
 }
 
 fn display_cartridge_info(ui: &mut egui::Ui, header: &Header, cartridge: &Cartridge) {
-    ui.add(Label::new("Field").heading().strong());
-    ui.add(Label::new("Value").heading().strong());
+    ui.label(RichText::new("Field").heading().strong());
+    ui.label(RichText::new("Value").heading().strong());
+
     ui.end_row();
 
     ui.label("Header source");
@@ -54,16 +54,16 @@ fn display_cartridge_info(ui: &mut egui::Ui, header: &Header, cartridge: &Cartri
     ui.end_row();
 
     ui.label("Mapper : Submapper");
-    ui.add(Label::new(format!("{} : {}", header.mapper, header.submapper)).monospace());
+    ui.label(RichText::new(format!("{} : {}", header.mapper, header.submapper)).monospace());
     ui.end_row();
 
     ui.label("PRG ROM size");
-    ui.add(Label::new(format!("{} KB", cartridge.prg_rom_count(BankSize::Kb1))).monospace());
+    ui.label(RichText::new(format!("{} KB", cartridge.prg_rom_count(BankSize::Kb1))).monospace());
     ui.end_row();
 
     ui.label("PRG RAM size");
-    ui.add(
-        Label::new(format!(
+    ui.label(
+        RichText::new(format!(
             "{} KB",
             cartridge.prg_ram_count(BankSize::Kb1).unwrap_or(0)
         ))
@@ -72,8 +72,8 @@ fn display_cartridge_info(ui: &mut egui::Ui, header: &Header, cartridge: &Cartri
     ui.end_row();
 
     ui.label("PRG NVRAM size");
-    ui.add(
-        Label::new(format!(
+    ui.label(
+        RichText::new(format!(
             "{} KB",
             cartridge.prg_nvram_count(BankSize::Kb1).unwrap_or(0)
         ))
@@ -82,8 +82,8 @@ fn display_cartridge_info(ui: &mut egui::Ui, header: &Header, cartridge: &Cartri
     ui.end_row();
 
     ui.label("CHR ROM size");
-    ui.add(
-        Label::new(format!(
+    ui.label(
+        RichText::new(format!(
             "{} KB",
             cartridge.chr_rom_count(BankSize::Kb1).unwrap_or(0)
         ))
@@ -92,8 +92,8 @@ fn display_cartridge_info(ui: &mut egui::Ui, header: &Header, cartridge: &Cartri
     ui.end_row();
 
     ui.label("CHR RAM size");
-    ui.add(
-        Label::new(format!(
+    ui.label(
+        RichText::new(format!(
             "{} KB",
             cartridge.chr_ram_count(BankSize::Kb1).unwrap_or(0)
         ))

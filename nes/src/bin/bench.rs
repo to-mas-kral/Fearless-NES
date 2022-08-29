@@ -27,11 +27,11 @@ fn game_bench(rom_path: &str, inputs_path: &str) {
 
             // The first few frames are ususally unproportionally fast
             if nes.get_frame_count() > 50 {
-                total_time += duration.as_millis();
+                total_time += duration.as_nanos();
                 frames += 1;
 
-                if duration.as_millis() > max_frame_time {
-                    max_frame_time = duration.as_millis();
+                if duration.as_nanos() > max_frame_time {
+                    max_frame_time = duration.as_nanos();
                 }
             }
         }
@@ -49,21 +49,21 @@ fn game_bench(rom_path: &str, inputs_path: &str) {
     println!(
         "{} - Average frame time: {:.2}ms, Max frame time: {:.2}ms",
         rom_path,
-        total_time as f64 / frames as f64,
-        max_frame_time
+        (total_time as f64 / frames as f64) / (1000. * 1000.),
+        max_frame_time as f64 / (1000. * 1000.)
     );
 }
 
 fn main() {
-    game_bench("Super Mario Bros..nes", "SMB.fnesinputs");
+    std::thread::spawn(|| game_bench("Super Mario Bros..nes", "SMB.fnesinputs"));
 
-    game_bench("Mega Man II.nes", "Mega Man II.fnesinputs");
+    std::thread::spawn(|| game_bench("Mega Man II.nes", "Mega Man II.fnesinputs"));
 
-    game_bench("Castlevania.nes", "Castlevania.fnesinputs");
+    std::thread::spawn(|| game_bench("Castlevania.nes", "Castlevania.fnesinputs"));
 
-    game_bench("Solomon's Key.nes", "Solomon's Key.fnesinputs");
+    std::thread::spawn(|| game_bench("Solomon's Key.nes", "Solomon's Key.fnesinputs"));
 
-    game_bench("Adventure Island II.nes", "Adventure Island II.fnesinputs");
+    std::thread::spawn(|| game_bench("Adventure Island II.nes", "Adventure Island II.fnesinputs"));
 
-    game_bench("Battletoads.nes", "Battletoads.fnesinputs");
+    std::thread::spawn(|| game_bench("Battletoads.nes", "Battletoads.fnesinputs"));
 }

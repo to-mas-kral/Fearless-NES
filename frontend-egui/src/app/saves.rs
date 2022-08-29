@@ -5,20 +5,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{anyhow, Context, Result};
-use egui::{CtxRef, TextureId};
-use fearless_nes::Nes;
-use macroquad::prelude::{ImageFormat, Texture2D};
+use egui_glium::egui_winit::egui::{self, Color32, ColorImage, RichText, TextureHandle};
+use eyre::{eyre, Result, WrapErr};
+use fearless_nes::{Nes, NES_HEIGHT, NES_WIDTH};
 use zip::write::FileOptions;
 
-use crate::{
-    app::{report_error, App, Gui},
-    NES_HEIGHT, NES_WIDTH,
-};
-
+use super::{get_folder_path, RuntimeNes};
 use crate::app::{get_save_named_path, nesrender::NesRender};
-
-use super::get_folder_path;
+use crate::{app::App, dialog::DialogReport};
 
 pub struct Saves {
     pub saves: Vec<Save>,
@@ -39,64 +33,70 @@ impl Saves {
         }
     }
 
-    fn gather_saves(&mut self) -> Result<()> {
+    fn gather_saves(&mut self, egui_ctx: &egui::Context) -> Result<()> {
         self.saves.clear();
 
         let saves_paths: Vec<PathBuf> = fs::read_dir(&self.folder_path)
-            .context("couldn't open save directory")?
+            .wrap_err("couldn't open save directory")?
             .filter_map(|e| e.ok())
             .filter(|de| de.path().extension() == Some(OsStr::new("fnes")))
             .map(|de| de.path())
             .collect();
 
         for path in saves_paths {
-            if let Err(_) = self.load_save(&path) {
-                report_error(&format!("Could't load the save file:\n{:?}", path));
-            }
+            self.load_save(&path, egui_ctx)
+                .report_dialog_msg(&format!("Could't load the save file:\n{:?}", path))?;
         }
 
         Ok(())
     }
 
-    fn load_save(&mut self, save_path: &Path) -> Result<()> {
+    fn load_save(&mut self, save_path: &Path, egui_ctx: &egui::Context) -> Result<()> {
         let save_file = std::fs::File::open(&save_path)?;
         let mut save_archive = zip::ZipArchive::new(&save_file)?;
 
         let screenshot = {
             let mut screenshot_zip = save_archive.by_name(SCREENSHOT_PATH)?;
-            let mut screenshot = Vec::with_capacity(screenshot_zip.size() as usize);
-            screenshot_zip.read_to_end(&mut screenshot)?;
+            let decoder = png::Decoder::new(&mut screenshot_zip);
+            let mut reader = decoder.read_info()?;
 
-            screenshot
+            let mut buf = vec![0; reader.output_buffer_size()];
+            let info = reader.next_frame(&mut buf)?;
+            buf.resize(info.buffer_size(), 0);
+
+            buf
         };
 
-        let texture = Texture2D::from_file_with_format(&screenshot, Some(ImageFormat::Png));
+        let save_name = save_path
+            .file_stem()
+            .ok_or(eyre!(""))?
+            .to_string_lossy()
+            .into_owned();
 
-        self.saves.push(Save::new(
-            save_path
-                .file_stem()
-                .ok_or(anyhow!(""))?
-                .to_string_lossy()
-                .into_owned(),
-            save_file,
-            texture,
-        ));
+        let mut img = ColorImage::new([NES_WIDTH, NES_HEIGHT], Color32::BLACK);
+        img.pixels = bytemuck::cast_slice(&screenshot).to_vec();
+
+        let texture_handle = egui_ctx.load_texture(&save_name, img, egui::TextureFilter::Nearest);
+
+        self.saves
+            .push(Save::new(save_name, save_file, texture_handle));
 
         Ok(())
     }
 
     pub fn create_save(
         &mut self,
-        nes: &Option<Nes>,
+        nes: &RuntimeNes,
         nesrender: &mut NesRender,
         save_folder_path: &Path,
     ) -> Result<()> {
         let path = match get_save_named_path(Some(save_folder_path), "Fearless-NES save", "fnes") {
-            Ok(Some(p)) => p,
-            Ok(None) | Err(_) => return Ok(()),
+            Some(p) => p,
+            None => return Ok(()),
         };
 
-        if let Some(ref nes) = nes {
+        if let Some(nes) = nes {
+            let nes = nes.lock().unwrap();
             let save_data = nes.save_state()?;
 
             let mut screenshot: Vec<u8> = Vec::with_capacity(NES_WIDTH * NES_HEIGHT);
@@ -107,15 +107,7 @@ impl Saves {
                 encoder.set_depth(png::BitDepth::Eight);
                 let mut writer = encoder.write_header()?;
 
-                // TODO: get_image_data() - create PR in Macroquad...
-                let image_data: Vec<u8> = nesrender
-                    .image
-                    .get_image_data()
-                    .iter()
-                    .flat_map(|e| *e)
-                    .collect();
-
-                writer.write_image_data(&image_data)?;
+                writer.write_image_data(bytemuck::cast_slice(nesrender.image.pixels.as_slice()))?;
             };
 
             let file = std::fs::File::create(&path)?;
@@ -144,55 +136,47 @@ impl Saves {
         Ok(Nes::load_state(&savestate)?)
     }
 
-    /// GUI: adds a new save imagebutton to the saves window
-    pub fn push_save_view(
-        nes: &mut Option<Nes>,
-        save: &Save,
-        ui: &mut egui::Ui,
-    ) -> egui::InnerResponse<()> {
+    /// GUI: add a new save image button to the saves window
+    pub fn push_save_view(save: &Save, ui: &mut egui::Ui) -> Option<Nes> {
+        let mut loaded_save = None;
+
         ui.vertical_centered(|ui| {
-            ui.add(
-                egui::Label::new(&save.name)
-                    .text_style(egui::TextStyle::Heading)
-                    .strong(),
-            );
+            ui.label(RichText::new(&save.name).heading().strong());
 
             if ui
                 .add(egui::ImageButton::new(
-                    TextureId::User(
-                        save.screenshot_texture
-                            .raw_miniquad_texture_handle()
-                            .gl_internal_id() as u64,
-                    ),
+                    &save.texture_handle,
                     &[NES_WIDTH as f32, NES_HEIGHT as f32],
                 ))
                 .clicked()
             {
-                match Self::load_zipped_save(&save.file) {
-                    Ok(n) => *nes = Some(n),
-                    Err(e) => report_error(&format!("Couldn't load the save file. Error: {}", e)),
+                if let Ok(n) = Self::load_zipped_save(&save.file)
+                    .report_dialog_with(|e| format!("Couldn't load the save file. Error: {}", e))
+                {
+                    loaded_save = Some(n);
                 }
             };
 
             ui.separator();
-        })
+        });
+
+        loaded_save
     }
 }
 
-impl Gui for Saves {
-    fn gui_window(app: &mut App, egui_ctx: &CtxRef) {
+impl Saves {
+    pub fn gui_window(app: &mut App, egui_ctx: &egui::Context) {
         if app.saves.window_shown {
             if app.saves.folder_changed {
                 app.saves.folder_changed = false;
 
-                if let Err(e) = app.saves.gather_saves() {
-                    report_error(&format!("{}", e))
-                }
+                app.saves.gather_saves(egui_ctx).report_dialog().ok();
             }
 
             let saves = &mut app.saves.saves;
             let window_shown = &mut app.saves.window_shown;
-            let nes = &mut app.nes;
+
+            let mut loaded_nes = None;
 
             egui::Window::new("Saves")
                 .open(window_shown)
@@ -201,21 +185,25 @@ impl Gui for Saves {
                         .max_height(f32::INFINITY)
                         .show(ui, |ui| {
                             for save in saves {
-                                Saves::push_save_view(nes, save, ui);
+                                if let Some(n) = Saves::push_save_view(save, ui) {
+                                    loaded_nes = Some(n);
+                                }
                             }
                         });
                 });
+
+            if let Some(loaded_nes) = loaded_nes {
+                app.replace_nes(loaded_nes);
+            }
         }
     }
 
-    fn gui_embed(app: &mut App, ui: &mut egui::Ui) {
+    pub fn gui_embed(app: &mut App, ui: &mut egui::Ui) {
         if app.nes.is_some() && ui.button("Save").clicked() {
-            if let Err(e) =
-                app.saves
-                    .create_save(&app.nes, &mut app.render, &app.config.save_folder_path)
-            {
-                report_error(&format!("Couldn't create the save file. Error: {}", e));
-            }
+            app.saves
+                .create_save(&app.nes, &mut app.render, &app.config.save_folder_path)
+                .report_dialog_with(|e| format!("Couldn't create the save file. Error: {}", e))
+                .ok();
         }
 
         if ui.button("Load saves from folder").clicked() {
@@ -240,15 +228,15 @@ const SAVESTATE_PATH: &str = "savestate.fnes";
 pub struct Save {
     name: String,
     file: File,
-    screenshot_texture: Texture2D,
+    texture_handle: TextureHandle,
 }
 
 impl Save {
-    fn new(name: String, file: File, screnshot_texture: Texture2D) -> Self {
+    fn new(name: String, file: File, texture_handle: TextureHandle) -> Self {
         Self {
             name,
             file,
-            screenshot_texture: screnshot_texture,
+            texture_handle,
         }
     }
 }

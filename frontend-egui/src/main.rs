@@ -1,25 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use egui_glium::egui_winit::egui;
-use eyre::Result;
-use fearless_nes::Nes;
 use gilrs::Gilrs;
-use glium::{glutin, Surface};
-use std::{env, fs, path::PathBuf};
+use glium::glutin;
+use std::{env, path::PathBuf};
 
 mod app;
 mod dialog;
+mod nesthread;
 
 use app::App;
 use dialog::DialogReport;
-
-const NES_WIDTH: usize = 256;
-const NES_HEIGHT: usize = 240;
-
-fn create_nes(rom_path: PathBuf) -> Result<Nes> {
-    let rom = fs::read(rom_path).report_dialog_msg("Error while reading the ROM file")?;
-    Ok(Nes::new(&rom).report_dialog_with(|e| format!("Error while loading the ROM: {:?}", e))?)
-}
 
 fn main() {
     let event_loop = glutin::event_loop::EventLoop::new();
@@ -39,7 +29,7 @@ fn main() {
     });
 
     if let Some(p) = env::args().nth(1) {
-        app.nes = create_nes(PathBuf::from(p)).ok()
+        app.create_nes_with_file(PathBuf::from(p)).ok();
     }
 
     event_loop.run(move |event, _, control_flow| {
@@ -48,28 +38,20 @@ fn main() {
         }
 
         let mut redraw = || {
-            app.run_nes_frame();
-
-            let should_repaint = egui_glium.run(&display, |egui_ctx| {
+            egui_glium.run(&display, |egui_ctx| {
                 app.draw_gui(egui_ctx);
-                app.draw_nes(egui_ctx);
             });
 
-            //if should_repaint {
             display.gl_window().window().request_redraw();
-            //}
 
             {
                 let mut target = display.draw();
-
-                let color = egui::Rgba::from_rgb(0.1, 0.3, 0.2);
-                target.clear_color(color[0], color[1], color[2], color[3]);
-
                 egui_glium.paint(&display, &mut target);
-
                 target.finish().unwrap();
             }
         };
+
+        display.gl_window().window().request_redraw();
 
         match event {
             // Platform-dependent event handlers to workaround a winit bug

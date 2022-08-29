@@ -54,7 +54,9 @@ impl Sprite {
     }
 }
 
-pub const OUT_BUF_SIZE: usize = 256 * 240;
+pub const NES_WIDTH: usize = 256;
+pub const NES_HEIGHT: usize = 240;
+pub const FRAMEBUFFER_SIZE: usize = NES_WIDTH * NES_HEIGHT;
 const OAM_SIZE: usize = 0x100;
 const SECONDARY_OAM_SIZE: usize = 0x20;
 const PALETTES_SIZE: usize = 0x20;
@@ -63,7 +65,7 @@ const SPRITE_CACHE_SIZE: usize = 0x101;
 
 #[derive(Decode, Encode)]
 pub struct Ppu {
-    pub output_buffer: [u8; OUT_BUF_SIZE],
+    pub output_buffer: [u8; FRAMEBUFFER_SIZE],
 
     pub oam: [u8; OAM_SIZE],
     secondary_oam: [u8; SECONDARY_OAM_SIZE],
@@ -141,7 +143,7 @@ impl Ppu {
         ];
 
         Ppu {
-            output_buffer: [0; OUT_BUF_SIZE],
+            output_buffer: [0; FRAMEBUFFER_SIZE],
 
             oam: [0; OAM_SIZE],
             secondary_oam: [0; SECONDARY_OAM_SIZE],

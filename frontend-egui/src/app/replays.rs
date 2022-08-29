@@ -1,10 +1,12 @@
+use egui_glium::egui_winit::egui;
 use std::{fs, io::Write};
 
-use fearless_nes::{Nes, ReplayInputs};
+use fearless_nes::ReplayInputs;
 
-use crate::app::{get_save_named_path, report_error};
+use crate::app::get_save_named_path;
+use crate::dialog::{report_error, DialogReport};
 
-use super::Gui;
+use super::RuntimeNes;
 
 pub enum Recording {
     On { replay_inputs: ReplayInputs },
@@ -28,29 +30,34 @@ impl Replays {
         };
     }
 
-    pub fn stop_recording(&mut self, paused: &mut bool, nes: &Nes) {
+    pub fn stop_recording(&mut self, nes: &RuntimeNes) {
+        // We can unwrap app.nes, because recording can only exist if we have
+        // a Nes instance
+        let nes = nes.as_ref().unwrap();
+        let nes = nes.lock().unwrap();
+
         let save_path =
             match get_save_named_path(None, "FearLess-NES recorded inputs", "fnesinputs") {
-                Ok(Some(p)) => p,
-                Ok(None) | Err(_) => return,
+                Some(p) => p,
+                None => return,
             };
 
         match &mut self.recording {
             Recording::On { replay_inputs } => {
-                let inputs = match replay_inputs.save_with_end_frame(nes.get_frame_count()) {
+                let inputs = match replay_inputs
+                    .save_with_end_frame(nes.get_frame_count())
+                    .report_dialog_msg("Couldn't save the recording")
+                {
                     Ok(i) => i,
-                    Err(_) => {
-                        report_error("Couldn't save the recording");
-                        return;
-                    }
+                    Err(_) => return,
                 };
 
                 let mut save_file = fs::File::create(save_path).unwrap();
-                if let Err(_) = save_file.write_all(&inputs) {
-                    report_error("Couldn't save the recording");
-                };
+                save_file
+                    .write_all(&inputs)
+                    .report_dialog_msg("Couldn't save the recording")
+                    .ok();
 
-                *paused = true;
                 self.recording = Recording::Off;
             }
             Recording::Off => report_error("No started recording to save"),
@@ -58,15 +65,12 @@ impl Replays {
     }
 }
 
-impl Gui for Replays {
-    fn gui_embed(app: &mut super::App, ui: &mut egui::Ui) {
+impl Replays {
+    pub fn gui_embed(app: &mut super::App, ui: &mut egui::Ui) {
         match &mut app.replays.recording {
             Recording::On { .. } => {
                 if ui.button("Stop recording").clicked() {
-                    // We can unwrap app.nes, because recording can only exist if we have
-                    // a Nes instance
-                    app.replays
-                        .stop_recording(&mut app.paused, app.nes.as_ref().unwrap());
+                    app.replays.stop_recording(&app.nes);
                 }
             }
             Recording::Off => {

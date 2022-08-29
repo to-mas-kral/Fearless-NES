@@ -1,5 +1,6 @@
-use anyhow::{anyhow, Result};
 use directories::ProjectDirs;
+use eyre::{eyre, Result};
+use fearless_nes::{NES_HEIGHT, NES_WIDTH};
 use serde::{Deserialize, Serialize};
 
 use std::{
@@ -8,7 +9,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{report_error, NES_HEIGHT, NES_WIDTH};
+use crate::dialog::DialogReport;
 
 use super::nesrender::Overscan;
 
@@ -18,7 +19,7 @@ pub use keybinds::Keybinds;
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {
-    // TODO: actually use these (and add position...) when Macroquad gets support for chaning window position
+    // TODO: window config
     pub window_width: i32,
     pub window_height: i32,
 
@@ -56,19 +57,22 @@ impl Config {
     pub fn new() -> Self {
         let mut config = Self::default();
 
-        if let Err(e) = config.load_config_file() {
-            report_error(&format!(
+        config
+            .load_config_file()
+            .report_dialog_with(|e| {
+                format!(
                 "Couldn't load the configuration file. Relying on default configuration. Error: {}",
                 e
-            ));
-        }
+            )
+            })
+            .ok();
 
         return config;
     }
 
     fn load_config_file(&mut self) -> Result<()> {
         let proj_dirs = ProjectDirs::from("com", "Fearless-NES", "Fearless-NES")
-            .ok_or(anyhow!("Couldn't locate project-dirs"))?;
+            .ok_or(eyre!("Couldn't locate project-dirs"))?;
         let config_path = proj_dirs.config_dir().join(CONFIG_FILENAME);
 
         let mut config_file = File::open(config_path)?;
@@ -77,7 +81,7 @@ impl Config {
             match err.kind() {
                 // Config file doesn't exist, probably the first time using the program
                 io::ErrorKind::NotFound => return Ok(()),
-                _ => return Err(anyhow!("")),
+                _ => return Err(eyre!("")),
             }
         }
 
@@ -90,7 +94,7 @@ impl Config {
         let contents = toml::to_string(self)?;
 
         let proj_dirs = ProjectDirs::from("com", "Fearless-NES", "Fearless-NES")
-            .ok_or(anyhow!("Couldn't locate project-dirs"))?;
+            .ok_or(eyre!("Couldn't locate project-dirs"))?;
 
         create_dir_all(proj_dirs.config_dir())?;
 

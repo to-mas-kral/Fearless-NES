@@ -1,5 +1,5 @@
 [workspace]
-members = ["frontend-macroquad", "nes"]
+members = ["frontend-egui", "nes"]
 
 [profile.dev]
 opt-level = 1
@@ -7,6 +7,14 @@ opt-level = 1
 [profile.test]
 opt-level = 3
 
+[profile.release]
+debug = true
+
 [profile.release-lto]
 inherits = "release"
+debug = false
 lto = true
+
+[profile.debug-noopt]
+inherits = "dev"
+opt-level = 0
