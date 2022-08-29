@@ -147,7 +147,7 @@ impl Ppu {
 
             oam: [0; OAM_SIZE],
             secondary_oam: [0; SECONDARY_OAM_SIZE],
-            palettes: palettes,
+            palettes,
 
             oamdata_buffer: 0,
             sprite_eval_count: 0,
@@ -767,9 +767,8 @@ impl Nes {
                     && ((self.ppu.ppustatus & 0x80) != 0)
                     && !self.ppu.suppress_nmi;
 
-                match (self.ppu.prev_nmi, current_nmi) {
-                    (false, true) => self.cpu.nmi_signal = true,
-                    _ => (),
+                if let (false, true) = (self.ppu.prev_nmi, current_nmi) {
+                    self.cpu.nmi_signal = true
                 }
 
                 self.ppu.prev_nmi = current_nmi;

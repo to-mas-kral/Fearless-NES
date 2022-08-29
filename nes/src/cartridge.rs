@@ -18,7 +18,7 @@ pub struct Cartridge {
 
 impl Cartridge {
     /// First parse the iNES header, then try to find information in the NEs 2.0 XML Game Database
-    pub fn from_rom(rom: &[u8]) -> Result<Cartridge, NesError> {
+    pub(crate) fn from_rom(rom: &[u8]) -> Result<Cartridge, NesError> {
         if rom.len() < HEADER_SIZE {
             return Err(NesError::InvalidInesFormat);
         }
@@ -72,34 +72,34 @@ impl Cartridge {
     }
 
     /// Banks are indexed from 0
-    pub fn map_bank(bank: u8, bank_size: BankSize) -> usize {
+    pub(crate) fn map_bank(bank: u8, bank_size: BankSize) -> usize {
         bank as usize * bank_size as usize
     }
 
     #[inline]
-    pub fn read_prg_rom(&self, addr: usize) -> u8 {
+    pub(crate) fn read_prg_rom(&self, addr: usize) -> u8 {
         self.prg_rom[addr]
     }
 
     #[inline]
-    pub fn read_prg_ram(&self, addr: usize) -> Option<u8> {
+    pub(crate) fn read_prg_ram(&self, addr: usize) -> Option<u8> {
         self.prg_wram.as_ref().map(|prg_ram| prg_ram[addr])
     }
 
     #[inline]
-    pub fn write_prg_ram(&mut self, addr: usize, val: u8) {
+    pub(crate) fn write_prg_ram(&mut self, addr: usize, val: u8) {
         if let Some(ref mut prg_ram) = self.prg_wram {
             prg_ram[addr] = val
         }
     }
 
     #[inline]
-    pub fn read_chr(&self, addr: usize) -> u8 {
+    pub(crate) fn read_chr(&self, addr: usize) -> u8 {
         self.chr[addr]
     }
 
     #[inline]
-    pub fn write_chr(&mut self, addr: usize, val: u8) {
+    pub(crate) fn write_chr(&mut self, addr: usize, val: u8) {
         self.chr[addr] = val
     }
 
@@ -149,7 +149,7 @@ pub enum BankSize {
     Kb32 = 0x8000,
 }
 
-/** https://wiki.nesdev.org/w/index.php?title=NES_2.0 **/
+/** <https://wiki.nesdev.org/w/index.php?title=NES_2.0> **/
 #[derive(Decode, Encode)]
 pub struct Header {
     /// Whether this information comes from iNES 1/2 or the 2.0 Game Database
@@ -182,9 +182,9 @@ pub struct Header {
 
 const NES_CONSTANT: [u8; 4] = [0x4E, 0x45, 0x53, 0x1A];
 
-/** https://wiki.nesdev.org/w/index.php?title=INES **/
+/** <https://wiki.nesdev.org/w/index.php?title=INES> **/
 impl Header {
-    pub fn from_ines(ines: &[u8]) -> Result<Self, NesError> {
+    pub(crate) fn from_ines(ines: &[u8]) -> Result<Self, NesError> {
         if ines[0..=3] != NES_CONSTANT {
             return Err(NesError::InvalidInesFormat);
         }
@@ -209,12 +209,12 @@ impl Header {
         }
 
         let (chr_rom_size, chr_ram_size) = match ines[5] {
-            0 => ((None, Some(1 * BankSize::Kb8 as u32))),
-            cnt => ((Some(cnt as u32 * BankSize::Kb8 as u32), None)),
+            0 => (None, Some(BankSize::Kb8 as u32)),
+            cnt => (Some(cnt as u32 * BankSize::Kb8 as u32), None),
         };
 
         let prg_ram_size = match ines[8] {
-            0 => Some(1 * BankSize::Kb8 as u32),
+            0 => Some(BankSize::Kb8 as u32),
             cnt => (Some(cnt as u32 * BankSize::Kb8 as u32)),
         };
 

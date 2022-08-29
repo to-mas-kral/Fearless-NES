@@ -15,26 +15,23 @@ impl CartridgeInfo {
 
 impl CartridgeInfo {
     pub fn gui_window(app: &mut crate::app::App, egui_ctx: &egui::Context) {
-        match (&mut app.nes, app.debug.cartridge_info.window_active) {
-            (Some(nes), true) => {
-                egui::Window::new("Cartridge Info")
-                    .open(&mut app.debug.cartridge_info.window_active)
-                    .resizable(false)
-                    .default_width(0.)
-                    .show(egui_ctx, |ui| {
-                        let mut nes = nes.lock().unwrap();
-                        let cartridge = nes.get_cartridge();
-                        let header = &cartridge.header;
+        if let (Some(nes), true) = (&mut app.nes, app.debug.cartridge_info.window_active) {
+            egui::Window::new("Cartridge Info")
+                .open(&mut app.debug.cartridge_info.window_active)
+                .resizable(false)
+                .default_width(0.)
+                .show(egui_ctx, |ui| {
+                    let mut nes = nes.lock().unwrap();
+                    let cartridge = nes.get_cartridge();
+                    let header = &cartridge.header;
 
-                        egui::Grid::new("Cartridge Header Grid")
-                            .striped(true)
-                            .spacing([20., 5.])
-                            .show(ui, |ui| {
-                                display_cartridge_info(ui, header, cartridge);
-                            });
-                    });
-            }
-            _ => (),
+                    egui::Grid::new("Cartridge Header Grid")
+                        .striped(true)
+                        .spacing([20., 5.])
+                        .show(ui, |ui| {
+                            display_cartridge_info(ui, header, cartridge);
+                        });
+                });
         }
     }
 }

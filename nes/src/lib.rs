@@ -100,6 +100,7 @@ impl Nes {
         Ok(nes)
     }
 
+    // TODO(rewrite): pull replays from core
     pub fn drive_replay_inputs(&mut self, inputs: &ReplayInputs) {
         self._drive_replay_inputs(inputs)
     }

@@ -25,7 +25,7 @@ fn main() {
 
     let mut app = App::new(config);
     egui_glium.run(&display, |egui_ctx| {
-        app.init_egui_style(&egui_ctx);
+        app.init_egui_style(egui_ctx);
     });
 
     if let Some(p) = env::args().nth(1) {

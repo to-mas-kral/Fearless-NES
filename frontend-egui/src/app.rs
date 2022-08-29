@@ -241,15 +241,9 @@ impl App {
     }
 
     fn load_rom(&mut self) {
-        loop {
-            let rom_path = match get_open_file_path(Some(&self.config.rom_folder_path)) {
-                Some(p) => {
-                    self.config.rom_folder_path = p.clone();
-                    self.config.rom_folder_path.pop(); // Remove the file, we only want the folder
-                    p
-                }
-                None => break,
-            };
+        while let Some(rom_path) = get_open_file_path(Some(&self.config.rom_folder_path)) {
+            self.config.rom_folder_path = rom_path.clone();
+            self.config.rom_folder_path.pop(); // Remove the file, we only want the folder
 
             match self.create_nes_with_file(rom_path) {
                 Ok(_) => break,
@@ -335,11 +329,11 @@ fn get_folder_path(location: Option<&Path>) -> Result<Option<PathBuf>, ()> {
         .set_location(location.unwrap_or_else(|| Path::new("~/")))
         .show_open_single_dir()
     {
-        Ok(Some(p)) => return Ok(Some(p)),
-        Ok(None) => return Ok(None),
+        Ok(Some(p)) => Ok(Some(p)),
+        Ok(None) => Ok(None),
         Err(_) => {
             report_error("Error while getting path from the user (needs KDialog on Linux");
-            return Err(());
+            Err(())
         }
     }
 }
@@ -354,11 +348,11 @@ fn get_save_named_path(
         .add_filter(filter_desc, &[filter_ext])
         .show_save_single_file()
     {
-        Ok(Some(p)) => return Some(p),
-        Ok(None) => return None,
+        Ok(Some(p)) => Some(p),
+        Ok(None) => None,
         Err(_) => {
             report_error("Error while getting path from the user (needs KDialog on Linux");
-            return None;
+            None
         }
     }
 }
@@ -368,11 +362,11 @@ fn get_open_file_path(location: Option<&Path>) -> Option<PathBuf> {
         .set_location(location.unwrap_or_else(|| Path::new("~/")))
         .show_open_single_file()
     {
-        Ok(Some(p)) => return Some(p),
-        Ok(None) => return None,
+        Ok(Some(p)) => Some(p),
+        Ok(None) => None,
         Err(_) => {
             report_error("Error while getting path from the user (needs KDialog on Linux");
-            return None;
+            None
         }
     }
 }

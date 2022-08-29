@@ -67,7 +67,7 @@ impl Config {
             })
             .ok();
 
-        return config;
+        config
     }
 
     fn load_config_file(&mut self) -> Result<()> {

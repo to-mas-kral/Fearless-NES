@@ -146,7 +146,7 @@ impl Nes {
             self.cpu.hijack_read = DmaHijack::Hijacked;
         }
 
-        return self.cpu.open_bus;
+        self.cpu.open_bus
     }
 
     #[inline]
@@ -2103,12 +2103,13 @@ impl Nes {
 
     #[inline]
     fn take_branch(&mut self) {
-        let diff = self.cpu.temp as i8 as isize;
+        // Truncating to 8 bits is important !
+        let diff = self.cpu.temp as i8 as i16;
         let pc_before = self.cpu.pc;
         if diff > 0 {
             self.cpu.pc = (self.cpu.pc).wrapping_add(diff as u16);
         } else {
-            self.cpu.pc = (self.cpu.pc).wrapping_sub(diff.abs() as u16);
+            self.cpu.pc = (self.cpu.pc).wrapping_sub(diff.unsigned_abs());
         };
         let crosses = (pc_before & 0xFF00) != (self.cpu.pc & 0xFF00);
         self.cpu.temp = if crosses { 1 } else { 0 };

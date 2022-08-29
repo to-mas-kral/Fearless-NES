@@ -20,26 +20,24 @@ impl Header {
     fn arr_to_hex(arr: &[u8]) -> String {
         let mut res = String::new();
 
-        let nibble_to_hex = |nibble| {
-            return match nibble {
-                0 => '0',
-                1 => '1',
-                2 => '2',
-                3 => '3',
-                4 => '4',
-                5 => '5',
-                6 => '6',
-                7 => '7',
-                8 => '8',
-                9 => '9',
-                10 => 'A',
-                11 => 'B',
-                12 => 'C',
-                13 => 'D',
-                14 => 'E',
-                15 => 'F',
-                _ => unreachable!(),
-            };
+        let nibble_to_hex = |nibble| match nibble {
+            0 => '0',
+            1 => '1',
+            2 => '2',
+            3 => '3',
+            4 => '4',
+            5 => '5',
+            6 => '6',
+            7 => '7',
+            8 => '8',
+            9 => '9',
+            10 => 'A',
+            11 => 'B',
+            12 => 'C',
+            13 => 'D',
+            14 => 'E',
+            15 => 'F',
+            _ => unreachable!(),
         };
 
         for num in arr.iter() {
@@ -92,7 +90,7 @@ impl Header {
 
         let name = String::from(
             name_comment
-                .split_once("\\")
+                .split_once('\\')
                 .ok_or(NesError::GameDbFormat)?
                 .1
                 .trim_end_matches(".nes"),
@@ -151,19 +149,17 @@ impl Header {
     }
 
     fn parse_attr_required<T: FromStr>(node: Node, attr: &str) -> Result<T, NesError> {
-        Ok(node
-            .attribute(attr)
+        node.attribute(attr)
             .ok_or(NesError::GameDbFormat)?
             .parse::<T>()
-            .map_err(|_| NesError::GameDbFormat)?)
+            .map_err(|_| NesError::GameDbFormat)
     }
 
     fn parse_attr<T: FromStr>(node: Option<Node>, attr: &str) -> Result<Option<T>, NesError> {
-        Ok(node
-            .and_then(|chr| chr.attribute(attr))
+        node.and_then(|chr| chr.attribute(attr))
             .map(|size| size.parse::<T>())
             .transpose()
-            .map_err(|_| NesError::GameDbFormat))?
+            .map_err(|_| NesError::GameDbFormat)
     }
 }
 

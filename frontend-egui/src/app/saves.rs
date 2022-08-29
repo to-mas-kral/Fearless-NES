@@ -216,7 +216,7 @@ impl Saves {
                     app.config.save_folder_path = p;
                 }
                 Ok(None) => (),
-                Err(_) => return,
+                Err(_) => (),
             }
         }
     }
