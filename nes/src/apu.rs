@@ -11,6 +11,7 @@ const TND_TABLE_SIZE: usize = 203;
 pub struct Apu {
     cycles: u16,
     sample_counter: u32,
+    sample_sum: f32,
 
     pulse_1: Pulse<1>,
     pulse_2: Pulse<0>,
@@ -21,6 +22,8 @@ pub struct Apu {
 
     pulse_table: [f32; PULSE_TABLE_SIZE],
     tnd_table: [f32; TND_TABLE_SIZE],
+
+    pub samples: Vec<f32>,
 }
 
 impl Apu {
@@ -38,6 +41,8 @@ impl Apu {
         Apu {
             cycles: 0,
             sample_counter: 0,
+            sample_sum: 0.,
+
             pulse_1: Pulse::new(),
             pulse_2: Pulse::new(),
             triangle: Triangle::new(),
@@ -47,6 +52,8 @@ impl Apu {
 
             pulse_table,
             tnd_table,
+
+            samples: Vec::new(),
         }
     }
 }
@@ -118,6 +125,7 @@ impl Nes {
                     self.apu.pulse_2.envelope.clock();
                 }
                 29828 => {
+                    eprintln!("IRQ APU not done yet");
                     /* if !self.apu.frame_counter.irq_inhibit {
                         self.cpu.irq_signal = true;
                     } */
@@ -129,11 +137,13 @@ impl Nes {
                     self.apu.noise.length_counter.clock();
                     self.apu.triangle.length_counter.clock();
 
+                    eprintln!("IRQ APU not done yet");
                     /* if !self.apu.frame_counter.irq_inhibit {
                         self.cpu.irq_signal = true;
                     } */
                 }
                 29830 => {
+                    eprintln!("IRQ APU not done yet");
                     /* if !self.apu.frame_counter.irq_inhibit {
                         self.cpu.irq_signal = true;
                     } */
@@ -145,14 +155,20 @@ impl Nes {
         }
 
         self.apu.sample_counter += 1;
+        let output = self.mix_channels();
+        self.apu.sample_sum += output;
+
         if self.apu.sample_counter == SAMPLE_FREQ {
+            self.apu
+                .samples
+                .push(self.apu.sample_sum / SAMPLE_FREQ as f32);
             self.apu.sample_counter = 0;
-            let _output = self.mixer();
+            self.apu.sample_sum = 0.;
         }
     }
 
     #[inline]
-    fn mixer(&mut self) -> f32 {
+    fn mix_channels(&mut self) -> f32 {
         //The APU mixer formulas can be efficiently implemented using two lookup tables: a 31-entry table
         //for the two pulse channels and a 203-entry table for the remaining channels (due to the approximation
         //of tnd_out, the numerators are adjusted slightly to preserve the normalized output range).
@@ -178,7 +194,7 @@ impl Nes {
         let dmc = 0;
         let tnd_out = self.apu.tnd_table[3 * triangle + 2 * noise + dmc];
 
-        pulse_out + tnd_out
+        pulse_out //+ tnd_out
     }
 
     /// https://wiki.nesdev.org/w/index.php?title=APU_registers
@@ -210,14 +226,17 @@ impl Nes {
                 without clocking any of its units. */
 
                 if val & 0x80 != 0 {
+                    self.apu.pulse_1.clock();
+                    self.apu.pulse_2.clock();
+
                     self.apu.pulse_1.frame_clock();
                     self.apu.pulse_2.frame_clock();
 
                     self.apu.noise.length_counter.clock();
                     self.apu.triangle.length_counter.clock();
                 }
-                // TODO: reset APU cycles on chaning frame counter
 
+                self.apu.cycles = 0;
                 self.apu.frame_counter.set_mi(val, &mut self.cpu.irq_signal)
             }
             _ => (),
@@ -300,10 +319,7 @@ impl Nes {
     }
 }
 
-/** The reason for the odd output from the sequencer is that the counter is initialized to zero
-but counts downward rather than upward. Thus it reads the sequence lookup table in the
-order 0, 7, 6, 5, 4, 3, 2, 1.
-
+/**
 Duty  Sequence lookup table   Output waveform
 0     0 0 0 0 0 0 0 1         0 1 0 0 0 0 0 0 (12.5%)
 1     0 0 0 0 0 0 1 1         0 1 1 0 0 0 0 0 (25%)
@@ -312,9 +328,9 @@ Duty  Sequence lookup table   Output waveform
 #[rustfmt::skip]
 static DUTY_SEQUENCE: [bool; 0x20] = [
     false, false, false, false, false, false, false, true,
-    false, false, false, false, false, false, true, true, false,
-    false, false, false, true, true, true, true, true,
-    true, true, true, true, true, false, false,
+    false, false, false, false, false, false, true,  true,
+    false, false, false, false, true,  true,  true,  true,
+    true,  true,  true,  true,  true,  true,  false, false,
 ];
 
 /// https://wiki.nesdev.org/w/index.php?title=APU_Pulse
@@ -326,7 +342,6 @@ struct Pulse<const ADDER: u16> {
 
     sweep: Sweep<ADDER>,
     length_counter: LengthCounter,
-    //enabled: bool,
 }
 
 impl<const ADDER: u16> Pulse<ADDER> {
@@ -338,14 +353,13 @@ impl<const ADDER: u16> Pulse<ADDER> {
 
             sweep: Sweep::new(),
             length_counter: LengthCounter::new(),
-            //enabled: false,
         }
     }
 
     #[inline]
     fn set_dlcv(&mut self, val: u8) {
         self.duty_seq = (val & 0xC0) >> 3;
-        self.length_counter.enabled = (val & 0x20) == 0;
+        self.length_counter.halt = (val & 0x20) != 0;
         self.envelope._loop = (val & 0x20) != 0;
         self.envelope.constant_volume = (val & 0x10) != 0;
         self.envelope.period = val & 0xF;
@@ -358,14 +372,15 @@ impl<const ADDER: u16> Pulse<ADDER> {
 
     #[inline]
     fn set_t(&mut self, val: u8) {
-        self.sweep.timer = (self.sweep.timer & !0xFF) | u16::from(val);
+        self.sweep.timer_reload = (self.sweep.timer_reload & !0xFF) | u16::from(val);
     }
 
     #[inline]
     fn set_lt(&mut self, val: u8) {
+        // TODO: nesdev says this should also restart envelope ? https://www.nesdev.org/wiki/APU_registers
         self.duty_cycle = 0;
         self.length_counter.load((val & 0xF8) >> 3);
-        self.sweep.timer = (self.sweep.timer & !0x700) | (u16::from(val & 7) << 8);
+        self.sweep.timer_reload = (self.sweep.timer_reload & !0x700) | (u16::from(val & 7) << 8);
     }
 
     #[inline]
@@ -373,8 +388,16 @@ impl<const ADDER: u16> Pulse<ADDER> {
         if self.sweep.timer > 0 {
             self.sweep.timer -= 1;
         } else {
-            self.duty_cycle = (self.duty_cycle + 1) & 7;
-            self.sweep.timer = self.sweep.period;
+            /* The reason for the odd output from the sequencer is that the counter is initialized to zero
+            but counts downward rather than upward. Thus it reads the sequence lookup table in the
+            order 0, 7, 6, 5, 4, 3, 2, 1. */
+            if self.duty_cycle == 0 {
+                self.duty_cycle = 7;
+            } else {
+                self.duty_cycle -= 1;
+            }
+
+            self.sweep.timer = self.sweep.timer_reload;
         }
     }
 
@@ -389,7 +412,7 @@ impl<const ADDER: u16> Pulse<ADDER> {
     or overflow from the sweep unit's adder is silencing the channel, or the length counter is
     zero, or the timer has a value less than eight. **/
     #[inline]
-    fn output(&mut self) -> u8 {
+    fn output(&self) -> u8 {
         let active = DUTY_SEQUENCE[(self.duty_seq | self.duty_cycle) as usize];
 
         if active
@@ -607,7 +630,10 @@ static LENGTH_TABLE: [u8; 0x20] = [
 
 #[derive(Decode, Encode)]
 struct LengthCounter {
+    /// If the channel is enabled
     enabled: bool,
+    /// If the length counter is halted
+    halt: bool,
     counter: u8,
 }
 
@@ -615,6 +641,7 @@ impl LengthCounter {
     fn new() -> LengthCounter {
         LengthCounter {
             enabled: true,
+            halt: false,
             counter: 0,
         }
     }
@@ -628,8 +655,12 @@ impl LengthCounter {
 
     #[inline]
     fn clock(&mut self) {
-        if self.counter > 0 && self.enabled {
-            self.counter -= 1;
+        if self.enabled {
+            if self.counter > 0 && !self.halt {
+                self.counter -= 1;
+            }
+        } else {
+            self.counter = 0;
         }
     }
 }
@@ -645,6 +676,7 @@ struct Sweep<const ADDER: u16> {
 
     reload: bool,
     timer: u16,
+    timer_reload: u16,
 }
 
 impl<const ADDER: u16> Sweep<ADDER> {
@@ -659,6 +691,7 @@ impl<const ADDER: u16> Sweep<ADDER> {
 
             reload: false,
             timer: 0,
+            timer_reload: 0,
         }
     }
 
@@ -671,50 +704,57 @@ impl<const ADDER: u16> Sweep<ADDER> {
         self.reload = true;
     }
 
-    //When the frame counter sends a half-frame clock (at 120 or 96 Hz), two things happen.
-    //If the divider's counter is zero, the sweep is enabled, and the sweep unit is not muting the
-    //channel: The pulse's period is adjusted.
-
-    //If the divider's counter is zero or the reload flag is true: The counter is set to P and the
-    //reload flag is cleared. Otherwise, the counter is decremented.
     #[inline]
     fn clock(&mut self) {
+        //The sweep unit continuously calculates each channel's target period in this way:
+
+        //A barrel shifter shifts the channel's 11-bit raw timer period right by the shift count,
+        //producing the change amount. If the negate flag is true, the change amount is made negative.
+        //The target period is the sum of the current period and the change amount.
+
+        //For example, if the negate flag is false and the shift amount is zero, the change amount
+        //equals the current period, making the target period equal to twice the current period.
+
+        //The two pulse channels have their adders' carry inputs wired differently, which produces
+        //different results when each channel's change amount is made negative:
+
+        //Pulse 1 adds the ones' complement (−c − 1). Making 20 negative produces a change amount
+        //of −21.
+        //Pulse 2 adds the two's complement (−c). Making 20 negative produces a change amount of −20.
+        let target_period = {
+            let change = self.timer_reload >> self.shift;
+            if !self.negate {
+                self.timer_reload.wrapping_add(change)
+            } else {
+                self.timer_reload.wrapping_sub(change + ADDER)
+            }
+        };
+
+        //When the frame counter sends a half-frame clock (at 120 or 96 Hz), two things happen.
+        //If the divider's counter is zero, the sweep is enabled, and the sweep unit is not muting the
+        //channel: The pulse's period is adjusted.
+
+        //If the divider's counter is zero or the reload flag is true: The counter is set to P and the
+        //reload flag is cleared. Otherwise, the counter is decremented.
+
+        // Two conditions cause the sweep unit to mute the channel:
+
+        // If the current period is less than 8, the sweep unit mutes the channel.
+        // If at any time the target period is greater than $7FF, the sweep unit mutes the channel.
+        if self.enabled && self.counter == 0 && self.timer_reload >= 8 && target_period <= 0x7FF {
+            self.timer_reload = target_period;
+        }
+
         if self.counter == 0 || self.reload {
             self.counter = self.period + 1;
             self.reload = false;
         } else {
             self.counter -= 1;
         }
-
-        let mute = false;
-        if self.counter == 0 && self.enabled && !mute {
-            //The sweep unit continuously calculates each channel's target period in this way:
-
-            //A barrel shifter shifts the channel's 11-bit raw timer period right by the shift count,
-            //producing the change amount. If the negate flag is true, the change amount is made negative.
-            //The target period is the sum of the current period and the change amount.
-
-            //For example, if the negate flag is false and the shift amount is zero, the change amount
-            //equals the current period, making the target period equal to twice the current period.
-
-            //The two pulse channels have their adders' carry inputs wired differently, which produces
-            //different results when each channel's change amount is made negative:
-
-            //Pulse 1 adds the ones' complement (−c − 1). Making 20 negative produces a change amount
-            //of −21.
-            //Pulse 2 adds the two's complement (−c). Making 20 negative produces a change amount of −20.
-            self.counter = self.period.wrapping_add(1);
-
-            let change = self.timer >> self.shift;
-            if !self.negate {
-                self.period = self.period.wrapping_add(change);
-            } else {
-                self.period = self.period.wrapping_sub(change + ADDER);
-            }
-        }
     }
 }
 
+// TODO: check envelope
 #[derive(Decode, Encode)]
 struct Envelope {
     start: bool,
@@ -764,3 +804,9 @@ impl Envelope {
         }
     }
 }
+
+/* pub struct ApuChannelsOut {
+    pulse_1: u8,
+    pulse_2: u8,
+}
+ */

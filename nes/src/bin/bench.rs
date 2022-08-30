@@ -20,13 +20,13 @@ fn game_bench(rom_path: &str, inputs_path: &str) {
     let mut frames = 0;
 
     for ic in &inputs.inputs {
-        while nes.get_frame_count() < ic.frame {
+        while nes.frame_count() < ic.frame {
             let start = Instant::now();
             nes.run_one_frame();
             let duration = start.elapsed();
 
             // The first few frames are ususally unproportionally fast
-            if nes.get_frame_count() > 50 {
+            if nes.frame_count() > 50 {
                 total_time += duration.as_nanos();
                 frames += 1;
 
@@ -39,12 +39,12 @@ fn game_bench(rom_path: &str, inputs_path: &str) {
         nes.set_button_state(ic.button, ic.state);
     }
 
-    while nes.get_frame_count() < inputs.end_frame {
+    while nes.frame_count() < inputs.end_frame {
         nes.run_one_frame();
     }
 
     let mut hasher = DefaultHasher::new();
-    hasher.write(nes.get_frame_buffer());
+    hasher.write(nes.frame_buffer());
 
     println!(
         "{} - Average frame time: {:.2}ms, Max frame time: {:.2}ms",

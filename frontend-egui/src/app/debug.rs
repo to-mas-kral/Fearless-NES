@@ -45,8 +45,8 @@ impl Debug {
                                 nes.run_cpu_cycle();
                             }
 
-                            ui.label(format!("Frame count: {}", nes.get_frame_count()));
-                            ui.label(format!("CPU cycle count: {}", nes.get_cycle_count()));
+                            ui.label(format!("Frame count: {}", nes.frame_count()));
+                            ui.label(format!("CPU cycle count: {}", nes.cycle_count()));
                         });
                 }
             }

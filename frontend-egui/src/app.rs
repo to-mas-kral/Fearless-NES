@@ -12,6 +12,7 @@ use gilrs::{Axis, EventType, Gilrs};
 
 use fearless_nes::{Button as NesButton, Nes};
 
+//mod apuui;
 mod config;
 mod debug;
 mod nesrender;
@@ -19,6 +20,7 @@ mod replays;
 mod saves;
 mod settings;
 
+//use apuui::ApuUi;
 pub use config::Config;
 use debug::Debug;
 use native_dialog::FileDialog;
@@ -52,6 +54,7 @@ pub struct App {
     debug: Debug,
     replays: Replays,
     settings: Settings,
+    //apu_ui: ApuUi,
 }
 
 impl App {
@@ -69,6 +72,7 @@ impl App {
             debug: Debug::new(),
             replays: Replays::new(),
             settings: Settings::new(),
+            //apu_ui: ApuUi::new(),
         }
     }
 
@@ -186,7 +190,7 @@ impl App {
             nes.set_button_state(button, state);
 
             if let Recording::On { replay_inputs, .. } = &mut self.replays.recording {
-                replay_inputs.add_input_change(nes.get_frame_count(), button, state);
+                replay_inputs.add_input_change(nes.frame_count(), button, state);
             }
         };
     }
@@ -200,7 +204,7 @@ impl App {
         if let Some(nes) = &self.nes {
             let nes = nes.lock().unwrap();
 
-            let nes_framebuffer = nes.get_frame_buffer();
+            let nes_framebuffer = nes.frame_buffer();
             self.render
                 .draw_nes(nes_framebuffer, egui_ctx, &self.config.overscan);
         }
@@ -291,6 +295,32 @@ impl App {
                             nes.reset();
                         }
                     });
+
+                    // TODO: APU UI
+                    /* egui::SidePanel::right("right_main_panel").show(egui_ctx, |ui| {
+                        egui::menu::bar(ui, |ui| {
+                            ui.menu_button("APU", |ui| {});
+
+                            //ApuUi::gui(app, ui);
+
+                            let mut nes = nes.lock().unwrap();
+                            let samples = nes.apu_samples();
+
+                            use egui::plot::{Line, Plot, PlotPoints};
+                            let sin: PlotPoints = samples
+                                .iter()
+                                .enumerate()
+                                .map(|(i, val)| [i as f64, *val as f64])
+                                .collect();
+
+                            let line = Line::new(sin);
+
+                            Plot::new("my_plot")
+                                .data_aspect(200_000.)
+                                .view_aspect(1.)
+                                .show(ui, |plot_ui| plot_ui.line(line));
+                        });
+                    }); */
 
                     egui::menu::menu_button(ui, "Debug", |ui| {
                         Debug::gui_embed(app, ui);

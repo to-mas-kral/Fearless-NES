@@ -22,7 +22,7 @@ impl CartridgeInfo {
                 .default_width(0.)
                 .show(egui_ctx, |ui| {
                     let mut nes = nes.lock().unwrap();
-                    let cartridge = nes.get_cartridge();
+                    let cartridge = nes.cartridge();
                     let header = &cartridge.header;
 
                     egui::Grid::new("Cartridge Header Grid")

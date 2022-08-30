@@ -27,7 +27,7 @@ impl Ppu {
                         let nes = nes.lock().unwrap();
 
                         let mut hasher = DefaultHasher::new();
-                        hasher.write(nes.get_frame_buffer());
+                        hasher.write(nes.frame_buffer());
                         let hash = hasher.finish();
 
                         ui.text_edit_singleline(&mut format!("Display hash: {}", hash));

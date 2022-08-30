@@ -10,6 +10,7 @@ fearless_nes = { path = "../nes" }
 egui_glium = "0.19"
 glium = "0.32"
 winit = {version = "0.27", features = ["serde"]}
+cpal = "0.14.0"
 spin_sleep = "1.1.1"
 crossbeam = "0.8.2"
 bytemuck = "1.12.1"

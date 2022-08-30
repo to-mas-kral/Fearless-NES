@@ -11,7 +11,7 @@ mod replay;
 #[cfg(test)]
 mod tests;
 
-use apu::Apu;
+use apu::{Apu/* , ApuChannelsOut */};
 use cartridge::{ConsoleType, Region};
 use controller::Controller;
 use cpu::Cpu;
@@ -20,7 +20,7 @@ use ppu::Ppu;
 
 pub use cartridge::{BankSize, Cartridge, Header};
 pub use controller::Button;
-pub use ppu::{NES_HEIGHT, NES_WIDTH, FRAMEBUFFER_SIZE, PALETTE};
+pub use ppu::{FRAMEBUFFER_SIZE, NES_HEIGHT, NES_WIDTH, PALETTE};
 pub use replay::ReplayInputs;
 
 #[derive(Encode, Decode)]
@@ -81,11 +81,26 @@ impl Nes {
         self.frame_count += 1;
     }
 
+    pub fn run_scanline(&mut self) {
+        for _ in 0..114 {
+            self.cpu_tick();
+        }
+    }
+
+    pub fn frame_ready_reset(&mut self) -> bool {
+        if self.frame_ready {
+            self.frame_ready = false;
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn run_cpu_cycle(&mut self) {
         self.cpu_tick();
     }
 
-    pub fn get_frame_buffer(&self) -> &[u8; ppu::FRAMEBUFFER_SIZE] {
+    pub fn frame_buffer(&self) -> &[u8; ppu::FRAMEBUFFER_SIZE] {
         &self.ppu.output_buffer
     }
 
@@ -105,16 +120,20 @@ impl Nes {
         self._drive_replay_inputs(inputs)
     }
 
-    pub fn get_cartridge(&mut self) -> &Cartridge {
+    pub fn cartridge(&mut self) -> &Cartridge {
         &self.mapper.cartridge
     }
 
-    pub fn get_frame_count(&self) -> u64 {
+    pub fn frame_count(&self) -> u64 {
         self.frame_count
     }
 
-    pub fn get_cycle_count(&self) -> u64 {
+    pub fn cycle_count(&self) -> u64 {
         self.cycle_count
+    }
+
+    pub fn apu_samples(&mut self) -> &mut Vec<f32> {
+        &mut self.apu.samples
     }
 }
 

@@ -1,7 +1,7 @@
 ![build badge](https://github.com/TomasKralCZ/Fearless-NES/actions/workflows/build.yml/badge.svg)
 
 # Fearless-NES
-Fearless-NES is a work-in-progress Nintendo enterntainment system emulator written in Rust.
+Fearless-NES is a work-in-progress Nintendo entertainment system emulator written in Rust.
 
 # Screenshots
 
@@ -16,6 +16,7 @@ Fearless-NES is a work-in-progress Nintendo enterntainment system emulator writt
 # Features
 - Cycle-accurate CPU emulation
 - Very accurate PPU emulation
+- Basic APU emulation
 - Basic mapper support
 - Basic GUI
 - Save states
@@ -50,7 +51,7 @@ With these mappers, Fearless-NES supports 84 % of commercial NES games.
 - [ ] (frontend) NTSC filter
 
 - [ ] (core) iNES 2.0 support
-- [ ] (core) rest of the APU
+- [ ] (core) APU - triangle, noise and DMC channel, filters, better frontend
 - [ ] (core) advanced mappers such as MMC5, VRC2/4...
 - [ ] (core) various accuracy tests
 

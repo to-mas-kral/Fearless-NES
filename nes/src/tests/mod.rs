@@ -59,6 +59,6 @@ fn hash_test(rom_path: &str, frames_to_run: u64, expected_hash: u64) {
 
     let mut hasher = SipHasher13::new();
 
-    hasher.write(nes.get_frame_buffer());
+    hasher.write(nes.frame_buffer());
     assert_eq!(hasher.finish(), expected_hash);
 }

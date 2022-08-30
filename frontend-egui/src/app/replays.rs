@@ -45,7 +45,7 @@ impl Replays {
         match &mut self.recording {
             Recording::On { replay_inputs } => {
                 let inputs = match replay_inputs
-                    .save_with_end_frame(nes.get_frame_count())
+                    .save_with_end_frame(nes.frame_count())
                     .report_dialog_msg("Couldn't save the recording")
                 {
                     Ok(i) => i,
