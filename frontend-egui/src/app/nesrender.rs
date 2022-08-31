@@ -23,7 +23,7 @@ impl NesRender {
         overscan: &Overscan,
     ) {
         for y in 0..NES_HEIGHT {
-            for x in 0..NES_HEIGHT {
+            for x in 0..NES_WIDTH {
                 let palette_index = nes_framebuffer[y * NES_WIDTH + x] as usize * 3;
                 let r = PALETTE[palette_index];
                 let g = PALETTE[palette_index + 1];
@@ -58,6 +58,7 @@ impl NesRender {
         });
     }
 
+    // FIXME: overscan is wrong by 8 pixels on the right
     fn calculate_nes_size(overscan: &Overscan) -> [f32; 2] {
         let width = NES_WIDTH as f32 - overscan.left as f32 - overscan.right as f32;
         let height = NES_HEIGHT as f32 - overscan.top as f32 - overscan.bottom as f32;
