@@ -56,117 +56,23 @@ impl Apu {
             samples: Vec::new(),
         }
     }
-}
 
-impl Nes {
-    #[inline]
-    /// https://wiki.nesdev.org/w/index.php?title=APU_Frame_Counter
-    pub(crate) fn apu_tick(&mut self) {
-        if self.apu.cycles % 2 == 0 {
-            self.apu.pulse_1.clock();
-            self.apu.pulse_2.clock();
-        }
-
-        // Use CPU cycles so I can get "half-APU-cycle" timing correct...
-        self.apu.cycles = self.apu.cycles.wrapping_add(1);
-
-        if self.apu.frame_counter.mode {
-            match self.apu.cycles {
-                7457 => {
-                    //TODO: clock noise envelopes and triangle linear counter
-                    self.apu.pulse_1.envelope.clock();
-                    self.apu.pulse_2.envelope.clock();
-                }
-                14913 => {
-                    //TODO: clock noise envelopes and triangle linear counter
-                    self.apu.pulse_1.frame_clock();
-                    self.apu.pulse_2.frame_clock();
-
-                    self.apu.noise.length_counter.clock();
-                    self.apu.triangle.length_counter.clock();
-                }
-                22371 => {
-                    //TODO: clock noise envelopes and triangle linear counter
-                    self.apu.pulse_1.envelope.clock();
-                    self.apu.pulse_2.envelope.clock();
-                }
-                37281 => {
-                    //TODO: clock noise envelopes and triangle linear counter
-                    self.apu.pulse_1.frame_clock();
-                    self.apu.pulse_2.frame_clock();
-
-                    self.apu.noise.length_counter.clock();
-                    self.apu.triangle.length_counter.clock();
-                }
-                37282 => {
-                    self.apu.cycles = 0;
-                }
-                _ => (),
-            }
-        } else {
-            match self.apu.cycles {
-                0 => {
-                    //TODO: clock noise envelopes and triangle linear counter
-                }
-                7457 => {
-                    //TODO: clock noise envelopes and triangle linear counter
-                    self.apu.pulse_1.envelope.clock();
-                    self.apu.pulse_2.envelope.clock();
-                }
-                14913 => {
-                    self.apu.pulse_1.frame_clock();
-                    self.apu.pulse_2.frame_clock();
-
-                    self.apu.noise.length_counter.clock();
-                    self.apu.triangle.length_counter.clock();
-                }
-                22371 => {
-                    self.apu.pulse_1.envelope.clock();
-                    self.apu.pulse_2.envelope.clock();
-                }
-                29828 => {
-                    eprintln!("IRQ APU not done yet");
-                    /* if !self.apu.frame_counter.irq_inhibit {
-                        self.cpu.irq_signal = true;
-                    } */
-                }
-                29829 => {
-                    self.apu.pulse_1.frame_clock();
-                    self.apu.pulse_2.frame_clock();
-
-                    self.apu.noise.length_counter.clock();
-                    self.apu.triangle.length_counter.clock();
-
-                    eprintln!("IRQ APU not done yet");
-                    /* if !self.apu.frame_counter.irq_inhibit {
-                        self.cpu.irq_signal = true;
-                    } */
-                }
-                29830 => {
-                    eprintln!("IRQ APU not done yet");
-                    /* if !self.apu.frame_counter.irq_inhibit {
-                        self.cpu.irq_signal = true;
-                    } */
-
-                    self.apu.cycles = 0;
-                }
-                _ => (),
-            }
-        }
-
-        self.apu.sample_counter += 1;
-        let output = self.mix_channels();
-        self.apu.sample_sum += output;
-
-        if self.apu.sample_counter == SAMPLE_FREQ {
-            self.apu
-                .samples
-                .push(self.apu.sample_sum / SAMPLE_FREQ as f32);
-            self.apu.sample_counter = 0;
-            self.apu.sample_sum = 0.;
-        }
+    fn quarter_frame_clock(&mut self) {
+        self.pulse_1.envelope.clock();
+        self.pulse_2.envelope.clock();
+        self.triangle.clock_linear_counter();
+        self.noise.envelope.clock();
     }
 
+    fn half_frame_clock(&mut self) {
+        self.pulse_1.half_frame_clock();
+        self.pulse_2.half_frame_clock();
+        self.triangle.length_counter.clock();
+        self.noise.length_counter.clock();
+    }
+
+    // TODO: implement using formula (https://www.nesdev.org/wiki/APU_Mixer) instead of lookup table
+    // and compare performance and quality
     #[inline]
     fn mix_channels(&mut self) -> f32 {
         //The APU mixer formulas can be efficiently implemented using two lookup tables: a 31-entry table
@@ -185,16 +91,105 @@ impl Nes {
         //
         //tnd_out = tnd_table [3 * triangle + 2 * noise + dmc]
 
-        let pulse_1 = self.apu.pulse_1.output() as usize;
-        let pulse_2 = self.apu.pulse_2.output() as usize;
-        let pulse_out = self.apu.pulse_table[pulse_1 + pulse_2];
+        let pulse_1 = self.pulse_1.output() as usize;
+        let pulse_2 = self.pulse_2.output() as usize;
+        let pulse_out = self.pulse_table[pulse_1 + pulse_2];
 
-        let triangle = 0;
-        let noise = 0;
+        let triangle = self.triangle.output() as usize;
+        let noise = self.noise.output() as usize;
         let dmc = 0;
-        let tnd_out = self.apu.tnd_table[3 * triangle + 2 * noise + dmc];
+        let tnd_out = self.tnd_table[3 * triangle + 2 * noise + dmc];
 
-        pulse_out //+ tnd_out
+        pulse_out + tnd_out
+    }
+}
+
+impl Nes {
+    #[inline]
+    /// https://wiki.nesdev.org/w/index.php?title=APU_Frame_Counter
+    pub(crate) fn apu_tick(&mut self) {
+        // Use CPU cycles so I can get "half-APU-cycle" timing correct...
+        if self.apu.cycles % 2 == 0 {
+            self.apu.pulse_1.clock();
+            self.apu.pulse_2.clock();
+        }
+
+        self.apu.triangle.clock();
+        self.apu.noise.clock();
+
+        self.apu.cycles = self.apu.cycles.wrapping_add(1);
+
+        if self.apu.frame_counter.mode {
+            match self.apu.cycles {
+                7457 => {
+                    self.apu.quarter_frame_clock();
+                }
+                14913 => {
+                    self.apu.quarter_frame_clock();
+                    self.apu.half_frame_clock();
+                }
+                22371 => {
+                    self.apu.quarter_frame_clock();
+                }
+                37281 => {
+                    self.apu.quarter_frame_clock();
+                    self.apu.half_frame_clock();
+                }
+                37282 => {
+                    self.apu.cycles = 0;
+                }
+                _ => (),
+            }
+        } else {
+            match self.apu.cycles {
+                0 => {
+                    //TODO: clock after writing to 4015
+                }
+                7457 => {
+                    self.apu.quarter_frame_clock();
+                }
+                14913 => {
+                    self.apu.quarter_frame_clock();
+                    self.apu.half_frame_clock();
+                }
+                22371 => {
+                    self.apu.quarter_frame_clock();
+                }
+                29828 => {
+                    if !self.apu.frame_counter.irq_inhibit {
+                        self.cpu.irq_signal = true;
+                    }
+                }
+                29829 => {
+                    self.apu.quarter_frame_clock();
+                    self.apu.half_frame_clock();
+
+                    if !self.apu.frame_counter.irq_inhibit {
+                        self.cpu.irq_signal = true;
+                    }
+                }
+                29830 => {
+                    if !self.apu.frame_counter.irq_inhibit {
+                        self.cpu.irq_signal = true;
+                    }
+
+                    self.apu.cycles = 0;
+                }
+                _ => (),
+            }
+        }
+
+        self.apu.sample_counter += 1;
+        let output = self.apu.mix_channels();
+        self.apu.sample_sum += output;
+
+        if self.apu.sample_counter == SAMPLE_FREQ {
+            self.apu
+                .samples
+                .push(self.apu.sample_sum / SAMPLE_FREQ as f32);
+            self.apu.sample_counter = 0;
+            self.apu.sample_sum = 0.;
+        }
     }
 
     /// https://wiki.nesdev.org/w/index.php?title=APU_registers
@@ -226,14 +221,8 @@ impl Nes {
                 without clocking any of its units. */
 
                 if val & 0x80 != 0 {
-                    self.apu.pulse_1.clock();
-                    self.apu.pulse_2.clock();
-
-                    self.apu.pulse_1.frame_clock();
-                    self.apu.pulse_2.frame_clock();
-
-                    self.apu.noise.length_counter.clock();
-                    self.apu.triangle.length_counter.clock();
+                    self.apu.quarter_frame_clock();
+                    self.apu.half_frame_clock();
                 }
 
                 self.apu.cycles = 0;
@@ -297,7 +286,6 @@ impl Nes {
         //TODO: manage DMC
 
         if !n {
-            self.apu.noise.volume = 0;
             self.apu.noise.length_counter.counter = 0;
         }
         self.apu.noise.length_counter.enabled = n;
@@ -318,20 +306,6 @@ impl Nes {
         self.apu.pulse_1.length_counter.enabled = p_1;
     }
 }
-
-/**
-Duty  Sequence lookup table   Output waveform
-0     0 0 0 0 0 0 0 1         0 1 0 0 0 0 0 0 (12.5%)
-1     0 0 0 0 0 0 1 1         0 1 1 0 0 0 0 0 (25%)
-2     0 0 0 0 1 1 1 1         0 1 1 1 1 0 0 0 (50%)
-3     1 1 1 1 1 1 0 0         1 0 0 1 1 1 1 1 (25% negated) **/
-#[rustfmt::skip]
-static DUTY_SEQUENCE: [bool; 0x20] = [
-    false, false, false, false, false, false, false, true,
-    false, false, false, false, false, false, true,  true,
-    false, false, false, false, true,  true,  true,  true,
-    true,  true,  true,  true,  true,  true,  false, false,
-];
 
 /// https://wiki.nesdev.org/w/index.php?title=APU_Pulse
 #[derive(Decode, Encode)]
@@ -377,7 +351,7 @@ impl<const ADDER: u16> Pulse<ADDER> {
 
     #[inline]
     fn set_lt(&mut self, val: u8) {
-        // TODO: nesdev says this should also restart envelope ? https://www.nesdev.org/wiki/APU_registers
+        self.envelope.start = true;
         self.duty_cycle = 0;
         self.length_counter.load((val & 0xF8) >> 3);
         self.sweep.timer_reload = (self.sweep.timer_reload & !0x700) | (u16::from(val & 7) << 8);
@@ -402,54 +376,54 @@ impl<const ADDER: u16> Pulse<ADDER> {
     }
 
     #[inline]
-    fn frame_clock(&mut self) {
+    fn half_frame_clock(&mut self) {
         self.length_counter.clock();
-        self.envelope.clock();
         self.sweep.clock();
     }
 
-    /** The mixer receives the current envelope volume except when The sequencer output is zero,
-    or overflow from the sweep unit's adder is silencing the channel, or the length counter is
-    zero, or the timer has a value less than eight. **/
+    /**
+    Duty  Sequence lookup table   Output waveform
+    0     0 0 0 0 0 0 0 1         0 1 0 0 0 0 0 0 (12.5%)
+    1     0 0 0 0 0 0 1 1         0 1 1 0 0 0 0 0 (25%)
+    2     0 0 0 0 1 1 1 1         0 1 1 1 1 0 0 0 (50%)
+    3     1 1 1 1 1 1 0 0         1 0 0 1 1 1 1 1 (25% negated) **/
+    #[rustfmt::skip]
+    const DUTY_SEQUENCE: [bool; 0x20] = [
+        false, false, false, false, false, false, false, true,
+        false, false, false, false, false, false, true,  true,
+        false, false, false, false, true,  true,  true,  true,
+        true,  true,  true,  true,  true,  true,  false, false,
+    ];
+
     #[inline]
     fn output(&self) -> u8 {
-        let active = DUTY_SEQUENCE[(self.duty_seq | self.duty_cycle) as usize];
+        let active = Self::DUTY_SEQUENCE[(self.duty_seq | self.duty_cycle) as usize];
 
+        /* The mixer receives the current envelope volume except when The sequencer output is zero,
+        or overflow from the sweep unit's adder is silencing the channel, or the length counter is
+        zero, or the timer has a value less than eight. */
         if active
             && self.length_counter.counter > 0
             && self.sweep.timer >= 8
             && self.sweep.period < 0x800
         {
-            /* The envelope unit's volume output depends on the constant volume flag: if set, the
-            envelope parameter directly sets the volume, otherwise the decay level is the current
-            volume. The constant volume flag has no effect besides selecting the volume source;
-            the decay level will still be updated when constant volume is selected. */
-            if self.envelope.constant_volume {
-                return self.envelope.period;
-            } else {
-                return self.envelope.step;
-            }
+            self.envelope.get_volume()
         } else {
             0
         }
     }
 }
 
-//$4008   CRRR.RRRR   Linear counter setup (write)
-//bit 7   C---.----   Control flag (this bit is also the length counter halt flag)
-//bits 6-0-RRR RRRR   Counter reload value
-//
-//$400A   LLLL.LLLL   Timer low (write)
-//bits 7-0LLLL LLLL   Timer low 8 bits
-//
-//$400B   llll.lHHH   Length counter load and timer high (write)
-//bits 2-0---- -HHH   Timer high 3 bits
-//Side effects: Sets the linear counter reload flag
 #[derive(Decode, Encode)]
 struct Triangle {
-    counter_control: bool,
-    counter_reload: u8,
+    linear_counter_control: bool,
+    linear_counter_reload: u8,
+    linear_counter_reload_flag: bool,
+    linear_counter: u8,
+
     timer: u16,
+    timer_reload: u16,
+    sequence_step: u8,
 
     length_counter: LengthCounter,
 }
@@ -457,81 +431,202 @@ struct Triangle {
 impl Triangle {
     fn new() -> Triangle {
         Triangle {
-            counter_control: false,
-            counter_reload: 0,
+            linear_counter_control: false,
+            linear_counter_reload: 0,
+            linear_counter_reload_flag: false,
+            linear_counter: 0,
+
             timer: 0,
+            timer_reload: 0,
+            sequence_step: 0,
 
             length_counter: LengthCounter::new(),
         }
     }
 
+    // $4008   CRRR.RRRR   Linear counter setup (write)
+    // bit 7   C---.----   Control flag (this bit is also the length counter halt flag)
+    // bits 6-0-RRR RRRR   Counter reload value
     #[inline]
     fn set_c(&mut self, val: u8) {
-        self.counter_control = val & 0x80 != 0;
-        self.length_counter.enabled = val & 0x80 == 0;
-        self.counter_reload = val & 0x7F;
+        self.linear_counter_control = val & 0x80 != 0;
+        self.length_counter.halt = val & 0x80 != 0;
+        self.linear_counter_reload = val & 0x7F;
     }
 
+    // $400A   LLLL.LLLL   Timer low (write)
+    // bits 7-0LLLL LLLL   Timer low 8 bits
     #[inline]
     fn set_tl(&mut self, val: u8) {
-        self.timer = (self.timer & !0xFF) | u16::from(val);
+        self.timer_reload = (self.timer_reload & !0xFF) | u16::from(val);
     }
 
+    // $400B   llll.lHHH   Length counter load and timer high (write)
+    // bits 2-0---- -HHH   Timer high 3 bits
+    // Side effects: Sets the linear counter reload flag
     #[inline]
     fn set_l(&mut self, val: u8) {
         self.length_counter.load((val & 0xF8) >> 3);
-        self.timer = (self.timer & !0x700) | (u16::from(val & 7) << 8);
-        //TODO: set linear control reload flag
+        self.timer_reload = (self.timer_reload & !0x700) | (u16::from(val & 7) << 8);
+        self.linear_counter_reload_flag = true;
+    }
+
+    #[inline]
+    fn clock_linear_counter(&mut self) {
+        /* When the frame counter generates a linear counter clock, the following actions occur in order:
+
+        1. If the linear counter reload flag is set, the linear counter is reloaded with the counter reload
+        value, otherwise if the linear counter is non-zero, it is decremented.
+
+        2. If the control flag is clear, the linear counter reload flag is cleared. */
+
+        if self.linear_counter_reload_flag {
+            self.linear_counter = self.linear_counter_reload;
+        } else if self.linear_counter != 0 {
+            self.linear_counter -= 1;
+        }
+
+        if !self.linear_counter_control {
+            self.linear_counter_reload_flag = false;
+        }
+    }
+
+    #[inline]
+    fn clock(&mut self) {
+        if self.length_counter.counter != 0 && self.linear_counter != 0 {
+            if self.timer > 0 {
+                self.timer -= 1;
+            } else {
+                self.sequence_step += 1;
+                if self.sequence_step == 32 {
+                    self.sequence_step = 0;
+                }
+
+                self.timer = self.timer_reload;
+            }
+        }
+    }
+
+    #[rustfmt::skip]
+    const SEQUENCE: [u8; 32] = [
+        15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+    ];
+
+    #[inline]
+    fn output(&mut self) -> u8 {
+        // https://www.nesdev.org/wiki/APU_Triangle
+        //
+        // Unlike the pulse channels, the triangle channel supports frequencies up to the
+        // maximum frequency the timer will allow, meaning frequencies up to fCPU/32
+        // (about 55.9 kHz for NTSC) are possible - far above the audible range.
+        // Some games, e.g. Mega Man 2, "silence" the triangle channel by setting the timer
+        // to zero, which produces a popping sound when an audible frequency is resumed,
+        // easily heard e.g. in Crash Man's stage.
+
+        // Write a period value of 0 or 1 to $400A/$400B, causing a very high frequency.
+        // Due to the averaging effect of the lowpass filter, the resulting value is halfway between 7 and 8.
+        // This sudden jump to "7.5" causes a harder popping noise than other triangle silencing methods,
+        // which will instead halt it in whatever its current output position is.
+        // Mega Man 1 and 2 use this technique.
+        if self.timer_reload < 2 {
+            return 7;
+        }
+
+        // Silencing the triangle channel merely halts it.
+        // It will continue to output its last value, rather than 0.
+        Self::SEQUENCE[self.sequence_step as usize]
     }
 }
 
-//static PERIOD_NOISE: [u16; 0x10] = [
-//    4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068,
-//];
-
-//$400C   --LC NNNN   Loop envelope/disable length counter, constant volume, envelope period/volume
-//$400E   L--- PPPP   Loop noise, noise period
-//$400F   LLLL L---   Length counter load (also starts envelope)
 #[derive(Decode, Encode)]
 struct Noise {
-    constant_volume: bool,
-    volume: u8,
+    /// Some call this the mode flag
+    timer_period_reload: u16,
+    timer_period: u16,
 
-    loop_noise: bool,
-    noise_period: u8,
+    shift_feedback_mode: bool,
+    shift_reg: u16,
 
+    envelope: Envelope,
     length_counter: LengthCounter,
 }
 
 impl Noise {
     fn new() -> Noise {
         Noise {
-            constant_volume: false,
-            volume: 0,
+            shift_feedback_mode: false,
+            timer_period_reload: 0,
+            timer_period: 0,
 
-            loop_noise: false,
-            noise_period: 0,
+            shift_reg: 1,
 
+            envelope: Envelope::new(),
             length_counter: LengthCounter::new(),
         }
     }
 
+    // $400C --LC NNNN Length counter halt, constant volume/envelope flag, and volume/envelope divider period (write)
     #[inline]
     fn set_lcn(&mut self, val: u8) {
-        self.length_counter.enabled = (val & 0x20) == 0;
-        self.constant_volume = (val & 0x10) != 0;
-        self.volume = val & 0xF;
+        self.length_counter.halt = (val & 0x20) != 0;
+        self.envelope.constant_volume = (val & 0x10) != 0;
+        self.envelope.period = val & 0xF;
     }
 
+    const PERIOD_NOISE: [u16; 0x10] = [
+        4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068,
+    ];
+
+    // $400E L--- PPPP   Mode flag, noise period
     #[inline]
     fn set_lp(&mut self, val: u8) {
-        self.loop_noise = (val & 0x80) != 0;
-        self.noise_period = val & 0xF;
+        self.shift_feedback_mode = (val & 0x80) != 0;
+        // TODO: according to MESEN this should be minus one ?
+        self.timer_period_reload = Self::PERIOD_NOISE[(val & 0xF) as usize] - 1;
     }
 
+    // $400F LLLL L---   Length counter load (also restarts envelope)
     #[inline]
     fn set_l(&mut self, val: u8) {
+        self.envelope.start = true;
         self.length_counter.load((val & 0xF8) >> 3);
+    }
+
+    fn clock(&mut self) {
+        if self.timer_period == 0 {
+            self.timer_period = self.timer_period_reload;
+
+            /* When the timer clocks the shift register, the following actions occur in order:
+
+            Feedback is calculated as the exclusive-OR of bit 0 and one other bit: bit 6 if Mode flag is set,
+            otherwise bit 1. The shift register is shifted right by one bit.
+            Bit 14, the leftmost bit, is set to the feedback calculated earlier. */
+
+            let feedback = if self.shift_feedback_mode {
+                (self.shift_reg & 1) ^ ((self.shift_reg >> 6) & 1)
+            } else {
+                (self.shift_reg & 1) ^ ((self.shift_reg >> 1) & 1)
+            };
+
+            self.shift_reg >>= 1;
+            self.shift_reg |= feedback << 14;
+        } else {
+            self.timer_period -= 1;
+        }
+    }
+
+    fn output(&mut self) -> u8 {
+        /* The mixer receives the current envelope volume except when
+
+        Bit 0 of the shift register is set, or
+        The length counter is zero */
+
+        if ((self.shift_reg & 1) == 0) && self.length_counter.counter != 0 {
+            self.envelope.get_volume()
+        } else {
+            0
+        }
     }
 }
 
@@ -597,7 +692,8 @@ impl Dmc {
 //If the mode flag is set, then both "quarter frame" and "half frame" signals are also generated
 #[derive(Decode, Encode)]
 struct FrameCounter {
-    mode: bool, //true -5-step, false-4-step
+    /// true -5-step, false-4-step
+    mode: bool,
     odd_cycle: bool,
     irq_inhibit: bool,
 }
@@ -615,18 +711,13 @@ impl FrameCounter {
     /// https://wiki.nesdev.org/w/index.php?title=APU_Frame_Counter
     fn set_mi(&mut self, val: u8, irq_signal: &mut bool) {
         self.mode = val & 0x80 != 0;
-        self.irq_inhibit &= val & 0x40 == 0;
+        self.irq_inhibit = val & 0x40 != 0;
 
         if self.irq_inhibit {
             *irq_signal = false;
         }
     }
 }
-
-static LENGTH_TABLE: [u8; 0x20] = [
-    10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14, 12, 26, 14, 12, 16, 24, 18, 48, 20, 96, 22,
-    192, 24, 72, 26, 16, 28, 32, 30,
-];
 
 #[derive(Decode, Encode)]
 struct LengthCounter {
@@ -646,10 +737,15 @@ impl LengthCounter {
         }
     }
 
+    const LENGTH_TABLE: [u8; 0x20] = [
+        10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14, 12, 26, 14, 12, 16, 24, 18, 48, 20, 96,
+        22, 192, 24, 72, 26, 16, 28, 32, 30,
+    ];
+
     #[inline]
     fn load(&mut self, val: u8) {
         if self.enabled {
-            self.counter = LENGTH_TABLE[val as usize];
+            self.counter = Self::LENGTH_TABLE[val as usize];
         }
     }
 
@@ -673,8 +769,8 @@ struct Sweep<const ADDER: u16> {
 
     period: u16,
     counter: u16,
-
     reload: bool,
+    /// The pulse chanel timer and it's reload value
     timer: u16,
     timer_reload: u16,
 }
@@ -688,8 +784,8 @@ impl<const ADDER: u16> Sweep<ADDER> {
 
             period: 0,
             counter: 0,
-
             reload: false,
+
             timer: 0,
             timer_reload: 0,
         }
@@ -801,6 +897,19 @@ impl Envelope {
             self.start = false;
             self.decay_counter = 15;
             self.step = self.period;
+        }
+    }
+
+    #[inline]
+    fn get_volume(&self) -> u8 {
+        /* The envelope unit's volume output depends on the constant volume flag: if set, the
+        envelope parameter directly sets the volume, otherwise the decay level is the current
+        volume. The constant volume flag has no effect besides selecting the volume source;
+        the decay level will still be updated when constant volume is selected. */
+        if self.constant_volume {
+            self.period
+        } else {
+            self.step
         }
     }
 }
