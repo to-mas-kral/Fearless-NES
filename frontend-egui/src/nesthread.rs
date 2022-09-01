@@ -58,7 +58,11 @@ pub fn run_nes_thread(nes: Arc<Mutex<Nes>>, channel: Receiver<NesMsg>) -> JoinHa
                     let len = audio_recv.len();
 
                     if len < requested {
-                        eprintln!("Audio: not enough samples");
+                        // INVESTIGATE: is underrun necessarily a problem here ?
+                        /* eprintln!(
+                            "Audio: not enough samples. Requestred: {}, got: {}",
+                            requested, len
+                        ); */
                     }
 
                     let sample_iter = audio_recv.try_iter().take(requested);
@@ -80,8 +84,14 @@ pub fn run_nes_thread(nes: Arc<Mutex<Nes>>, channel: Receiver<NesMsg>) -> JoinHa
             for msg in channel.try_iter() {
                 match msg {
                     NesMsg::Exit => return,
-                    NesMsg::Pause => state.paused = true,
-                    NesMsg::Unpause => state.paused = false,
+                    NesMsg::Pause => {
+                        state.paused = true;
+                        stream.pause().unwrap();
+                    }
+                    NesMsg::Unpause => {
+                        state.paused = false;
+                        stream.play().unwrap();
+                    }
                 }
             }
 

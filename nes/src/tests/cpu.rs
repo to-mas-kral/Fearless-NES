@@ -26,34 +26,11 @@ fn cpu_timing_test6() {
 }
 
 #[test]
-fn blargg_instr_misc_abs_x_wrap() {
+fn blargg_instr_misc_all() {
     blargg_test(
-        "cpu/instr_misc/rom_singles/01-abs_x_wrap.nes",
-        "\n01-abs_x_wrap\n\nPassed\n",
+        "cpu/instr_misc/instr_misc.nes",
+        "\n04-dummy_reads_apu\n\nPassed\nAll 4 tests passed\n\n\n",
     );
-}
-
-#[test]
-fn blargg_instr_misc_branch_wrap() {
-    blargg_test(
-        "cpu/instr_misc/rom_singles/02-branch_wrap.nes",
-        "\n02-branch_wrap\n\nPassed\n",
-    );
-}
-
-#[test]
-fn blargg_instr_misc_dummy_reads() {
-    blargg_test(
-        "cpu/instr_misc/rom_singles/03-dummy_reads.nes",
-        "\n03-dummy_reads\n\nPassed\n",
-    );
-}
-
-//TODO: get this APU test working and group
-#[test]
-#[ignore = "apu dummy reads not implemented yet"]
-fn blargg_instr_misc_dummy_reads_apu() {
-    blargg_test("cpu/instr_misc/rom_singles/04-dummy_reads_apu.nes", " ");
 }
 
 #[test]

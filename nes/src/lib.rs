@@ -133,7 +133,7 @@ impl Nes {
     }
 
     pub fn apu_samples(&mut self) -> &mut Vec<f32> {
-        &mut self.apu.samples
+        &mut self.apu.sampler.samples
     }
 }
 

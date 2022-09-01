@@ -16,7 +16,7 @@ Fearless-NES is a work-in-progress Nintendo entertainment system emulator writte
 # Features
 - Cycle-accurate CPU emulation
 - Very accurate PPU emulation
-- Basic APU emulation
+- Good APU emulation
 - Basic mapper support
 - Basic GUI
 - Save states

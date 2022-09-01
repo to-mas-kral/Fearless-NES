@@ -4,8 +4,8 @@ use siphasher::sip::SipHasher13;
 
 use super::Nes;
 
+mod apu;
 mod cpu;
-
 #[cfg(feature = "integration_tests")]
 mod integration;
 mod ppu;

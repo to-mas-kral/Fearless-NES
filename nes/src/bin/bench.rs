@@ -55,15 +55,15 @@ fn game_bench(rom_path: &str, inputs_path: &str) {
 }
 
 fn main() {
-    std::thread::spawn(|| game_bench("Super Mario Bros..nes", "SMB.fnesinputs"));
+    game_bench("Super Mario Bros..nes", "SMB.fnesinputs");
 
-    std::thread::spawn(|| game_bench("Mega Man II.nes", "Mega Man II.fnesinputs"));
+    game_bench("Mega Man II.nes", "Mega Man II.fnesinputs");
 
-    std::thread::spawn(|| game_bench("Castlevania.nes", "Castlevania.fnesinputs"));
+    game_bench("Castlevania.nes", "Castlevania.fnesinputs");
 
-    std::thread::spawn(|| game_bench("Solomon's Key.nes", "Solomon's Key.fnesinputs"));
+    game_bench("Solomon's Key.nes", "Solomon's Key.fnesinputs");
 
-    std::thread::spawn(|| game_bench("Adventure Island II.nes", "Adventure Island II.fnesinputs"));
+    game_bench("Adventure Island II.nes", "Adventure Island II.fnesinputs");
 
-    std::thread::spawn(|| game_bench("Battletoads.nes", "Battletoads.fnesinputs"));
+    game_bench("Battletoads.nes", "Battletoads.fnesinputs");
 }

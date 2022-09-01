@@ -2,7 +2,7 @@
 - [x] blargg_instr
 - [x] cpu_timing_test6
 - [x] instr_timing
-- [ ] instr_misc - all working, but APU test
+- [x] instr_misc
 - [x] nestest
 - [x] branch_timing_tests
 - [x] cpu_dummy_reads

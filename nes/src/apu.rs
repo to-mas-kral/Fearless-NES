@@ -2,8 +2,6 @@ use bincode::{Decode, Encode};
 
 use super::Nes;
 
-static SAMPLE_FREQ: u32 = 40;
-
 const PULSE_TABLE_SIZE: usize = 31;
 const TND_TABLE_SIZE: usize = 203;
 
@@ -23,9 +21,7 @@ pub struct Apu {
     pulse_table: [f32; PULSE_TABLE_SIZE],
     tnd_table: [f32; TND_TABLE_SIZE],
 
-    sample_counter: u32,
-    sample_sum: f32,
-    pub samples: Vec<f32>,
+    pub sampler: Sampler,
 }
 
 impl Apu {
@@ -42,8 +38,6 @@ impl Apu {
 
         Apu {
             cycles: 0,
-            sample_counter: 0,
-            sample_sum: 0.,
 
             pulse_1: Pulse::new(),
             pulse_2: Pulse::new(),
@@ -55,7 +49,7 @@ impl Apu {
             pulse_table,
             tnd_table,
 
-            samples: Vec::new(),
+            sampler: Sampler::new(),
         }
     }
 
@@ -121,7 +115,15 @@ impl Nes {
 
         self.apu.triangle.clock();
         self.apu.noise.clock();
-        self.apu.dmc.clock();
+
+        let should_fetch = self.apu.dmc.clock();
+        if should_fetch {
+            let addr = match self.apu.dmc.current_address {
+                0x8000 => 0xFFFF,
+                a => a - 1,
+            };
+            self.apu.dmc.sample_buffer = self.cpu_read(addr as usize);
+        }
 
         self.apu.cycles = self.apu.cycles.wrapping_add(1);
 
@@ -163,7 +165,7 @@ impl Nes {
                 }
                 29828 => {
                     if !self.apu.frame_counter.irq_inhibit {
-                        self.cpu.irq_signal = true;
+                        self.apu.frame_counter.interrupt_flag = true;
                     }
                 }
                 29829 => {
@@ -171,12 +173,12 @@ impl Nes {
                     self.apu.half_frame_clock();
 
                     if !self.apu.frame_counter.irq_inhibit {
-                        self.cpu.irq_signal = true;
+                        self.apu.frame_counter.interrupt_flag = true;
                     }
                 }
                 29830 => {
                     if !self.apu.frame_counter.irq_inhibit {
-                        self.cpu.irq_signal = true;
+                        self.apu.frame_counter.interrupt_flag = true;
                     }
 
                     self.apu.cycles = 0;
@@ -185,18 +187,10 @@ impl Nes {
             }
         }
 
-        // TODO: low / high pass filters, resampling to the target frequency
-        self.apu.sample_counter += 1;
-        let output = self.apu.mix_channels();
-        self.apu.sample_sum += output;
+        self.cpu.irq_signal = self.apu.frame_counter.interrupt_flag || self.apu.dmc.interrupt_flag;
 
-        if self.apu.sample_counter == SAMPLE_FREQ {
-            self.apu
-                .samples
-                .push(self.apu.sample_sum / SAMPLE_FREQ as f32);
-            self.apu.sample_counter = 0;
-            self.apu.sample_sum = 0.;
-        }
+        let output = self.apu.mix_channels();
+        self.apu.sampler.sample(output);
     }
 
     /// <https://wiki.nesdev.org/w/index.php?title=APU_registers>
@@ -234,16 +228,28 @@ impl Nes {
                 }
 
                 self.apu.cycles = 0;
-                self.apu.frame_counter.set_mi(val, &mut self.cpu.irq_signal)
+                self.apu.frame_counter.set_mi(val)
             }
             _ => (),
         }
     }
 
     /// <https://wiki.nesdev.org/w/index.php?title=APU#Status_.28.244015.29>
+    /*
+    $4015 IF-D NT21    DMC interrupt (I), frame interrupt (F), DMC active (D), length counter > 0 (N/T/2/1)
+
+    N/T/2/1 will read as 1 if the corresponding length counter is greater than 0.
+    For the triangle channel, the status of the linear counter is irrelevant.
+
+    D will read as 1 if the DMC bytes remaining is more than 0.
+
+    Reading this register clears the frame interrupt flag (but not the DMC interrupt flag).
+    If an interrupt flag was set at the same moment of the read, it will read back as 1 but it will not be cleared.
+    */
     #[inline]
     pub(crate) fn apu_read_status(&mut self) -> u8 {
         let mut result = 0;
+
         if self.apu.pulse_1.length_counter.counter > 0 {
             result |= 1;
         }
@@ -260,40 +266,52 @@ impl Nes {
             result |= 8;
         }
 
-        //TODO: set DMC active bit
+        if self.apu.dmc.remaining_bytes > 0 {
+            result |= 0x10;
+        }
 
-        if self.apu.frame_counter.irq_inhibit {
+        if self.apu.frame_counter.interrupt_flag {
             result |= 0x40;
         }
 
-        if self.apu.dmc.irq_enable {
+        if self.apu.dmc.interrupt_flag {
             result |= 0x80;
         }
 
-        self.apu.frame_counter.irq_inhibit = false;
-        self.cpu.irq_signal = false;
+        self.apu.frame_counter.interrupt_flag = false;
 
         result
     }
 
     /*
     $4015 write ---D NT21   Enable DMC (D), noise (N), triangle (T), and pulse channels (2/1)
-    Writing a zero to any of the channel enable bits will silence that channel and immediately set its length counter to 0.
-    If the DMC bit is clear, the DMC bytes remaining will be set to 0 and the DMC will silence when it empties.
-    If the DMC bit is set, the DMC sample will be restarted only if its bytes remaining is 0. If there are bits remaining in the 1-byte sample buffer, these will finish playing before the next sample is fetched.
+
+    Writing a zero to any of the channel enable bits will silence that channel and immediately
+    set its length counter to 0.
+
+    If the DMC bit is clear, the DMC bytes remaining will be set to 0 and the DMC will silence
+    when it empties.
+
+    If the DMC bit is set, the DMC sample will be restarted only if its bytes remaining is 0.
+    If there are bits remaining in the 1-byte sample buffer, these will finish playing before
+    the next sample is fetched.
+
     Writing to this register clears the DMC interrupt flag.
     */
     #[inline]
     fn apu_write_status(&mut self, val: u8) {
-        self.apu.dmc.irq_enable = false;
-
-        let _d = val & 0x10 != 0;
+        let d = val & 0x10 != 0;
         let n = val & 8 != 0;
         let t = val & 4 != 0;
         let p_2 = val & 2 != 0;
         let p_1 = val & 1 != 0;
 
-        //TODO: manage DMC
+        self.apu.dmc.interrupt_flag = false;
+        if !d {
+            self.apu.dmc.remaining_bytes = 0;
+        } else if self.apu.dmc.remaining_bytes == 0 {
+            self.apu.dmc.restart_sample();
+        }
 
         if !n {
             self.apu.noise.length_counter.counter = 0;
@@ -324,7 +342,10 @@ struct FrameCounter {
     mode: bool,
     /// Counts whether the current cycle is an odd or even CPU cycle
     odd_cycle: bool,
+    /// Whether IRQ generation is enabled
     irq_inhibit: bool,
+    /// The current IRQ signal
+    interrupt_flag: bool,
 }
 
 impl FrameCounter {
@@ -333,6 +354,7 @@ impl FrameCounter {
             mode: false,
             odd_cycle: false,
             irq_inhibit: true,
+            interrupt_flag: false,
         }
     }
 
@@ -346,12 +368,12 @@ impl FrameCounter {
     If the mode flag is set, then both "quarter frame" and "half frame" signals are also generated
     */
     #[inline]
-    fn set_mi(&mut self, val: u8, irq_signal: &mut bool) {
+    fn set_mi(&mut self, val: u8) {
         self.mode = val & 0x80 != 0;
         self.irq_inhibit = val & 0x40 != 0;
 
         if self.irq_inhibit {
-            *irq_signal = false;
+            self.interrupt_flag = false;
         }
     }
 }
@@ -732,18 +754,35 @@ impl Noise {
 
 #[derive(Decode, Encode)]
 struct Dmc {
+    /// The current IRQ signal
+    interrupt_flag: bool,
+    /// If IRQ generation is enabled
     irq_enable: bool,
     /// Id the DPCM sample playback should be looped
     loop_enable: bool,
-    playback_rate: u16,
+    /// The reload value of the timer set by register, reloaded when it reaches 0
+    timer_reload: u16,
+    /// Current timer value
+    timer: u16,
 
-    /// Address of the DPCM sample
+    /// Starting address of the DPCM sample
     sample_address: u16,
+    /// Address of the next DPCM sample
+    current_address: u16,
     /// DPCM sample length in bytes
     sample_length: u16,
+    /// How many bytes are remaining in the whole sample sequence
+    remaining_bytes: u16,
 
+    silence_flag: bool,
+    /// Whether the sample buffer contains a new sample
+    sample_buffer_empty: bool,
     /// Holds the current 8 DPCM samples
     sample_buffer: u8,
+    /// Shift register with bits loaded from the sample_buffer
+    shift_reg: u8,
+    /// How many samples are remaining in the sample buffer
+    remaining_bits: u8,
 
     output_level: u8,
 }
@@ -751,14 +790,23 @@ struct Dmc {
 impl Dmc {
     fn new() -> Dmc {
         Dmc {
+            interrupt_flag: false,
             irq_enable: false,
             loop_enable: false,
-            playback_rate: 0,
+            timer_reload: 0,
+            timer: 0,
 
             sample_address: 0,
             sample_length: 0,
 
+            // INVESTIGATE: silence flag reset value
+            silence_flag: true,
+            sample_buffer_empty: true,
             sample_buffer: 0,
+            shift_reg: 0,
+            remaining_bits: 8,
+            remaining_bytes: 0,
+            current_address: 0,
 
             output_level: 0,
         }
@@ -770,12 +818,18 @@ impl Dmc {
 
     /*
     $4010 IL-- FFFF    IRQ enable, loop sample, frequency index
+
+    IRQ enabled flag. If clear, the interrupt flag is cleared.
     */
     #[inline]
     fn set_ilf(&mut self, val: u8) {
         self.irq_enable = (val & 0x80) != 0;
+        if !self.irq_enable {
+            self.interrupt_flag = false;
+        }
+
         self.loop_enable = (val & 0x40) != 0;
-        self.playback_rate = Self::FREQ_TABLE[(val & 0xF) as usize];
+        self.timer_reload = Self::FREQ_TABLE[(val & 0xF) as usize];
     }
 
     /*
@@ -793,6 +847,7 @@ impl Dmc {
     #[inline]
     fn set_sample_address(&mut self, val: u8) {
         self.sample_address = 0xC000 | (u16::from(val) << 6);
+        self.current_address = self.sample_address;
     }
 
     /*
@@ -801,10 +856,134 @@ impl Dmc {
     #[inline]
     fn set_sample_length(&mut self, val: u8) {
         self.sample_length = 1 | (u16::from(val) << 4);
+        self.remaining_bytes = self.sample_length;
     }
 
     #[inline]
-    fn clock(&mut self) {}
+    fn restart_sample(&mut self) {
+        self.remaining_bytes = self.sample_length;
+        self.current_address = self.sample_address;
+    }
+
+    #[inline]
+    fn clock(&mut self) -> bool {
+        if self.timer == 0 {
+            self.timer = self.timer_reload;
+            self.timer_clock();
+        } else {
+            self.timer -= 1;
+        }
+
+        if self.remaining_bytes > 0 && self.sample_buffer_empty {
+            self.fetch_next_sample();
+            return true;
+        }
+
+        false
+    }
+
+    #[inline]
+    fn fetch_next_sample(&mut self) {
+        /*
+        Any time the sample buffer is in an empty state and bytes remaining is not zero,
+        the following occur:
+
+        The CPU is stalled for up to 4 CPU cycles to allow the longest possible write (the return
+        address and write after an IRQ) to finish. If OAM DMA is in progress, it is paused for two
+        cycles. The sample fetch always occurs on an even CPU cycle due to its alignment with the
+        APU.
+        Specific delay cases:
+            4 cycles if it falls on a CPU read cycle.
+            3 cycles if it falls on a single CPU write cycle (or the second write of a double CPU write).
+            4 cycles if it falls on the first write of a double CPU write cycle.[4]
+            2 cycles if it occurs during an OAM DMA, or on the $4014 write cycle that triggers the OAM DMA.
+            1 cycle if it occurs on the second-last OAM DMA cycle.
+            3 cycles if it occurs on the last OAM DMA cycle.
+
+        The sample buffer is filled with the next sample byte read from the current address,
+        subject to whatever mapping hardware is present.
+
+        The address is incremented; if it exceeds $FFFF, it is wrapped around to $8000.
+
+        The bytes remaining counter is decremented; if it becomes zero and the loop flag is set,
+        the sample is restarted (see above); otherwise, if the bytes remaining counter becomes
+        zero and the IRQ enabled flag is set, the interrupt flag is set.
+        */
+
+        // TODO: HACK - more timings-accurate DMC DMA
+        self.sample_buffer_empty = false;
+
+        // TODO: At any time, if the interrupt flag is set, the CPU's IRQ line is continuously
+        // asserted until the interrupt flag is cleared.
+        // The processor will continue on from where it was stalled.
+
+        if self.current_address == 0xFFFF {
+            self.current_address = 0x8000;
+        } else {
+            self.current_address += 1;
+        }
+
+        self.remaining_bytes -= 1;
+        if self.remaining_bytes == 0 {
+            if self.loop_enable {
+                self.restart_sample()
+            } else if self.irq_enable {
+                self.interrupt_flag = true;
+            }
+        }
+    }
+
+    #[inline]
+    fn timer_clock(&mut self) {
+        /*
+        When the timer outputs a clock, the following actions occur in order:
+
+        If the silence flag is clear, the output level changes based on bit 0 of the shift register.
+        If the bit is 1, add 2; otherwise, subtract 2. But if adding or subtracting 2 would cause
+        the output level to leave the 0-127 range, leave the output level unchanged.
+        This means subtract 2 only if the current level is at least 2, or add 2 only if the
+        current level is at most 125.
+
+        The right shift register is clocked.
+        */
+        if !self.silence_flag {
+            let delta = self.shift_reg & 1;
+            self.shift_reg >>= 1;
+
+            if delta == 1 && self.output_level <= 125 {
+                self.output_level += 2;
+            } else if delta == 0 && self.output_level >= 2 {
+                self.output_level -= 2
+            };
+        }
+
+        /*
+        The bits-remaining counter is updated whenever the timer outputs a clock, regardless of
+        whether a sample is currently playing. When this counter reaches zero, we say that the
+        output cycle ends. The DPCM unit can only transition from silent to playing at the end
+        of an output cycle.
+        */
+        self.remaining_bits -= 1;
+        if self.remaining_bits == 0 {
+            /*
+            When an output cycle ends, a new cycle is started as follows:
+
+            The bits-remaining counter is loaded with 8.
+
+            If the sample buffer is empty, then the silence flag is set; otherwise, the silence
+            flag is cleared and the sample buffer is emptied into the shift register.
+            */
+            self.remaining_bits = 8;
+
+            if self.sample_buffer_empty == true {
+                self.silence_flag = true;
+            } else {
+                self.silence_flag = false;
+                self.sample_buffer_empty = true;
+                self.shift_reg = self.sample_buffer;
+            }
+        }
+    }
 
     #[inline]
     fn output(&self) -> u8 {
@@ -1032,6 +1211,74 @@ impl Envelope {
             self.period_reload
         } else {
             self.decay_counter
+        }
+    }
+}
+
+#[derive(Decode, Encode)]
+pub struct Sampler {
+    sample_count_40: u32,
+    sample_count_41: u32,
+    sample_sum: f32,
+    current_sample_counter: u8,
+    avg_samples: u8,
+    pub samples: Vec<f32>,
+}
+
+impl Sampler {
+    pub fn new() -> Self {
+        Self {
+            sample_count_40: 0,
+            sample_count_41: 0,
+            sample_sum: 0.,
+            current_sample_counter: 0,
+            avg_samples: 41,
+            samples: Vec::with_capacity(32),
+        }
+    }
+
+    pub fn sample(&mut self, sample: f32) {
+        // TODO: low / high pass filters, resampling to the target frequency
+        self.current_sample_counter += 1;
+        self.sample_sum += sample;
+
+        if self.current_sample_counter == self.avg_samples {
+            self.samples.push(self.sample_sum / self.avg_samples as f32);
+            self.current_sample_counter = 0;
+            self.sample_sum = 0.;
+
+            if self.avg_samples == 40 {
+                self.sample_count_40 += 1;
+            } else if self.avg_samples == 41 {
+                self.sample_count_41 += 1;
+            }
+
+            self.recalc_avg_samles();
+        }
+    }
+
+    // Readjust avg_samples to 40 or 41
+
+    // 40.5844217687 = NES APU freq / 44.1KHz
+    // It is possible to achieve this ratio with a combination of 40 and 41 averages
+    fn recalc_avg_samles(&mut self) {
+        // ((40x + 41y) / (x + y)) = 40.5844217687
+        // x = 3777112 n, y = 5311699 n
+        // 3_777_112 times 40-sample_freq, 5_311_699 times 41-sample_freq
+
+        let ratio = ((self.sample_count_40 as f64 * 40.) + (self.sample_count_41 as f64 * 41.))
+            / (self.sample_count_40 + self.sample_count_41) as f64;
+
+        if ratio < 40.5844217687f64 {
+            self.avg_samples = 41;
+        } else {
+            self.avg_samples = 40;
+        }
+
+        if self.sample_count_40 == 3_777_112 || self.sample_count_41 == 5_311_699 {
+            self.sample_count_40 = 0;
+            self.sample_count_41 = 0;
+            self.avg_samples = 41;
         }
     }
 }
