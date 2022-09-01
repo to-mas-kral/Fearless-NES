@@ -51,7 +51,7 @@ With these mappers, Fearless-NES supports 84 % of commercial NES games.
 - [ ] (frontend) NTSC filter
 
 - [ ] (core) iNES 2.0 support
-- [ ] (core) APU - triangle, noise and DMC channel, filters, better frontend
+- [ ] (core) APU - low / high pass filters and better resampling to match typical sound card frequency
 - [ ] (core) advanced mappers such as MMC5, VRC2/4...
 - [ ] (core) various accuracy tests
 
