@@ -11,7 +11,7 @@ mod replay;
 #[cfg(test)]
 mod tests;
 
-use apu::{Apu/* , ApuChannelsOut */};
+use apu::Apu;
 use cartridge::{ConsoleType, Region};
 use controller::Controller;
 use cpu::Cpu;
@@ -138,7 +138,7 @@ impl Nes {
 }
 
 impl Nes {
-    fn clock_ppu_apu(&mut self) {
+    fn clock_components(&mut self) {
         self.cpu.odd_cycle = !self.cpu.odd_cycle;
         self.cycle_count += 1;
         if self.cycle_count == 29658 {
@@ -150,6 +150,8 @@ impl Nes {
         }
 
         self.apu_tick();
+
+        self.mapper.clock(&mut self.cpu.irq_signal);
     }
 }
 

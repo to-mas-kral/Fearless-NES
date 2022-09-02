@@ -7,6 +7,7 @@ mod _1_mmc1;
 mod _2_uxrom;
 mod _3_cnrom;
 mod _4_mmc3;
+mod _69_fme_7;
 mod _7_axrom;
 
 use _0_nrom::_0Nrom;
@@ -14,6 +15,7 @@ use _1_mmc1::_1Mmc1;
 use _2_uxrom::_2Uxrom;
 use _3_cnrom::_3Cnrom;
 use _4_mmc3::_4Mmc3;
+use _69_fme_7::_69Fme7;
 use _7_axrom::_7Axrom;
 
 const NT_RAM_SIZE: usize = 0x1000;
@@ -35,6 +37,7 @@ impl BaseMapper {
             3 => MapperChip::_3Cnrom(_3Cnrom::new(&cartridge)),
             4 => MapperChip::_4Mmc3(_4Mmc3::new(&cartridge)),
             7 => MapperChip::_7Axrom(_7Axrom::new(&cartridge)),
+            69 => MapperChip::_69Fme7(_69Fme7::new(&cartridge)),
             mapper_id => return Err(NesError::UnSupportedMapper(mapper_id)),
         };
 
@@ -55,6 +58,7 @@ impl BaseMapper {
             MapperChip::_3Cnrom(cnrom) => cnrom.cpu_read(&self.cartridge, addr),
             MapperChip::_4Mmc3(mmc3) => mmc3.cpu_read(&self.cartridge, addr),
             MapperChip::_7Axrom(axrom) => axrom.cpu_read(&self.cartridge, addr),
+            MapperChip::_69Fme7(fme_7) => fme_7.cpu_read(&self.cartridge, addr),
         }
     }
 
@@ -67,6 +71,7 @@ impl BaseMapper {
             MapperChip::_3Cnrom(cnrom) => cnrom.cpu_write(addr, val),
             MapperChip::_4Mmc3(mmc3) => mmc3.cpu_write(&mut self.cartridge, addr, val, cpu_irq),
             MapperChip::_7Axrom(axrom) => axrom.cpu_write(addr, val),
+            MapperChip::_69Fme7(fme_7) => fme_7.cpu_write(&mut self.cartridge, addr, val),
         }
     }
 
@@ -79,6 +84,7 @@ impl BaseMapper {
             MapperChip::_3Cnrom(cnrom) => cnrom.read_chr(&self.cartridge, addr),
             MapperChip::_4Mmc3(mmc3) => mmc3.read_chr(&self.cartridge, addr),
             MapperChip::_7Axrom(axrom) => axrom.read_chr(&self.cartridge, addr),
+            MapperChip::_69Fme7(fme_7) => fme_7.read_chr(&self.cartridge, addr),
         }
     }
 
@@ -91,9 +97,11 @@ impl BaseMapper {
             MapperChip::_3Cnrom(cnrom) => cnrom.write_chr(&mut self.cartridge, addr, val),
             MapperChip::_4Mmc3(mmc3) => mmc3.write_chr(&mut self.cartridge, addr, val),
             MapperChip::_7Axrom(axrom) => axrom.write_chr(&mut self.cartridge, addr, val),
+            MapperChip::_69Fme7(fme_7) => fme_7.write_chr(&mut self.cartridge, addr, val),
         }
     }
 
+    // Some mappers have custom nametable memory...
     #[inline]
     pub fn read_nametable(&self, addr: usize) -> u8 {
         self.nt_ram[addr]
@@ -113,6 +121,7 @@ impl BaseMapper {
             MapperChip::_1Mmc1(mmc1) => mmc1.mirroring(),
             MapperChip::_4Mmc3(mmc3) => mmc3.mirroring(),
             MapperChip::_7Axrom(axrom) => axrom.mirroring(),
+            MapperChip::_69Fme7(fme_7) => fme_7.mirroring(),
         }
     }
 
@@ -125,8 +134,17 @@ impl BaseMapper {
             | MapperChip::_1Mmc1(_)
             | MapperChip::_2Uxrom(_)
             | MapperChip::_3Cnrom(_)
-            | MapperChip::_7Axrom(_) => (),
+            | MapperChip::_7Axrom(_)
+            | MapperChip::_69Fme7(_) => (),
             MapperChip::_4Mmc3(mmc3) => mmc3.notify_a12(a12, ppu_cycle, cpu_irq),
+        }
+    }
+
+    #[inline]
+    pub fn clock(&mut self, cpu_irq: &mut bool) {
+        match &mut self.chip {
+            MapperChip::_69Fme7(fme_7) => fme_7.clock(cpu_irq),
+            _ => (),
         }
     }
 }
@@ -139,4 +157,5 @@ pub enum MapperChip {
     _3Cnrom(_3Cnrom),
     _4Mmc3(_4Mmc3),
     _7Axrom(_7Axrom),
+    _69Fme7(_69Fme7),
 }

@@ -32,9 +32,7 @@ impl _0Nrom {
     }
 
     pub fn write_chr(&mut self, cartridge: &mut Cartridge, addr: usize, val: u8) {
-        if cartridge.has_chr_ram() {
-            cartridge.write_chr(addr, val);
-        }
+        cartridge.write_chr(addr, val);
     }
 
     pub fn read_chr(&self, cartridge: &Cartridge, addr: usize) -> u8 {

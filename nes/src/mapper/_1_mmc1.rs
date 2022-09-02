@@ -10,6 +10,7 @@ pub struct _1Mmc1 {
     shift: u8,
     prg_mode: u8,
     chr_mask: u8,
+    /// See set_chr_0
     chr_mode: u8,
     enable_ram: bool,
     ignore_write_cycle: u64,
@@ -51,7 +52,7 @@ impl _1Mmc1 {
             prg_1: Cartridge::map_bank(prg_banks - 1, BankSize::Kb16),
 
             chr_0: 0,
-            chr_1: 0,
+            chr_1: 0x1000,
         }
     }
 
@@ -192,6 +193,7 @@ impl _1Mmc1 {
     +++++- Select 4 KB CHR bank at PPU $1000 (ignored in 8 KB mode) */
     #[inline]
     fn select_chr_1(&mut self, val: u8) {
+        // INVESTIGATE: not sure if should mask addr here, docs are vague...
         if self.chr_mode == 1 {
             self.chr_1 = Cartridge::map_bank(val & self.chr_mask, BankSize::Kb4);
         }
@@ -200,7 +202,7 @@ impl _1Mmc1 {
     pub fn read_chr(&self, cartridge: &Cartridge, addr: usize) -> u8 {
         match addr {
             0..=0xFFF => cartridge.read_chr(self.chr_0 + addr),
-            0x1000..=0x1FFF => cartridge.read_chr(self.chr_1 + (addr & 0xFFF)),
+            0x1000..=0x1FFF => cartridge.read_chr(self.chr_1 + (addr - 0x1000)),
             _ => unreachable!(),
         }
     }
@@ -209,7 +211,7 @@ impl _1Mmc1 {
         match addr {
             0..=0xFFF => cartridge.write_chr(self.chr_0 + addr, val),
             0x1000..=0x1FFF => {
-                cartridge.write_chr(self.chr_1 + (addr & 0xFFF), val);
+                cartridge.write_chr(self.chr_1 + (addr - 0x1000), val);
             }
             _ => unreachable!(),
         }

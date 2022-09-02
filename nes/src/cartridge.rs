@@ -71,9 +71,13 @@ impl Cartridge {
         })
     }
 
-    /// Banks are indexed from 0
+    // Banks are indexed from 0
     pub(crate) fn map_bank(bank: u8, bank_size: BankSize) -> usize {
         bank as usize * bank_size as usize
+    }
+
+    pub(crate) fn map_bank_prg_wrap(&self, bank: u8, bank_size: BankSize) -> usize {
+        (bank as usize % self.prg_rom_count(bank_size) as usize) * bank_size as usize
     }
 
     #[inline]
@@ -100,7 +104,10 @@ impl Cartridge {
 
     #[inline]
     pub(crate) fn write_chr(&mut self, addr: usize, val: u8) {
-        self.chr[addr] = val
+        // TODO: might be a problem on cartridges with both CHR ROM and RAM
+        if self.has_chr_ram() {
+            self.chr[addr] = val
+        }
     }
 
     #[inline]

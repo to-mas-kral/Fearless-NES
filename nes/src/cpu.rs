@@ -177,7 +177,7 @@ impl Nes {
         if let DmaHijack::Hijacked = self.cpu.hijack_read {
             self.cpu.hijack_read = DmaHijack::None;
             self.cpu.dma_cycles = 1;
-            self.clock_ppu_apu();
+            self.clock_components();
         }
 
         if self.cpu.dma_cycles == 1 && self.cpu.odd_cycle {
@@ -196,7 +196,7 @@ impl Nes {
                 self.cpu.dma_cycles = 0;
 
                 self.load_next_instruction();
-                self.clock_ppu_apu();
+                self.clock_components();
             }
         }
     }
@@ -238,7 +238,7 @@ impl Nes {
     pub(crate) fn cpu_tick(&mut self) {
         self.dma();
         if self.cpu.dma_cycles != 0 {
-            self.clock_ppu_apu();
+            self.clock_components();
             return;
         }
 
@@ -502,7 +502,7 @@ impl Nes {
         };
 
         self.load_next_instruction();
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 }
 
@@ -515,7 +515,7 @@ impl Nes {
         last_cycle!(self);
         op_instruction(self);
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -527,7 +527,7 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -536,7 +536,7 @@ impl Nes {
         last_cycle!(self);
         op_instruction(self);
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -546,14 +546,14 @@ impl Nes {
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         last_cycle!(self);
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -563,20 +563,20 @@ impl Nes {
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         penultimate_cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.x as u16) & 0xFF;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         last_cycle!(self);
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -586,20 +586,20 @@ impl Nes {
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         penultimate_cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.y as u16) & 0xFF;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         last_cycle!(self);
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -609,14 +609,14 @@ impl Nes {
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         self.check_interrupts();
         op_instruction(self);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -626,20 +626,20 @@ impl Nes {
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         penultimate_cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.x as u16) & 0xFF;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         self.check_interrupts();
         op_instruction(self);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -649,20 +649,20 @@ impl Nes {
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         penultimate_cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.y as u16) & 0xFF;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         self.check_interrupts();
         op_instruction(self);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -672,27 +672,27 @@ impl Nes {
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         self.cache_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.temp as u8);
         op_instruction(self, self.cpu.temp as u8);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         self.check_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.temp as u8);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -702,33 +702,33 @@ impl Nes {
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.x as u16) & 0xFF;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         self.cache_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.temp as u8);
         op_instruction(self, self.cpu.temp as u8);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 4
         self.check_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.temp as u8);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -740,7 +740,7 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         if !branch {
             return;
@@ -753,7 +753,7 @@ impl Nes {
         self.take_branch();
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         if self.cpu.temp == 0 {
             return;
@@ -764,7 +764,7 @@ impl Nes {
 
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -775,21 +775,21 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         penultimate_cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         last_cycle!(self);
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -800,14 +800,14 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         last_cycle!(self);
         self.cpu.pc = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -818,34 +818,34 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         self.cache_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.temp as u8);
         op_instruction(self, self.cpu.temp as u8);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 4
         self.check_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.temp as u8);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -856,7 +856,7 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         penultimate_cycle!(self);
@@ -864,14 +864,14 @@ impl Nes {
             ((self.cpu.db as u16) << 8) | ((self.cpu.temp as u16 + self.cpu.x as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         if (self.cpu.temp + self.cpu.x as u16) >= 0x100 {
             // Cycle extra if page boundary was crossed
             penultimate_cycle!(self);
             self.cpu.ab = (self.cpu.ab).wrapping_add(0x100);
 
-            self.clock_ppu_apu();
+            self.clock_components();
         }
 
         // Cycle 2
@@ -879,7 +879,7 @@ impl Nes {
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -890,7 +890,7 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         penultimate_cycle!(self);
@@ -898,14 +898,14 @@ impl Nes {
             ((self.cpu.db as u16) << 8) | ((self.cpu.temp as u16 + self.cpu.y as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         if (self.cpu.temp as u16 + self.cpu.y as u16) >= 0x100 {
             // Cycle extra if page boundary was crossed
             penultimate_cycle!(self);
             self.cpu.ab = (self.cpu.ab).wrapping_add(0x100);
 
-            self.clock_ppu_apu();
+            self.clock_components();
         }
 
         // Cycle 2
@@ -913,7 +913,7 @@ impl Nes {
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -924,14 +924,14 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.x as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         penultimate_cycle!(self);
@@ -939,14 +939,14 @@ impl Nes {
             self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100);
         };
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         self.check_interrupts();
         op_instruction(self);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -957,14 +957,14 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         penultimate_cycle!(self);
@@ -972,14 +972,14 @@ impl Nes {
             self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100);
         };
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         self.check_interrupts();
         op_instruction(self);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -990,14 +990,14 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         cycle!(self);
@@ -1005,27 +1005,27 @@ impl Nes {
             self.cpu.ab = (self.cpu.ab).wrapping_add(0x100);
         };
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 4
         self.cache_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.temp as u8);
         op_instruction(self, self.cpu.temp as u8);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 5
         self.check_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.temp as u8);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1036,27 +1036,27 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         penultimate_cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab = (self.cpu.ab & 0xFF00) | ((self.cpu.ab + 1) & 0xFF);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         last_cycle!(self);
         self.cpu.pc = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1066,33 +1066,33 @@ impl Nes {
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.x as u16) & 0xFF;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab = (self.cpu.ab + 1) & 0xFF;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         penultimate_cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 4
         last_cycle!(self);
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1102,33 +1102,33 @@ impl Nes {
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.x as u16) & 0xFF;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab = (self.cpu.ab + 1) & 0xFF;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         penultimate_cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 4
         self.check_interrupts();
         op_instruction(self);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1138,46 +1138,46 @@ impl Nes {
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.ab = (self.cpu.ab + self.cpu.x as u16) & 0xFF;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab = (self.cpu.ab + 1) & 0xFF;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 4
         cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 5
         self.cache_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.temp as u8);
         op_instruction(self, self.cpu.temp as u8);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 6
         self.check_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.temp as u8);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1187,27 +1187,27 @@ impl Nes {
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         //Cycle 1
         cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab = (self.cpu.ab + 1u16) & 0xFF;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         //Cycle 2
         penultimate_cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         if (self.cpu.temp + self.cpu.y as u16) >= 0x100 {
             //Cycle extra if page boundary was crossed
             penultimate_cycle!(self);
             self.cpu.ab = (self.cpu.ab).wrapping_add(0x100);
 
-            self.clock_ppu_apu();
+            self.clock_components();
         }
 
         //Cycle 4
@@ -1215,7 +1215,7 @@ impl Nes {
         op_instruction(self, self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1225,20 +1225,20 @@ impl Nes {
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab = (self.cpu.ab + 1) & 0xFF;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         cycle!(self);
@@ -1246,27 +1246,27 @@ impl Nes {
             self.cpu.ab = (self.cpu.ab as u16).wrapping_add(0x100);
         };
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 4
         cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 5
         self.cache_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.temp as u8);
         op_instruction(self, self.cpu.temp as u8);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 6
         self.check_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.temp as u8);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1276,20 +1276,20 @@ impl Nes {
         self.cpu.ab = self.cpu.db as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
         self.cpu.ab = (self.cpu.ab + 1) & 0xFF;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.y as u16) & 0xFF);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         penultimate_cycle!(self);
@@ -1297,14 +1297,14 @@ impl Nes {
             self.cpu.ab = (self.cpu.ab).wrapping_add(0x100);
         }
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 4
         self.check_interrupts();
         op_instruction(self);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1315,21 +1315,21 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         penultimate_cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         self.check_interrupts();
         op_instruction(self);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1340,14 +1340,14 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.ab = ((self.cpu.db as u16) << 8) | ((self.cpu.temp + self.cpu.x as u16) & 0xFF);
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         cycle!(self);
@@ -1355,27 +1355,27 @@ impl Nes {
             self.cpu.ab = (self.cpu.ab).wrapping_add(0x100);
         };
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         cycle!(self);
         self.cpu.temp = self.cpu.db as u16;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 4
         self.cache_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.temp as u8);
         op_instruction(self, self.cpu.temp as u8);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 5
         self.check_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.temp as u8);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1386,34 +1386,34 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.sp_to_ab();
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         self.cpu_write(self.cpu.ab as usize, (self.cpu.pc >> 8) as u8);
         self.sp_to_ab();
         self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         self.cache_interrupts();
         self.cpu_write(self.cpu.ab as usize, (self.cpu.pc & 0xFF) as u8);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 4
         last_cycle!(self);
         self.cpu.pc = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1425,7 +1425,7 @@ impl Nes {
         self.sp_to_ab();
         self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         if !(self.cpu.take_interrupt && self.cpu.reset_signal) {
@@ -1434,7 +1434,7 @@ impl Nes {
         self.sp_to_ab();
         self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         if !(self.cpu.take_interrupt && self.cpu.reset_signal) {
@@ -1443,7 +1443,7 @@ impl Nes {
         self.sp_to_ab();
         self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1);
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         if !(self.cpu.take_interrupt && self.cpu.reset_signal) {
@@ -1453,7 +1453,7 @@ impl Nes {
         self.cpu.take_interrupt = false;
         self.cpu.interrupt_type = InterruptType::None;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 4
         cycle!(self);
@@ -1461,14 +1461,14 @@ impl Nes {
         self.cpu.ab += 1;
         self.cpu.i = true;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 5
         cycle!(self);
         self.cpu.pc = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1477,7 +1477,7 @@ impl Nes {
         cycle!(self);
         self.sp_to_ab();
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
@@ -1485,7 +1485,7 @@ impl Nes {
 
         self.sp_to_ab();
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         cycle!(self);
@@ -1494,7 +1494,7 @@ impl Nes {
 
         self.sp_to_ab();
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         penultimate_cycle!(self);
@@ -1503,14 +1503,14 @@ impl Nes {
 
         self.sp_to_ab();
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 4
         last_cycle!(self);
         self.cpu.pc = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1519,14 +1519,14 @@ impl Nes {
         cycle!(self);
         self.sp_to_ab();
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         cycle!(self);
         self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1);
         self.sp_to_ab();
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         cycle!(self);
@@ -1534,14 +1534,14 @@ impl Nes {
         self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1);
         self.sp_to_ab();
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 3
         penultimate_cycle!(self);
         self.cpu.pc = ((self.cpu.db as u16) << 8) | self.cpu.temp as u16;
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 4
 
@@ -1549,7 +1549,7 @@ impl Nes {
         self.cpu.pc = (self.cpu.pc).wrapping_add(1);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1558,14 +1558,14 @@ impl Nes {
         penultimate_cycle!(self);
         self.sp_to_ab();
         self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1);
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         self.check_interrupts();
         self.cpu_write(self.cpu.ab as usize, self.cpu.a);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1574,14 +1574,14 @@ impl Nes {
         penultimate_cycle!(self);
         self.sp_to_ab();
         self.cpu.sp = (self.cpu.sp as u8).wrapping_sub(1);
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         self.check_interrupts();
         self.push_status(true);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1590,21 +1590,21 @@ impl Nes {
         cycle!(self);
         self.sp_to_ab();
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         penultimate_cycle!(self);
         self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1);
         self.sp_to_ab();
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         last_cycle!(self);
         self.lda(self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 
     #[inline]
@@ -1613,21 +1613,21 @@ impl Nes {
         cycle!(self);
         self.sp_to_ab();
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 1
         penultimate_cycle!(self);
         self.cpu.sp = (self.cpu.sp as u8).wrapping_add(1);
         self.sp_to_ab();
 
-        self.clock_ppu_apu();
+        self.clock_components();
 
         // Cycle 2
         last_cycle!(self);
         self.pull_status(self.cpu.db);
         self.cpu.ab = self.cpu.pc;
 
-        self.clock_ppu_apu();
+        self.clock_components();
     }
 }
 

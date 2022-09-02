@@ -187,6 +187,7 @@ impl Nes {
             }
         }
 
+        // FIXME: IRQ signal messes up Kirby MMC3 IRQ timing
         self.cpu.irq_signal = self.apu.frame_counter.interrupt_flag || self.apu.dmc.interrupt_flag;
 
         let output = self.apu.mix_channels();

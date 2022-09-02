@@ -37,8 +37,6 @@ impl _2Uxrom {
     }
 
     pub fn write_chr(&mut self, cartridge: &mut Cartridge, addr: usize, val: u8) {
-        if cartridge.has_chr_ram() {
-            cartridge.write_chr(addr, val);
-        }
+        cartridge.write_chr(addr, val);
     }
 }
