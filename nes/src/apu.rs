@@ -2,6 +2,10 @@ use bincode::{Decode, Encode};
 
 use super::Nes;
 
+mod sample_buffer;
+
+pub use self::sample_buffer::SampleBuffer;
+
 const PULSE_TABLE_SIZE: usize = 31;
 const TND_TABLE_SIZE: usize = 203;
 
@@ -70,7 +74,7 @@ impl Apu {
     // INVESTIGATE: implement using formula (https://www.nesdev.org/wiki/APU_Mixer) instead of lookup table
     // and compare performance and quality
     #[inline]
-    fn mix_channels(&self) -> f32 {
+    fn mix_channels(&mut self) -> f32 {
         /*
         The APU mixer formulas can be efficiently implemented using two lookup tables: a 31-entry table
         for the two pulse channels and a 203-entry table for the remaining channels (due to the approximation
@@ -109,14 +113,15 @@ impl Nes {
         // the pulse channels' timers which are clocked on every APU cycle.
         // Use CPU cycles so I can get "half-APU-cycle" timing correct...
         if self.apu.cycles % 2 == 0 {
-            self.apu.pulse_1.clock();
-            self.apu.pulse_2.clock();
+            self.apu.pulse_1.timer_tick();
+            self.apu.pulse_2.timer_tick();
         }
 
-        self.apu.triangle.clock();
-        self.apu.noise.clock();
+        self.apu.triangle.timer_tick();
+        self.apu.noise.timer_tick();
 
-        let should_fetch = self.apu.dmc.clock();
+        let should_fetch = self.apu.dmc.timer_tick();
+        // TODO: remove HACK
         if should_fetch {
             let addr = match self.apu.dmc.current_address {
                 0x8000 => 0xFFFF,
@@ -383,9 +388,9 @@ impl FrameCounter {
 #[derive(Decode, Encode)]
 struct Pulse<const ADDER: u16> {
     /// At which step of the 8-step sequence it currently is
-    duty_cycle: u8,
+    seq_cycle: u8,
     /// Which of the 4 8-step duty cycle sequences is currently selected
-    duty_seq: u8,
+    waveform: u8,
 
     envelope: Envelope,
     sweep: Sweep<ADDER>,
@@ -395,8 +400,8 @@ struct Pulse<const ADDER: u16> {
 impl<const ADDER: u16> Pulse<ADDER> {
     fn new() -> Pulse<ADDER> {
         Pulse {
-            duty_cycle: 0,
-            duty_seq: 0,
+            seq_cycle: 0,
+            waveform: 0,
             envelope: Envelope::new(),
 
             sweep: Sweep::new(),
@@ -410,7 +415,7 @@ impl<const ADDER: u16> Pulse<ADDER> {
     */
     #[inline]
     fn set_dlcv(&mut self, val: u8) {
-        self.duty_seq = (val & 0xC0) >> 3;
+        self.waveform = (val & 0xC0) >> 3;
         self.length_counter.halt = (val & 0x20) != 0;
         self.envelope._loop = (val & 0x20) != 0;
         self.envelope.constant_volume = (val & 0x10) != 0;
@@ -439,13 +444,13 @@ impl<const ADDER: u16> Pulse<ADDER> {
     #[inline]
     fn set_lh(&mut self, val: u8) {
         self.envelope.start = true;
-        self.duty_cycle = 0;
+        self.seq_cycle = 0;
         self.length_counter.set_counter((val & 0xF8) >> 3);
         self.sweep.timer_reload = (self.sweep.timer_reload & !0x700) | (u16::from(val & 7) << 8);
     }
 
     #[inline]
-    fn clock(&mut self) {
+    fn timer_tick(&mut self) {
         if self.sweep.timer > 0 {
             self.sweep.timer -= 1;
         } else {
@@ -454,10 +459,10 @@ impl<const ADDER: u16> Pulse<ADDER> {
             but counts downward rather than upward. Thus it reads the sequence lookup table in the
             order 0, 7, 6, 5, 4, 3, 2, 1.
             */
-            if self.duty_cycle == 0 {
-                self.duty_cycle = 7;
+            if self.seq_cycle == 0 {
+                self.seq_cycle = 7;
             } else {
-                self.duty_cycle -= 1;
+                self.seq_cycle -= 1;
             }
 
             self.sweep.timer = self.sweep.timer_reload;
@@ -487,7 +492,7 @@ impl<const ADDER: u16> Pulse<ADDER> {
 
     #[inline]
     fn output(&self) -> u8 {
-        let active = Self::DUTY_SEQUENCE[(self.duty_seq | self.duty_cycle) as usize];
+        let active = Self::DUTY_SEQUENCE[(self.waveform | self.seq_cycle) as usize];
         /*
         The mixer receives the current envelope volume except when The sequencer output is zero,
         or overflow from the sweep unit's adder is silencing the channel, or the length counter is
@@ -597,7 +602,7 @@ impl Triangle {
     }
 
     #[inline]
-    fn clock(&mut self) {
+    fn timer_tick(&mut self) {
         if self.length_counter.counter != 0 && self.linear_counter != 0 {
             if self.timer > 0 {
                 self.timer -= 1;
@@ -714,7 +719,7 @@ impl Noise {
     }
 
     #[inline]
-    fn clock(&mut self) {
+    fn timer_tick(&mut self) {
         if self.timer == 0 {
             self.timer = self.timer_period_reload;
             /*
@@ -867,7 +872,7 @@ impl Dmc {
     }
 
     #[inline]
-    fn clock(&mut self) -> bool {
+    fn timer_tick(&mut self) -> bool {
         if self.timer == 0 {
             self.timer = self.timer_reload;
             self.timer_clock();

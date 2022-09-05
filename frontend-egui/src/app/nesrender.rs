@@ -58,7 +58,6 @@ impl NesRender {
         });
     }
 
-    // FIXME: overscan is wrong by 8 pixels on the right
     fn calculate_nes_size(overscan: &Overscan) -> [f32; 2] {
         let width = NES_WIDTH as f32 - overscan.left as f32 - overscan.right as f32;
         let height = NES_HEIGHT as f32 - overscan.top as f32 - overscan.bottom as f32;
@@ -75,6 +74,7 @@ impl NesRender {
         [Pos2::new(left, top), Pos2::new(1.0 - right, 1.0 - bottom)]
     }
 
+    // FIXME: overscan still stretches the image
     fn calculate_nes_rect(available: egui::Rect) -> egui::Rect {
         let rect_side = f32::min(available.width(), available.height());
         let center = available.center();

@@ -85,7 +85,7 @@ impl _69Fme7 {
                         */
                         false => None,
                     },
-                    false => Some(cartridge.read_prg_rom(self.prg_0)),
+                    false => Some(cartridge.read_prg_rom(self.prg_0 + addr - 0x6000)),
                 }
             }
             0x8000..=0x9FFF => Some(cartridge.read_prg_rom(self.prg_1 + addr - 0x8000)),
@@ -192,7 +192,7 @@ impl _69Fme7 {
                 3 = One Screen Mirroring from $2400 ("1ScB")
     */
     fn select_mirroring(&mut self, cmd_param: u8) {
-        self.mirroring = match cmd_param {
+        self.mirroring = match cmd_param & 0b11 {
             0 => Mirroring::Vertical,
             1 => Mirroring::Horizontal,
             2 => Mirroring::SingleScreenLow,
@@ -224,7 +224,6 @@ impl _69Fme7 {
     ++++-++++- The low eight bits of the IRQ counter
 
     IRQ Counter High Byte ($F)
-
     7  bit  0
     ---- ----
     HHHH HHHH

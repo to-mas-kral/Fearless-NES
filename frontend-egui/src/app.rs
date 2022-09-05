@@ -296,32 +296,6 @@ impl App {
                         }
                     });
 
-                    // TODO: APU UI
-                    /* egui::SidePanel::right("right_main_panel").show(egui_ctx, |ui| {
-                        egui::menu::bar(ui, |ui| {
-                            ui.menu_button("APU", |ui| {});
-
-                            //ApuUi::gui(app, ui);
-
-                            let mut nes = nes.lock().unwrap();
-                            let samples = nes.apu_samples();
-
-                            use egui::plot::{Line, Plot, PlotPoints};
-                            let sin: PlotPoints = samples
-                                .iter()
-                                .enumerate()
-                                .map(|(i, val)| [i as f64, *val as f64])
-                                .collect();
-
-                            let line = Line::new(sin);
-
-                            Plot::new("my_plot")
-                                .data_aspect(200_000.)
-                                .view_aspect(1.)
-                                .show(ui, |plot_ui| plot_ui.line(line));
-                        });
-                    }); */
-
                     egui::menu::menu_button(ui, "Debug", |ui| {
                         Debug::gui_embed(app, ui);
                     });
