@@ -19,11 +19,9 @@ pub use keybinds::Keybinds;
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {
-    // TODO: window config
-    pub window_width: i32,
-    pub window_height: i32,
+    pub window_width: u32,
+    pub window_height: u32,
 
-    pub save_folder_path: PathBuf,
     pub rom_folder_path: PathBuf,
 
     pub dark_mode: bool,
@@ -37,10 +35,9 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            window_width: NES_WIDTH as i32 * 2,
-            window_height: NES_HEIGHT as i32 * 2,
+            window_width: NES_WIDTH as u32 * 2,
+            window_height: NES_HEIGHT as u32 * 2,
 
-            save_folder_path: PathBuf::from("~"),
             rom_folder_path: PathBuf::from("~"),
 
             dark_mode: true,

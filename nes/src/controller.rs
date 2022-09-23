@@ -52,8 +52,7 @@ impl Controller {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
-#[derive(Decode, Encode)]
+#[derive(Clone, Copy, PartialEq, Decode, Encode)]
 pub enum Button {
     A,
     B,

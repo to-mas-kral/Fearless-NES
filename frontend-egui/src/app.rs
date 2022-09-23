@@ -12,7 +12,6 @@ use gilrs::{Axis, EventType, Gilrs};
 
 use fearless_nes::{Button as NesButton, Nes};
 
-//mod apuui;
 mod config;
 mod debug;
 mod nesrender;
@@ -20,7 +19,6 @@ mod replays;
 mod saves;
 mod settings;
 
-//use apuui::ApuUi;
 pub use config::Config;
 use debug::Debug;
 use native_dialog::FileDialog;
@@ -54,12 +52,11 @@ pub struct App {
     debug: Debug,
     replays: Replays,
     settings: Settings,
-    //apu_ui: ApuUi,
 }
 
 impl App {
-    pub fn new(config: Config) -> Self {
-        Self {
+    pub fn new(config: Config) -> Result<Self> {
+        Ok(Self {
             config,
 
             nes: None,
@@ -68,12 +65,11 @@ impl App {
             paused: false,
 
             render: NesRender::new(),
-            saves: Saves::new(),
+            saves: Saves::new()?,
             debug: Debug::new(),
             replays: Replays::new(),
             settings: Settings::new(),
-            //apu_ui: ApuUi::new(),
-        }
+        })
     }
 
     // TODO(high): refactor this... need to handle this in the core instead
@@ -290,7 +286,6 @@ impl App {
                         }
 
                         if ui.button("Reset").clicked() {
-                            // Satisfy the borrow checker...
                             let mut nes = nes.lock().unwrap();
                             nes.reset();
                         }
@@ -324,20 +319,6 @@ impl Drop for App {
             if let Some(channel) = &self.nes_channel {
                 channel.send(NesMsg::Exit).unwrap();
             }
-        }
-    }
-}
-
-fn get_folder_path(location: Option<&Path>) -> Result<Option<PathBuf>, ()> {
-    match FileDialog::new()
-        .set_location(location.unwrap_or_else(|| Path::new("~/")))
-        .show_open_single_dir()
-    {
-        Ok(Some(p)) => Ok(Some(p)),
-        Ok(None) => Ok(None),
-        Err(_) => {
-            report_error("Error while getting path from the user (needs KDialog on Linux");
-            Err(())
         }
     }
 }

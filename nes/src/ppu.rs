@@ -623,7 +623,7 @@ impl Nes {
 
     /// https://wiki.nesdev.org/w/index.php/PPU_rendering
     /// https://wiki.nesdev.org/w/images/d/d1/Ntsc_timing.png
-    #[inline]
+    #[inline(always)]
     fn ppu_scanline_tick(&mut self) {
         match self.ppu.scanline {
             // TODO: correct operation when rendering is disabled
@@ -803,7 +803,7 @@ impl Nes {
     ||| || +++++-------- coarse Y scroll
     ||| ++-------------- nametable select
     +++----------------- fine Y scroll **/
-    #[inline(always)]
+    #[inline]
     fn fetch_bg(&mut self) {
         if self.ppu.rendering_enabled {
             match self.ppu.xpos & 7 {
@@ -817,10 +817,10 @@ impl Nes {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn fetch_nt(&mut self) {
         // The 2-bit 1-of-4 selector" is used to shift the attribute byte right
-        // by 0, 2, 4, or 6 bits depending on bit 4 of the X and Y pixel position.
+        // by 0, 2, 4, or 6 bits depending on bit 4 of the X and Y position.
         // Roughly: if (v & 0x40) attrbyte >>= 4; if (v & 0x02) attrbyte >>= 2.
         if self.ppu.rendering_enabled {
             self.shift_attrbutes();
@@ -926,7 +926,6 @@ impl Nes {
     }
 
     /// http://wiki.nesdev.org/w/index.php/PPU_sprite_evaluation
-    #[inline]
     fn sprite_evaluation(&mut self) {
         if !self.ppu.rendering_enabled {
             return;
@@ -1100,42 +1099,59 @@ impl Nes {
         self.ppu.attribute >>= 2;
     }
 
-    #[inline(always)]
+    #[inline]
     fn draw_pixel(&mut self) {
-        let addr = (usize::from(self.ppu.scanline) << 8) + usize::from(self.ppu.xpos - 1);
+        let addr = ((self.ppu.scanline as usize) << 8) + (self.ppu.xpos as usize - 1);
         let color_index = self.pixel_color();
-        self.ppu.output_buffer[addr] = self.ppu.palettes[color_index];
+        self.ppu.output_buffer[addr] = self.ppu.palettes[color_index as usize];
     }
 
-    #[inline(always)]
-    fn pixel_color(&mut self) -> usize {
+    #[inline]
+    fn pixel_color(&mut self) -> u16 {
         if !self.ppu.rendering_enabled && (self.ppu.vram_addr & 0x3F00) == 0x3F00 {
-            return self.ppu.vram_addr & 0x1F;
+            return self.ppu.vram_addr as u16 & 0x1F;
         }
 
         let bg_index = if self.ppu.show_bg && self.ppu.xpos > self.ppu.bg_left_clip as u16 {
             let tile_h_bit =
-                ((self.ppu.shift_high << u16::from(self.ppu.x_fine_scroll)) & 0x8000) >> 14;
+                ((self.ppu.shift_high << (self.ppu.x_fine_scroll as u16)) & 0x8000) >> 14;
+
             let tile_l_bit =
-                ((self.ppu.shift_low << u16::from(self.ppu.x_fine_scroll)) & 0x8000) >> 15;
+                ((self.ppu.shift_low << (self.ppu.x_fine_scroll as u16)) & 0x8000) >> 15;
+
             let attribute = if self.ppu.x_fine_scroll as u16 + ((self.ppu.xpos - 1) & 7) < 8 {
                 self.ppu.attribute & 0xC
             } else {
                 (self.ppu.attribute & 0x30) >> 2
             };
-            (attribute as u16 | tile_h_bit | tile_l_bit) as usize
+
+            attribute as u16 | tile_h_bit | tile_l_bit
         } else {
             0
         };
 
+        if let Some(value) = self.draw_sprites(bg_index) {
+            return value;
+        }
+
+        if bg_index & 3 > 0 {
+            bg_index
+        } else {
+            0
+        }
+    }
+
+    #[inline(always)]
+    fn draw_sprites(&mut self, bg_index: u16) -> Option<u16> {
         if self.ppu.sprite_cache[self.ppu.xpos as usize]
+            && self.ppu.xpos > self.ppu.sp_left_clip as u16
             && self.ppu.scanline != 1
             && self.ppu.show_sp
-            && self.ppu.xpos > self.ppu.sp_left_clip as u16
         {
             for i in 0..self.ppu.sprite_count {
                 let spr = &mut self.ppu.sprite_buffer[i as usize];
                 let shift = self.ppu.xpos as i32 - spr.x as i32 - 1;
+
                 if shift >= 0 && shift <= 7 {
                     let sp_color = if spr.horizontal_flip {
                         ((spr.tile_low >> shift) & 1) | (((spr.tile_high >> shift) & 1) << 1)
@@ -1149,23 +1165,18 @@ impl Nes {
                             && i == 0
                             && bg_index != 0
                             && self.ppu.xpos != 256
-                            && self.ppu.ppustatus & 0x40 == 0
                         {
                             self.ppu.ppustatus |= 0x40;
                         }
 
                         if bg_index == 0 || !spr.priority {
-                            return usize::from(sp_color | spr.palette);
+                            return Some((sp_color | spr.palette) as u16);
                         }
                     };
                 }
             }
         }
 
-        if bg_index & 3 > 0 {
-            bg_index
-        } else {
-            0
-        }
+        None
     }
 }

@@ -2,18 +2,21 @@
 
 use gilrs::Gilrs;
 use glium::glutin;
+use glutin::event::WindowEvent;
 use std::{env, path::PathBuf};
 
 mod app;
 mod dialog;
 mod nesthread;
 
-use app::App;
+use app::{App, Config};
 use dialog::DialogReport;
 
 fn main() {
+    let config = app::Config::new();
+
     let event_loop = glutin::event_loop::EventLoop::new();
-    let display = create_display(&event_loop);
+    let display = create_display(&event_loop, &config);
 
     let mut egui_glium = egui_glium::EguiGlium::new(&display, &event_loop);
 
@@ -21,9 +24,7 @@ fn main() {
         .report_dialog_msg("Error while initializing gamepad input library")
         .ok();
 
-    let config = app::Config::new();
-
-    let mut app = App::new(config);
+    let mut app = App::new(config).unwrap();
     egui_glium.run(&display, |egui_ctx| {
         app.init_egui_style(egui_ctx);
     });
@@ -61,13 +62,8 @@ fn main() {
             glutin::event::Event::RedrawRequested(_) if !cfg!(windows) => redraw(),
 
             glutin::event::Event::WindowEvent { event, .. } => {
-                use glutin::event::WindowEvent;
                 if matches!(event, WindowEvent::CloseRequested | WindowEvent::Destroyed) {
-                    app.config
-                        .save()
-                        .report_dialog_msg("Error while saving the config file")
-                        .unwrap();
-
+                    on_exit(&display, &mut app);
                     *control_flow = glutin::event_loop::ControlFlow::Exit;
                 }
 
@@ -95,12 +91,26 @@ fn main() {
     });
 }
 
-fn create_display(event_loop: &glutin::event_loop::EventLoop<()>) -> glium::Display {
+fn on_exit(display: &glium::Display, app: &mut App) {
+    let size = display.gl_window().window().inner_size();
+
+    app.config.window_height = size.height;
+    app.config.window_width = size.width;
+    app.config
+        .save()
+        .report_dialog_msg("Error while saving the config file")
+        .unwrap();
+}
+
+fn create_display(
+    event_loop: &glutin::event_loop::EventLoop<()>,
+    config: &Config,
+) -> glium::Display {
     let window_builder = glutin::window::WindowBuilder::new()
         .with_resizable(true)
-        .with_inner_size(glutin::dpi::LogicalSize {
-            width: 1280.0,
-            height: 720.0,
+        .with_inner_size(glutin::dpi::PhysicalSize {
+            width: config.window_width,
+            height: config.window_height,
         })
         .with_title("Fearless-NES");
 

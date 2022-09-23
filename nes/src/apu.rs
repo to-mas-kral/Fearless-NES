@@ -2,13 +2,6 @@ use bincode::{Decode, Encode};
 
 use super::Nes;
 
-mod sample_buffer;
-
-pub use self::sample_buffer::SampleBuffer;
-
-const PULSE_TABLE_SIZE: usize = 31;
-const TND_TABLE_SIZE: usize = 203;
-
 #[derive(Decode, Encode)]
 pub struct Apu {
     /// APU cycle counter
@@ -21,25 +14,11 @@ pub struct Apu {
     dmc: Dmc,
     frame_counter: FrameCounter,
 
-    // Lookup tables for the mixer
-    pulse_table: [f32; PULSE_TABLE_SIZE],
-    tnd_table: [f32; TND_TABLE_SIZE],
-
-    pub sampler: Sampler,
+    pub sample_buf: Vec<i32>,
 }
 
 impl Apu {
     pub(crate) fn new() -> Apu {
-        let mut pulse_table = [0f32; 31];
-        for n in 0..31 {
-            pulse_table[n] = 95.52 / (8128f32 / n as f32 + 100f32);
-        }
-
-        let mut tnd_table = [0f32; 203];
-        for n in 0..203 {
-            tnd_table[n] = 163.67 / (24329f32 / n as f32 + 100f32);
-        }
-
         Apu {
             cycles: 0,
 
@@ -50,10 +29,7 @@ impl Apu {
             dmc: Dmc::new(),
             frame_counter: FrameCounter::new(),
 
-            pulse_table,
-            tnd_table,
-
-            sampler: Sampler::new(),
+            sample_buf: Vec::with_capacity(512),
         }
     }
 
@@ -74,7 +50,7 @@ impl Apu {
     // INVESTIGATE: implement using formula (https://www.nesdev.org/wiki/APU_Mixer) instead of lookup table
     // and compare performance and quality
     #[inline]
-    fn mix_channels(&mut self) -> f32 {
+    fn mix_channels(&mut self) -> i32 {
         /*
         The APU mixer formulas can be efficiently implemented using two lookup tables: a 31-entry table
         for the two pulse channels and a 203-entry table for the remaining channels (due to the approximation
@@ -92,21 +68,24 @@ impl Apu {
 
         tnd_out = tnd_table [3 * triangle + 2 * noise + dmc]
         */
-        let pulse_1 = self.pulse_1.output() as usize;
-        let pulse_2 = self.pulse_2.output() as usize;
-        let pulse_out = self.pulse_table[pulse_1 + pulse_2];
+        let pulse_1 = self.pulse_1.output() as f64;
+        let pulse_2 = self.pulse_2.output() as f64;
+        let pulse_out = pulse_1 + pulse_2;
 
-        let triangle = self.triangle.output() as usize;
-        let noise = self.noise.output() as usize;
-        let dmc = self.dmc.output() as usize;
-        let tnd_out = self.tnd_table[3 * triangle + 2 * noise + dmc];
+        let triangle = self.triangle.output() as f64;
+        let noise = self.noise.output() as f64;
+        let dmc = self.dmc.output() as f64;
+        let tnd_out = 3. * triangle + 2. * noise + dmc;
 
-        pulse_out + tnd_out
+        // INVESTIGATE: formulas from Mesen, don't know how what the primary source is
+        let square_volume = (477600. / (8128.0 / pulse_out + 100.0)) as i32;
+        let tnd_volume = (818350. / (24329.0 / tnd_out + 100.0)) as i32;
+
+        square_volume + tnd_volume
     }
 }
 
 impl Nes {
-    #[inline]
     /// <https://wiki.nesdev.org/w/index.php?title=APU_Frame_Counter>
     pub(crate) fn apu_tick(&mut self) {
         // The channel timers are clocked on every CPU cycle, with the exception of
@@ -192,11 +171,11 @@ impl Nes {
             }
         }
 
-        // FIXME: IRQ signal messes up Kirby MMC3 IRQ timing
-        self.cpu.irq_signal = self.apu.frame_counter.interrupt_flag || self.apu.dmc.interrupt_flag;
+        // FIXME: IRQ APU signal messes up MMC3 games
+        //self.cpu.irq_signal = self.apu.frame_counter.interrupt_flag || self.apu.dmc.interrupt_flag;
 
         let output = self.apu.mix_channels();
-        self.apu.sampler.sample(output);
+        self.apu.sample_buf.push(output);
     }
 
     /// <https://wiki.nesdev.org/w/index.php?title=APU_registers>
@@ -636,22 +615,22 @@ impl Triangle {
         easily heard e.g. in Crash Man's stage.
         */
 
-        /*
-        Write a period value of 0 or 1 to $400A/$400B, causing a very high frequency.
-        Due to the averaging effect of the lowpass filter, the resulting value is halfway between 7 and 8.
-        This sudden jump to "7.5" causes a harder popping noise than other triangle silencing methods,
-        which will instead halt it in whatever its current output position is.
-        Mega Man 1 and 2 use this technique.
-        */
-        if self.timer_reload < 2 {
-            return 7;
+        if self.timer_reload >= 2 {
+            /*
+            Silencing the triangle channel merely halts it.
+            It will continue to output its last value, rather than 0.
+            */
+            Self::SEQUENCE[self.sequence_step as usize]
+        } else {
+            /*
+            Write a period value of 0 or 1 to $400A/$400B, causing a very high frequency.
+            Due to the averaging effect of the lowpass filter, the resulting value is halfway between 7 and 8.
+            This sudden jump to "7.5" causes a harder popping noise than other triangle silencing methods,
+            which will instead halt it in whatever its current output position is.
+            Mega Man 1 and 2 use this technique.
+            */
+            7
         }
-
-        /*
-        Silencing the triangle channel merely halts it.
-        It will continue to output its last value, rather than 0.
-        */
-        Self::SEQUENCE[self.sequence_step as usize]
     }
 }
 
@@ -981,7 +960,7 @@ impl Dmc {
             */
             self.remaining_bits = 8;
 
-            if self.sample_buffer_empty == true {
+            if self.sample_buffer_empty {
                 self.silence_flag = true;
             } else {
                 self.silence_flag = false;
@@ -1220,77 +1199,3 @@ impl Envelope {
         }
     }
 }
-
-#[derive(Decode, Encode)]
-pub struct Sampler {
-    sample_count_40: u32,
-    sample_count_41: u32,
-    sample_sum: f32,
-    current_sample_counter: u8,
-    avg_samples: u8,
-    pub samples: Vec<f32>,
-}
-
-impl Sampler {
-    pub fn new() -> Self {
-        Self {
-            sample_count_40: 0,
-            sample_count_41: 0,
-            sample_sum: 0.,
-            current_sample_counter: 0,
-            avg_samples: 41,
-            samples: Vec::with_capacity(32),
-        }
-    }
-
-    pub fn sample(&mut self, sample: f32) {
-        // TODO: low / high pass filters, resampling to the target frequency
-        self.current_sample_counter += 1;
-        self.sample_sum += sample;
-
-        if self.current_sample_counter == self.avg_samples {
-            self.samples.push(self.sample_sum / self.avg_samples as f32);
-            self.current_sample_counter = 0;
-            self.sample_sum = 0.;
-
-            if self.avg_samples == 40 {
-                self.sample_count_40 += 1;
-            } else if self.avg_samples == 41 {
-                self.sample_count_41 += 1;
-            }
-
-            self.recalc_avg_samles();
-        }
-    }
-
-    // Readjust avg_samples to 40 or 41
-
-    // 40.5844217687 = NES APU freq / 44.1KHz
-    // It is possible to achieve this ratio with a combination of 40 and 41 averages
-    fn recalc_avg_samles(&mut self) {
-        // ((40x + 41y) / (x + y)) = 40.5844217687
-        // x = 3777112 n, y = 5311699 n
-        // 3_777_112 times 40-sample_freq, 5_311_699 times 41-sample_freq
-
-        let ratio = ((self.sample_count_40 as f64 * 40.) + (self.sample_count_41 as f64 * 41.))
-            / (self.sample_count_40 + self.sample_count_41) as f64;
-
-        if ratio < 40.5844217687f64 {
-            self.avg_samples = 41;
-        } else {
-            self.avg_samples = 40;
-        }
-
-        if self.sample_count_40 == 3_777_112 || self.sample_count_41 == 5_311_699 {
-            self.sample_count_40 = 0;
-            self.sample_count_41 = 0;
-            self.avg_samples = 41;
-        }
-    }
-}
-
-/* pub struct ApuChannelsOut {
-    pulse_1: u8,
-    pulse_2: u8,
-}
- */

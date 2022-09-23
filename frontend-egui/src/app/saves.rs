@@ -5,12 +5,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use directories::ProjectDirs;
 use egui_glium::egui_winit::egui::{self, Color32, ColorImage, RichText, TextureHandle};
 use eyre::{eyre, Result, WrapErr};
 use fearless_nes::{Nes, NES_HEIGHT, NES_WIDTH};
 use zip::write::FileOptions;
 
-use super::{get_folder_path, RuntimeNes};
+use super::RuntimeNes;
 use crate::app::{get_save_named_path, nesrender::NesRender};
 use crate::{app::App, dialog::DialogReport};
 
@@ -19,18 +20,22 @@ pub struct Saves {
 
     pub window_shown: bool,
     pub folder_path: PathBuf,
-    pub folder_changed: bool,
 }
 
 impl Saves {
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> Result<Self> {
+        let proj_dirs = ProjectDirs::from("com", "Fearless-NES", "Fearless-NES")
+            .ok_or(eyre!("Couldn't locate project-dirs"))?;
+
+        let folder_path = proj_dirs.data_dir().to_path_buf();
+        fs::create_dir_all(&folder_path)?;
+
+        Ok(Self {
             saves: Vec::new(),
 
             window_shown: false,
-            folder_path: PathBuf::new(),
-            folder_changed: false,
-        }
+            folder_path,
+        })
     }
 
     fn gather_saves(&mut self, egui_ctx: &egui::Context) -> Result<()> {
@@ -84,13 +89,8 @@ impl Saves {
         Ok(())
     }
 
-    pub fn create_save(
-        &mut self,
-        nes: &RuntimeNes,
-        nesrender: &mut NesRender,
-        save_folder_path: &Path,
-    ) -> Result<()> {
-        let path = match get_save_named_path(Some(save_folder_path), "Fearless-NES save", "fnes") {
+    pub fn create_save(&mut self, nes: &RuntimeNes, nesrender: &mut NesRender) -> Result<()> {
+        let path = match get_save_named_path(Some(&self.folder_path), "Fearless-NES save", "fnes") {
             Some(p) => p,
             None => return Ok(()),
         };
@@ -167,12 +167,6 @@ impl Saves {
 impl Saves {
     pub fn gui_window(app: &mut App, egui_ctx: &egui::Context) {
         if app.saves.window_shown {
-            if app.saves.folder_changed {
-                app.saves.folder_changed = false;
-
-                app.saves.gather_saves(egui_ctx).report_dialog().ok();
-            }
-
             let saves = &mut app.saves.saves;
             let window_shown = &mut app.saves.window_shown;
 
@@ -201,23 +195,14 @@ impl Saves {
     pub fn gui_embed(app: &mut App, ui: &mut egui::Ui) {
         if app.nes.is_some() && ui.button("Save").clicked() {
             app.saves
-                .create_save(&app.nes, &mut app.render, &app.config.save_folder_path)
+                .create_save(&app.nes, &mut app.render)
                 .report_dialog_with(|e| format!("Couldn't create the save file. Error: {}", e))
                 .ok();
         }
 
         if ui.button("Load saves from folder").clicked() {
-            match get_folder_path(Some(app.config.save_folder_path.as_ref())) {
-                Ok(Some(p)) => {
-                    app.saves.window_shown = true;
-                    app.saves.folder_path = p.clone();
-                    app.saves.folder_changed = true;
-
-                    app.config.save_folder_path = p;
-                }
-                Ok(None) => (),
-                Err(_) => (),
-            }
+            app.saves.gather_saves(ui.ctx()).report_dialog().ok();
+            app.saves.window_shown = true;
         }
     }
 }

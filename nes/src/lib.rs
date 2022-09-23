@@ -39,8 +39,6 @@ pub struct Nes {
     frame_count: u64,
 }
 
-// TODO: wrap inner NES into some Console struct
-
 impl Nes {
     pub fn new(rom: &[u8]) -> Result<Nes, NesError> {
         let cartridge = Cartridge::from_rom(rom)?;
@@ -132,8 +130,8 @@ impl Nes {
         self.cycle_count
     }
 
-    pub fn apu_samples(&mut self) -> &mut Vec<f32> {
-        &mut self.apu.sampler.samples
+    pub fn apu_samples(&mut self) -> &mut Vec<i32> {
+        &mut self.apu.sample_buf
     }
 }
 
