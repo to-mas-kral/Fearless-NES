@@ -130,8 +130,14 @@ impl Nes {
         self.cycle_count
     }
 
-    pub fn apu_samples(&mut self) -> &mut Vec<i32> {
-        &mut self.apu.sample_buf
+    pub fn apu_samples(&mut self, samples: &mut Vec<i16>) {
+        self.apu.blip_buf.end_frame(samples)
+    }
+
+    pub fn set_sample_rate(&mut self, sample_rate: f64) {
+        self.apu
+            .blip_buf
+            .set_rates(apu::Apu::CLOCK_RATE, sample_rate);
     }
 }
 

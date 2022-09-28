@@ -4,10 +4,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use blip_buf::BlipBuf;
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    SampleRate,
+    SampleFormat, SampleRate, StreamConfig,
 };
 use crossbeam::channel::Receiver;
 use fearless_nes::Nes;
@@ -30,19 +29,15 @@ impl State {
 
 // The NTSC PPU runs at 60.0988 Hz
 const FRAME_DURATION: Duration = Duration::from_nanos(16639267);
-const SAMPLE_RATE: u32 = 44100;
 
 pub fn run_nes_thread(nes: Arc<Mutex<Nes>>, channel: Receiver<NesMsg>) -> JoinHandle<()> {
     std::thread::spawn(move || {
         let mut state = State::new();
 
-        let (audio_send, audio_recv) = crossbeam::channel::bounded::<i16>(4096);
+        let (audio_send, audio_recv) = crossbeam::channel::bounded::<i16>(2048);
         let stream = setup_audio(audio_recv);
 
-        let mut blip_buf = BlipBuf::new(4096);
-        blip_buf.set_rates(1789772.7272, SAMPLE_RATE as f64);
-        let mut blip_time = 0;
-        let mut last_sample = 0i32;
+        let mut samples = Vec::with_capacity(16);
 
         loop {
             let deadline = Instant::now() + FRAME_DURATION;
@@ -68,13 +63,12 @@ pub fn run_nes_thread(nes: Arc<Mutex<Nes>>, channel: Receiver<NesMsg>) -> JoinHa
                 while !n.frame_ready_reset() {
                     n.run_scanline();
 
-                    handle_audio(
-                        &mut n,
-                        &mut last_sample,
-                        &mut blip_buf,
-                        &mut blip_time,
-                        &audio_send,
-                    );
+                    n.apu_samples(&mut samples);
+
+                    for s in samples.iter() {
+                        audio_send.try_send(*s).ok();
+                    }
+                    samples.clear();
                 }
             }
 
@@ -89,37 +83,6 @@ pub fn run_nes_thread(nes: Arc<Mutex<Nes>>, channel: Receiver<NesMsg>) -> JoinHa
     })
 }
 
-// TODO: rewrite blip_buf in Rust and refactor
-fn handle_audio(
-    n: &mut std::sync::MutexGuard<Nes>,
-    last_sample: &mut i32,
-    blip_buf: &mut BlipBuf,
-    blip_time: &mut u32,
-    audio_send: &crossbeam::channel::Sender<i16>,
-) {
-    for sample in n.apu_samples() {
-        let delta = (*sample) - *last_sample;
-        *last_sample = *sample;
-
-        if delta != 0 {
-            blip_buf.add_delta(*blip_time, delta);
-        }
-
-        *blip_time += 1;
-    }
-    blip_buf.end_frame(*blip_time);
-    *blip_time = 0;
-    while blip_buf.samples_avail() > 0 {
-        let temp = &mut [0i16; 1024];
-        let count = blip_buf.read_samples(temp, false);
-
-        for s in 0..count {
-            audio_send.try_send(temp[s]).ok();
-        }
-    }
-    n.apu_samples().clear();
-}
-
 fn setup_audio(audio_recv: Receiver<i16>) -> cpal::Stream {
     let host = cpal::default_host();
     let device = host
@@ -130,10 +93,14 @@ fn setup_audio(audio_recv: Receiver<i16>) -> cpal::Stream {
         .supported_output_configs()
         .expect("error while querying configs");
 
-    let supported_config = supported_configs_range
-        .next()
+    let supported_config: StreamConfig = supported_configs_range
+        .find(|r| {
+            r.sample_format() == SampleFormat::I16
+                && r.min_sample_rate() <= SampleRate(48000)
+                && r.max_sample_rate() >= SampleRate(48000)
+        })
         .expect("no supported config?!")
-        .with_sample_rate(SampleRate(SAMPLE_RATE))
+        .with_sample_rate(SampleRate(48000))
         .into();
 
     let stream = device
@@ -146,8 +113,8 @@ fn setup_audio(audio_recv: Receiver<i16>) -> cpal::Stream {
                 if got < requested {
                     // INVESTIGATE: is underrun necessarily a problem here ?
                     /* eprintln!(
-                        "Audio: not enough samples. Requestred: {}, got: {}",
-                        requested, len
+                        "Audio: not enough samples. Requested: {}, got: {}",
+                        requested, got
                     ); */
                 }
 

@@ -1,5 +1,9 @@
 use bincode::{Decode, Encode};
 
+mod blip_buf;
+
+use self::blip_buf::BlipBuf;
+
 use super::Nes;
 
 #[derive(Decode, Encode)]
@@ -14,10 +18,14 @@ pub struct Apu {
     dmc: Dmc,
     frame_counter: FrameCounter,
 
-    pub sample_buf: Vec<i32>,
+    // The buffer size needs to be higher if not emptied every scanline
+    pub blip_buf: BlipBuf<128>,
 }
 
 impl Apu {
+    pub const CLOCK_RATE: f64 = 1789772.7272;
+    const DEFAULT_SAMPLE_RATE: f64 = 48000.;
+
     pub(crate) fn new() -> Apu {
         Apu {
             cycles: 0,
@@ -29,7 +37,7 @@ impl Apu {
             dmc: Dmc::new(),
             frame_counter: FrameCounter::new(),
 
-            sample_buf: Vec::with_capacity(512),
+            blip_buf: BlipBuf::new(Self::CLOCK_RATE, Self::DEFAULT_SAMPLE_RATE),
         }
     }
 
@@ -175,7 +183,7 @@ impl Nes {
         //self.cpu.irq_signal = self.apu.frame_counter.interrupt_flag || self.apu.dmc.interrupt_flag;
 
         let output = self.apu.mix_channels();
-        self.apu.sample_buf.push(output);
+        self.apu.blip_buf.add_sample(output);
     }
 
     /// <https://wiki.nesdev.org/w/index.php?title=APU_registers>
