@@ -6,7 +6,7 @@ use std::{
 
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    SampleFormat, SampleRate, StreamConfig,
+    SampleRate, StreamConfig, StreamError,
 };
 use crossbeam::channel::Receiver;
 use fearless_nes::Nes;
@@ -35,7 +35,12 @@ pub fn run_nes_thread(nes: Arc<Mutex<Nes>>, channel: Receiver<NesMsg>) -> JoinHa
         let mut state = State::new();
 
         let (audio_send, audio_recv) = crossbeam::channel::bounded::<i16>(2048);
-        let stream = setup_audio(audio_recv);
+        let (stream, sample_rate) = setup_audio(audio_recv);
+
+        {
+            let mut n = nes.lock().unwrap();
+            n.set_sample_rate(sample_rate.0 as f64)
+        }
 
         let mut samples = Vec::with_capacity(16);
 
@@ -83,52 +88,50 @@ pub fn run_nes_thread(nes: Arc<Mutex<Nes>>, channel: Receiver<NesMsg>) -> JoinHa
     })
 }
 
-fn setup_audio(audio_recv: Receiver<i16>) -> cpal::Stream {
+fn setup_audio(audio_recv: Receiver<i16>) -> (cpal::Stream, SampleRate) {
     let host = cpal::default_host();
-    let device = host
-        .default_output_device()
-        .expect("no output device available");
+    let device = host.default_output_device().unwrap();
 
-    let mut supported_configs_range = device
-        .supported_output_configs()
-        .expect("error while querying configs");
+    let default_config: StreamConfig = device.default_output_config().unwrap().into();
 
-    let supported_config: StreamConfig = supported_configs_range
-        .find(|r| {
-            r.sample_format() == SampleFormat::I16
-                && r.min_sample_rate() <= SampleRate(48000)
-                && r.max_sample_rate() >= SampleRate(48000)
-        })
-        .expect("no supported config?!")
-        .with_sample_rate(SampleRate(48000))
-        .into();
+    let sample_rate = default_config.sample_rate;
+    let channels = default_config.channels;
 
     let stream = device
         .build_output_stream(
-            &supported_config,
-            move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
-                let requested = data.len();
-                let got = audio_recv.len();
-
-                if got < requested {
-                    // INVESTIGATE: is underrun necessarily a problem here ?
-                    /* eprintln!(
-                        "Audio: not enough samples. Requested: {}, got: {}",
-                        requested, got
-                    ); */
-                }
-
-                let sample_iter = audio_recv.try_iter().take(requested);
-                for (i, sample) in sample_iter.enumerate() {
-                    data[i] = sample;
-                }
+            &default_config,
+            move |buf: &mut [i16], _: &cpal::OutputCallbackInfo| {
+                stream_callback(buf, audio_recv.clone(), channels);
             },
-            move |err| {
-                dbg!(err);
-            },
+            stream_err,
         )
         .unwrap();
 
     stream.play().unwrap();
-    stream
+    (stream, sample_rate)
+}
+
+fn stream_callback(buf: &mut [i16], audio_recv: Receiver<i16>, channels: u16) {
+    let requested = buf.len();
+    let got = audio_recv.len();
+
+    if got < requested / channels as usize {
+        // INVESTIGATE: is underrun necessarily a problem here ?
+        /* eprintln!(
+            "Audio: not enough samples. Requested: {}, got: {}",
+            requested, got
+        ); */
+    }
+
+    let sample_iter = audio_recv.try_iter().take(requested / channels as usize);
+
+    let mut i = 0;
+    for sample in sample_iter {
+        buf[i..(i + channels as usize)].fill(sample);
+        i += channels as usize;
+    }
+}
+
+fn stream_err(e: StreamError) {
+    dbg!(e);
 }

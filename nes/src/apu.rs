@@ -19,7 +19,7 @@ pub struct Apu {
     frame_counter: FrameCounter,
 
     // The buffer size needs to be higher if not emptied every scanline
-    pub blip_buf: BlipBuf<128>,
+    pub blip_buf: BlipBuf<4096>,
 }
 
 impl Apu {
