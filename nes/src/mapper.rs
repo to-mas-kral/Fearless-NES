@@ -126,7 +126,7 @@ impl BaseMapper {
     }
 
     #[inline]
-    pub fn notify_a12(&mut self, addr: usize, ppu_cycle: u32, cpu_irq: &mut bool) {
+    pub fn notify_a12(&mut self, addr: usize, cpu_irq: &mut bool) {
         let a12 = (addr & 0x1000) != 0;
 
         match &mut self.chip {
@@ -136,13 +136,14 @@ impl BaseMapper {
             | MapperChip::_3Cnrom(_)
             | MapperChip::_7Axrom(_)
             | MapperChip::_69Fme7(_) => (),
-            MapperChip::_4Mmc3(mmc3) => mmc3.notify_a12(a12, ppu_cycle, cpu_irq),
+            MapperChip::_4Mmc3(mmc3) => mmc3.notify_a12(a12, cpu_irq),
         }
     }
 
     #[inline]
-    pub fn clock(&mut self, cpu_irq: &mut bool) {
+    pub fn cpu_clock(&mut self, cpu_irq: &mut bool) {
         match &mut self.chip {
+            MapperChip::_4Mmc3(mmc3) => mmc3.cpu_clock(),
             MapperChip::_69Fme7(fme_7) => fme_7.clock(cpu_irq),
             _ => (),
         }

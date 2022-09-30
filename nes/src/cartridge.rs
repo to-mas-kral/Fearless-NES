@@ -222,7 +222,7 @@ impl Header {
 
         let prg_ram_size = match ines[8] {
             0 => Some(BankSize::Kb8 as u32),
-            cnt => (Some(cnt as u32 * BankSize::Kb8 as u32)),
+            cnt => Some(cnt as u32 * BankSize::Kb8 as u32),
         };
 
         let console_typ = match ines[7] & 3 {

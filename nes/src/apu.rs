@@ -55,27 +55,8 @@ impl Apu {
         self.noise.length_counter.clock();
     }
 
-    // INVESTIGATE: implement using formula (https://www.nesdev.org/wiki/APU_Mixer) instead of lookup table
-    // and compare performance and quality
     #[inline]
     fn mix_channels(&mut self) -> i32 {
-        /*
-        The APU mixer formulas can be efficiently implemented using two lookup tables: a 31-entry table
-        for the two pulse channels and a 203-entry table for the remaining channels (due to the approximation
-        of tnd_out, the numerators are adjusted slightly to preserve the normalized output range).
-
-        output = pulse_out + tnd_out
-
-        pulse_table [n] = 95.52 / (8128.0 / n + 100)
-
-        pulse_out = pulse_table [pulse1 + pulse2]
-
-        The tnd_out table is approximated (within 4%) by using a base unit close to the DMC's DAC.
-
-        tnd_table [n] = 163.67 / (24329.0 / n + 100)
-
-        tnd_out = tnd_table [3 * triangle + 2 * noise + dmc]
-        */
         let pulse_1 = self.pulse_1.output() as f64;
         let pulse_2 = self.pulse_2.output() as f64;
         let pulse_out = pulse_1 + pulse_2;
@@ -179,8 +160,8 @@ impl Nes {
             }
         }
 
-        // FIXME: IRQ APU signal messes up MMC3 games
-        //self.cpu.irq_signal = self.apu.frame_counter.interrupt_flag || self.apu.dmc.interrupt_flag;
+        self.cpu.irq_apu_signal =
+            self.apu.frame_counter.interrupt_flag || self.apu.dmc.interrupt_flag;
 
         let output = self.apu.mix_channels();
         self.apu.blip_buf.add_sample(output);

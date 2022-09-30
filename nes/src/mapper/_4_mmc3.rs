@@ -10,13 +10,6 @@ pub struct _4Mmc3 {
     prg_bank_mode: u8,
     chr_bank_mode: u8,
     bank_update: u8,
-    irq_latch: u8,
-    irq_counter: u8,
-    irq_should_reload: bool,
-    irqs_enabled: bool,
-    a12_state: bool,
-    /// PPU cycle of the last falling edge of A12 before filtering
-    a12_falling_cycle: u32,
     mirroring: Mirroring,
 
     /// 8KB units
@@ -34,6 +27,13 @@ pub struct _4Mmc3 {
     chr_3: usize,
     chr_4: usize,
     chr_5: usize,
+
+    irq_latch: u8,
+    irq_counter: u8,
+    irq_should_reload: bool,
+    irqs_enabled: bool,
+    a12_state: bool,
+    a12_m2_down_cycles: u8,
 }
 
 impl _4Mmc3 {
@@ -60,7 +60,7 @@ impl _4Mmc3 {
             irq_should_reload: false,
             irqs_enabled: false,
             a12_state: false,
-            a12_falling_cycle: 0,
+            a12_m2_down_cycles: 0,
             mirroring: cartridge.header.mirroring,
 
             prg_rom_count,
@@ -158,7 +158,7 @@ impl _4Mmc3 {
                 }
                 _ => unreachable!(),
             },
-            0xA000..=0xBFFE if addr % 2 == 0 => {
+            0xA000..=0xBFFF if addr % 2 == 0 => {
                 self.mirroring = if val & 1 == 1 {
                     Mirroring::Horizontal
                 } else {
@@ -166,18 +166,18 @@ impl _4Mmc3 {
                 }
             }
             // Do not emulate RAM protect for better compatibility with MMC6
-            0xA001..=0xBFFF if addr % 2 == 1 => (),
-            0xC000..=0xDFFE if addr % 2 == 0 => {
+            0xA000..=0xBFFF if addr % 2 == 1 => (),
+            0xC000..=0xDFFF if addr % 2 == 0 => {
                 self.irq_latch = val;
             }
-            0xC001..=0xDFFF if addr % 2 == 1 => {
+            0xC000..=0xDFFF if addr % 2 == 1 => {
                 self.irq_should_reload = true;
             }
-            0xE000..=0xFFFE if addr % 2 == 0 => {
+            0xE000..=0xFFFF if addr % 2 == 0 => {
                 self.irqs_enabled = false;
                 *cpu_irq = false;
             }
-            0xE001..=0xFFFF if addr % 2 == 1 => {
+            0xE000..=0xFFFF if addr % 2 == 1 => {
                 self.irqs_enabled = true;
             }
             _ => unreachable!(),
@@ -236,47 +236,51 @@ impl _4Mmc3 {
         self.mirroring
     }
 
-    pub fn notify_a12(&mut self, a12: bool, ppu_cycle: u32, cpu_irq: &mut bool) {
-        /* http://archive.nes.science/nesdev-forums/f3/t1100.xhtml#p9558
-        In addition, the MMC3 will not detect a rising edge on PPU A12 if it was low for less than ~2 CPU
-        cycles (OR if the last rising edge was less than ~3 CPU cycles ago - the exact behavior is not known)
-        - during sprite fetches, the PPU rapidly alternates between $1xxx and $2xxx, and the MMC3 does not see A13
-        - as such, the PPU will send 8 rising edges on A12 during the sprite fetch portion of the scanline
-        (with 8 pixel clocks, or 2.67 CPU cycles between them), but the MMC3 will only see the first one.
+    pub fn cpu_clock(&mut self) {
+        /*
+        https://www.nesdev.org/wiki/MMC3#IRQ_Specifics
+        The MMC3 scanline counter is based entirely on PPU A12, triggered on a rising edge
+        after the line has remained low for three falling edges of M2.
+        */
+        if !self.a12_state && self.a12_m2_down_cycles < 3 {
+            self.a12_m2_down_cycles += 1;
+        }
+    }
 
-        NOTE: Mesen clocks the IRQ counter after 10 PPU cycles have elapsed after a falling edge */
-
-        let prev_a12 = self.a12_state;
+    pub fn notify_a12(&mut self, a12: bool, cpu_irq: &mut bool) {
         self.a12_state = a12;
 
-        let cycles_elapsed = if self.a12_falling_cycle > 0 {
-            ppu_cycle.wrapping_sub(self.a12_falling_cycle)
+        // filtered A12 0 -> 1
+        if self.a12_state && self.a12_m2_down_cycles == 3 {
+            self.irq_clock(cpu_irq);
+        }
+
+        if self.a12_state {
+            self.a12_m2_down_cycles = 0;
+        }
+    }
+
+    fn irq_clock(&mut self, cpu_irq: &mut bool) {
+        /*
+        Counter operation:
+
+        When the IRQ is clocked (filtered A12 0 → 1), the counter value is checked - if zero
+        or the reload flag is true, it's reloaded with the IRQ latched value at $C000;
+        otherwise, it decrements.
+
+        If the IRQ counter is zero and IRQs are enabled ($E001), an IRQ is triggered.
+        The "alternate revision" checks the IRQ counter transition 1 → 0, whether from decrementing or reloading.
+        */
+        if self.irq_counter == 0 || self.irq_should_reload {
+            self.irq_counter = self.irq_latch;
+            self.irq_should_reload = false;
         } else {
-            0
-        };
+            self.irq_counter -= 1;
+        }
 
-        match (prev_a12, a12) {
-            (true, false) => self.a12_falling_cycle = ppu_cycle,
-            (false, true) => {
-                if cycles_elapsed <= 8 {
-                    self.a12_falling_cycle = 0;
-                } else {
-                    // IRQ counter clock
-
-                    if self.irq_counter == 0 || self.irq_should_reload {
-                        self.irq_counter = self.irq_latch;
-                        self.irq_should_reload = false;
-                    } else {
-                        self.irq_counter -= 1;
-                    }
-
-                    // "Normal" MMC3 IRQ behavior
-                    if self.irq_counter == 0 && self.irqs_enabled {
-                        *cpu_irq = true;
-                    }
-                }
-            }
-            _ => (),
+        // "Normal" MMC3 IRQ behavior
+        if self.irq_counter == 0 && self.irqs_enabled {
+            *cpu_irq = true;
         }
     }
 }

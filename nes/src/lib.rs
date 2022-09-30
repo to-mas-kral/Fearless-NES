@@ -155,7 +155,7 @@ impl Nes {
 
         self.apu_tick();
 
-        self.mapper.clock(&mut self.cpu.irq_signal);
+        self.mapper.cpu_clock(&mut self.cpu.irq_mapper_signal);
     }
 }
 

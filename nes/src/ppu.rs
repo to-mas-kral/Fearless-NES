@@ -80,6 +80,7 @@ pub struct Ppu {
     sprite_0_visible: bool,
     oam_copy_done: bool,
     sprite_count: u8,
+    sprite_high_tile_addr: u16,
 
     sprite_index: u8,
     sprite_buffer: [Sprite; NUM_SPRITES],
@@ -158,6 +159,7 @@ impl Ppu {
             sprite_0_visible: false,
             oam_copy_done: false,
             sprite_count: 0,
+            sprite_high_tile_addr: 0,
 
             sprite_index: 0,
             sprite_buffer: [Sprite::new(); 8],
@@ -216,8 +218,9 @@ impl Nes {
     fn ppu_write(&mut self, mut addr: usize, val: u8) {
         addr &= 0x3FFF;
 
+        // TODO: don't for palette data
         self.mapper
-            .notify_a12(addr, self.ppu.cycle_count, &mut self.cpu.irq_signal);
+            .notify_a12(addr, &mut self.cpu.irq_mapper_signal);
 
         match addr {
             0..=0x1FFF => self.mapper.write_chr(addr, val),
@@ -291,7 +294,7 @@ impl Nes {
         addr &= 0x3FFF;
 
         self.mapper
-            .notify_a12(addr, self.ppu.cycle_count, &mut self.cpu.irq_signal);
+            .notify_a12(addr, &mut self.cpu.irq_mapper_signal);
 
         match addr {
             0..=0x1FFF => self.mapper.read_chr(addr),
@@ -534,11 +537,8 @@ impl Nes {
             //TODO: add 2-3 cycle delay to the update
             self.ppu.vram_addr = self.ppu.temp_vram_addr;
 
-            self.mapper.notify_a12(
-                self.ppu.vram_addr,
-                self.ppu.cycle_count,
-                &mut self.cpu.irq_signal,
-            );
+            self.mapper
+                .notify_a12(self.ppu.vram_addr, &mut self.cpu.irq_mapper_signal);
         } else {
             self.ppu.temp_vram_addr =
                 (self.ppu.temp_vram_addr & !0xFF00) | ((val as usize & 0x3F) << 8);
@@ -566,11 +566,8 @@ impl Nes {
             self.ppu.vram_addr += self.ppu.addr_increment;
         }
 
-        self.mapper.notify_a12(
-            self.ppu.vram_addr,
-            self.ppu.cycle_count,
-            &mut self.cpu.irq_signal,
-        );
+        self.mapper
+            .notify_a12(self.ppu.vram_addr, &mut self.cpu.irq_mapper_signal);
     }
 
     #[inline]
@@ -584,11 +581,8 @@ impl Nes {
             self.ppu.vram_addr += self.ppu.addr_increment;
         };
 
-        self.mapper.notify_a12(
-            self.ppu.vram_addr,
-            self.ppu.cycle_count,
-            &mut self.cpu.irq_signal,
-        );
+        self.mapper
+            .notify_a12(self.ppu.vram_addr, &mut self.cpu.irq_mapper_signal);
     }
 
     #[inline]
@@ -647,13 +641,14 @@ impl Nes {
                     self.shift_tile_registers();
                 }
                 258..=320 => self.fetch_sprites(),
-                0 => {
+                0 if self.ppu.rendering_enabled => {
                     // Uncompleted tile fetch needed for proper MMC3 emulation
                     let addr = (usize::from(self.ppu.nametable_byte) << 4)
                         | (self.ppu.vram_addr >> 12)
                         | self.ppu.bg_pattern_table_addr;
+
                     self.mapper
-                        .notify_a12(addr, self.ppu.cycle_count, &mut self.cpu.irq_signal);
+                        .notify_a12(addr, &mut self.cpu.irq_mapper_signal);
                 }
                 1 => {
                     self.fetch_nt();
@@ -670,15 +665,6 @@ impl Nes {
                 }
                 _ => (),
             },
-            240 => {
-                if self.ppu.xpos == 1 {
-                    self.mapper.notify_a12(
-                        self.ppu.vram_addr,
-                        self.ppu.cycle_count,
-                        &mut self.cpu.irq_signal,
-                    );
-                }
-            }
             241..=260 => self.vblank(),
             261 => {
                 match self.ppu.xpos {
@@ -700,17 +686,6 @@ impl Nes {
                     321..=336 => {
                         self.fetch_bg();
                         self.shift_tile_registers();
-                    }
-                    0 => {
-                        // Uncompleted tile fetch needed for proper MMC3 emulation
-                        let addr = (usize::from(self.ppu.nametable_byte) << 4)
-                            | (self.ppu.vram_addr >> 12)
-                            | self.ppu.bg_pattern_table_addr;
-                        self.mapper.notify_a12(
-                            addr,
-                            self.ppu.cycle_count,
-                            &mut self.cpu.irq_signal,
-                        );
                     }
                     1 => {
                         self.ppu.ppustatus &= !0xE0;
@@ -865,16 +840,22 @@ impl Nes {
                     self.ppu_read(self.nametable_addr());
                 }
                 2 => {
-                    self.ppu_read(self.attr_table_addr());
+                    self.ppu_read(self.nametable_addr());
                 }
-                3 => self.load_sprite(),
+                3 => self.load_sprite_lower(),
+                5 => {
+                    self.ppu.sprite_buffer[self.ppu.sprite_index as usize].tile_high =
+                        self.ppu_read(self.ppu.sprite_high_tile_addr as usize);
+
+                    self.ppu.sprite_index = (self.ppu.sprite_index + 1) & 7;
+                }
                 _ => (),
             };
         }
     }
 
     #[inline]
-    fn load_sprite(&mut self) {
+    fn load_sprite_lower(&mut self) {
         let sprite_addr = 4 * self.ppu.sprite_index as usize;
         let sprite = &mut self.ppu.sprite_buffer[self.ppu.sprite_index as usize];
         sprite.y = self.ppu.secondary_oam[sprite_addr];
@@ -904,25 +885,30 @@ impl Nes {
             scanline - sprite.y as i16
         };
 
-        let index = self.ppu.secondary_oam[sprite_addr + 1];
+        // There is a bit of trickery here... y_offset can be negative, but casting
+        // it back to unsigned and doing a wrapping_add does the right thing...
+        let tile_index = self.ppu.secondary_oam[sprite_addr + 1] as u16;
         sprite.index = if self.ppu.sp_size == 8 {
-            (self.ppu.sp_pattern_table_addr as u16 | (u16::from(index) << 4))
-                .wrapping_add(y_offset as u16)
+            // index * 16 is the address of the tile in the pattern table
+            ((tile_index * 16).wrapping_add(y_offset as u16)) & 0xFFF
+                | self.ppu.sp_pattern_table_addr as u16
         } else {
             if y_offset >= 8 {
+                // We are on the second tile of the 8x16 sprites
+                // 8x16 Tiles are next to each other in memory arranged like this:
+                //       Tile 1            Tile 2
+                // 0        16       32       40
+                // LLLLLLLL HHHHHHHH LLLLLLLL HHHHHHHH (L and H are low and high bitplanes)
                 y_offset += 8;
             }
 
-            let pattern_table_addr = if index & 1 != 0 { 0x1000 } else { 0 };
-            pattern_table_addr | (u16::from(index & !1) << 4).wrapping_add(y_offset as u16)
+            let pattern_table_addr = if tile_index & 1 != 0 { 0x1000 } else { 0 };
+            pattern_table_addr | ((((tile_index & !1) * 16).wrapping_add(y_offset as u16)) & 0xFFF)
         };
 
-        let index = sprite.index as usize;
-        self.ppu.sprite_buffer[self.ppu.sprite_index as usize].tile_low = self.ppu_read(index);
-        // The second read is performed 2 cycles later, but it shouldn't have any efect
-        self.ppu.sprite_buffer[self.ppu.sprite_index as usize].tile_high = self.ppu_read(index + 8);
-
-        self.ppu.sprite_index = (self.ppu.sprite_index + 1) & 7;
+        let addr = sprite.index as usize;
+        self.ppu.sprite_buffer[self.ppu.sprite_index as usize].tile_low = self.ppu_read(addr);
+        self.ppu.sprite_high_tile_addr = addr as u16 + 8;
     }
 
     /// http://wiki.nesdev.org/w/index.php/PPU_sprite_evaluation

@@ -58,7 +58,8 @@ pub struct Cpu {
     temp: u16,
     pub open_bus: u8,
 
-    pub irq_signal: bool,
+    pub irq_mapper_signal: bool,
+    pub irq_apu_signal: bool,
     pub nmi_signal: bool,
     /// status of the IRQ line sampled at the end of the penultimate cycle of an instruction
     cached_irq: bool,
@@ -101,7 +102,8 @@ impl Cpu {
             open_bus: 0,
 
             cached_irq: false,
-            irq_signal: false,
+            irq_mapper_signal: false,
+            irq_apu_signal: false,
             cached_nmi: false,
             nmi_signal: false,
             reset_signal: false,
@@ -163,10 +165,12 @@ impl Nes {
             0x4016 => self.controller.write_reg(val),
             0x4017 => self.apu_write_reg(index, val),
             0x4018..=0x401F => (),
-            0x4020..=0xFFFF => {
-                self.mapper
-                    .cpu_write(index, val, self.cycle_count, &mut self.cpu.irq_signal)
-            }
+            0x4020..=0xFFFF => self.mapper.cpu_write(
+                index,
+                val,
+                self.cycle_count,
+                &mut self.cpu.irq_mapper_signal,
+            ),
             _ => unreachable!("Error: memory access into unmapped address: 0x{:X}", index),
         }
     }
@@ -2049,13 +2053,12 @@ impl Nes {
 
     #[inline]
     fn cache_interrupts(&mut self) {
-        self.cpu.cached_irq = self.cpu.irq_signal;
+        self.cpu.cached_irq = self.cpu.irq_mapper_signal || self.cpu.irq_apu_signal;
         self.cpu.cached_nmi = self.cpu.nmi_signal;
     }
 
     #[inline]
     fn check_interrupts(&mut self) {
-        // TODO: differentiate between different sources of IRQs
         if !self.cpu.i && self.cpu.cached_irq {
             self.cpu.cached_irq = false;
             self.cpu.take_interrupt = true;
