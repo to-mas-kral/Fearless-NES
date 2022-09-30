@@ -35,7 +35,6 @@ impl<const S: usize> BlipBuf<S> {
     const BUF_EXTRA: u64 = Self::HALF_WIDTH * 2 + Self::END_FRAME_EXTRA;
 
     pub fn new(clock_rate: f64, sample_rate: f64) -> Self {
-        // TODO: check that S is higher than 0
         let factor = Self::TIME_UNIT as f64 * sample_rate / clock_rate;
 
         Self {
@@ -102,12 +101,13 @@ impl<const S: usize> BlipBuf<S> {
     }
 
     fn add_delta(&mut self, mut delta: i32) {
-        let fixed: u32 = ((self.time as u64 * self.factor + self.offset) >> Self::PRE_SHIFT) as u32;
+        // TODO: fix hack
+        let fixed: u32 = (((self.time as u64).wrapping_mul(self.factor) + self.offset)
+            >> Self::PRE_SHIFT) as u32;
         let phase = fixed >> Self::PHASE_SHIFT & (Self::PHASE_COUNT - 1);
 
         let interp: i32 =
             (fixed >> (Self::PHASE_SHIFT - Self::DELTA_BITS) & (Self::DELTA_UNIT - 1)) as i32;
-        // TODO: correct shift ?
         let delta2 = (delta * interp) >> Self::DELTA_BITS;
 
         delta -= delta2;
@@ -117,7 +117,9 @@ impl<const S: usize> BlipBuf<S> {
         let rev = Self::BL_STEP[(Self::PHASE_COUNT - phase) as usize];
         let rev_half_width = Self::BL_STEP[(Self::PHASE_COUNT - phase - 1) as usize];
 
-        let buf_index = self.available as usize + (fixed as usize >> Self::FRAC_BITS as usize);
+        let mut buf_index = self.available as usize + (fixed as usize >> Self::FRAC_BITS as usize);
+        // TODO: fix hack
+        buf_index %= S - 15;
 
         for i in 0..8 {
             self.buf[(buf_index + i) as usize] +=
@@ -129,19 +131,6 @@ impl<const S: usize> BlipBuf<S> {
                 rev[j as usize] as i32 * delta + rev_half_width[j as usize] as i32 * delta2;
         }
     }
-
-    /* fn add_delta_fast(&mut self, delta: i32) {
-        let fixed: u32 = ((self.time as u64 * self.factor + self.offset) >> Self::PRE_SHIFT) as u32;
-
-        let interp: i32 =
-            (fixed >> (Self::FRAC_BITS - Self::DELTA_BITS) & (Self::DELTA_UNIT - 1)) as i32;
-        let delta2 = delta * interp;
-
-        let buf_index = self.available as usize + (fixed as usize >> Self::FRAC_BITS as usize);
-
-        self.buf[buf_index + 7] += delta * Self::DELTA_UNIT as i32 - delta2;
-        self.buf[buf_index + 8] += delta2;
-    } */
 
     pub fn end_frame(&mut self, out: &mut Vec<i16>) {
         let off = self.time * self.factor + self.offset;
