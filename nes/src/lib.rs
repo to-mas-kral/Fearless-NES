@@ -1,4 +1,5 @@
 use bincode::{config::Configuration, Decode, Encode};
+use debug_events::DebugEvent;
 use thiserror::Error;
 
 mod apu;
@@ -118,11 +119,6 @@ impl Nes {
         Ok(nes)
     }
 
-    // TODO(rewrite): pull replays from core
-    pub fn drive_replay_inputs(&mut self, inputs: &ReplayInputs) {
-        self._drive_replay_inputs(inputs)
-    }
-
     pub fn cartridge(&mut self) -> &Cartridge {
         &self.mapper.cartridge
     }
@@ -143,6 +139,11 @@ impl Nes {
         self.apu
             .blip_buf
             .set_rates(apu::Apu::CLOCK_RATE, sample_rate);
+    }
+
+    #[cfg(feature = "debug_tools")]
+    pub fn debug_events(&self) -> &[DebugEvent] {
+        self.debug_events.events()
     }
 
     // TODO: Move this back to tests and have some public API for debug cpu_reads...

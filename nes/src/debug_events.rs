@@ -34,16 +34,29 @@ impl DebugEvents {
 
         self.events[self.current_frame as usize].clear();
     }
+
+    pub fn events(&self) -> &[DebugEvent] {
+        let frame = if self.current_frame == 0 { 1 } else { 0 };
+        &self.events[frame]
+    }
 }
 
 #[derive(Encode, Decode)]
 pub struct DebugEvent {
-    kind: EventKind,
-    scanline: u16,
-    xpos: u16,
+    pub kind: EventKind,
+    pub scanline: u16,
+    pub xpos: u16,
 }
 
 #[derive(Encode, Decode, Debug)]
 pub enum EventKind {
     Irq,
+}
+
+impl ToString for EventKind {
+    fn to_string(&self) -> String {
+        match self {
+            EventKind::Irq => "IRQ".to_owned(),
+        }
+    }
 }

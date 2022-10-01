@@ -1,4 +1,5 @@
 mod cartridge_info;
+mod events;
 mod ppu;
 
 use cartridge_info::CartridgeInfo;
@@ -7,20 +8,24 @@ use ppu::Ppu;
 
 use crate::App;
 
+pub use self::events::Events;
+
 pub struct Debug {
-    pub show_controls: bool,
+    pub window_active: bool,
     pub cartridge_info: CartridgeInfo,
     pub ppu: Ppu,
     pub perf: Perf,
+    pub events: Events,
 }
 
 impl Debug {
     pub fn new() -> Self {
         Self {
-            show_controls: false,
+            window_active: false,
             cartridge_info: CartridgeInfo::new(),
             ppu: Ppu::new(),
             perf: Perf::new(),
+            events: Events::new(),
         }
     }
 }
@@ -31,9 +36,9 @@ impl Debug {
             {
                 let mut nes = nes.lock().unwrap();
 
-                if app.debug.show_controls {
+                if app.debug.window_active {
                     egui::Window::new("Controls and Status")
-                        .open(&mut app.debug.show_controls)
+                        .open(&mut app.debug.window_active)
                         .resizable(false)
                         .default_width(0.)
                         .show(egui_ctx, |ui| {
@@ -54,20 +59,25 @@ impl Debug {
             CartridgeInfo::gui_window(app, egui_ctx);
             Ppu::gui_window(app, egui_ctx);
             Perf::gui_window(app, egui_ctx);
+            Events::gui_window(app, egui_ctx);
         }
     }
 
     pub fn gui_embed(app: &mut App, ui: &mut egui::Ui) {
-        if ui.button("Controls and Status").clicked() {
-            app.debug.show_controls = true;
-        }
-
-        if ui.button("PPU").clicked() {
-            app.debug.ppu.window_active = true;
+        if ui.button("Events").clicked() {
+            app.debug.events.window_active = true;
         }
 
         if ui.button("Cartridge Info").clicked() {
             app.debug.cartridge_info.window_active = true;
+        }
+
+        if ui.button("Controls and Status").clicked() {
+            app.debug.window_active = true;
+        }
+
+        if ui.button("PPU").clicked() {
+            app.debug.ppu.window_active = true;
         }
 
         if ui.button("Performance").clicked() {

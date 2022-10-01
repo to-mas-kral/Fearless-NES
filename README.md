@@ -21,7 +21,9 @@ Fearless-NES is a work-in-progress Nintendo entertainment system emulator writte
     - Uses the blip buffer
 - Basic mapper support
 - Basic GUI
-    - currently using egui, but immediate-gui isn't great for writing apps
+    - currently using egui
+    - the code is a bit of a mess currently
+    - immediate-GUI seems to be great for simple data visualization or simple GUIs, but making a full app with it is quite cumbersome
 - Save states
 - Gamepad support
 - Controllable overscan

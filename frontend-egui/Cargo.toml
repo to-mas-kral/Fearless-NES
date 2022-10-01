@@ -6,7 +6,7 @@ edition = "2021"
 default-run = "frontend-egui"
 
 [dependencies]
-fearless_nes = { path = "../nes" }
+fearless_nes = { path = "../nes", features = ["debug_tools"]}
 egui_glium = "0.19"
 glium = "0.32"
 winit = {version = "0.27", features = ["serde"]}
