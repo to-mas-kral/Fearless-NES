@@ -11,8 +11,5 @@ roxmltree = "0.15"
 sha-1 = "0.10"
 thiserror = "1.0"
 
-[features]
-integration_tests = []
-
 [[bin]]
 name = "bench"

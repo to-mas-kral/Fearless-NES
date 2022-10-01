@@ -1,4 +1,6 @@
-use super::blargg_test;
+use common::blargg_test;
+
+mod common;
 
 #[test]
 fn apu_length_counter() {
@@ -28,5 +30,4 @@ fn apu_irq_flag() {
 /* #[test]
 fn apu_blargg_all() {
     blargg_test("apu/apu_test/apu_test.nes", "passed");
-}
- */
+} */

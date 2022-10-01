@@ -1,4 +1,6 @@
-use super::*;
+mod common;
+
+use common::{blargg_test, hash_test};
 
 //TODO: get read_buffer test working
 //TODO: implement oamtest3 - iNES 2.0 needed

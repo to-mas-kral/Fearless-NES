@@ -8,8 +8,6 @@ mod cpu;
 mod mapper;
 mod ppu;
 mod replay;
-#[cfg(test)]
-mod tests;
 
 use apu::Apu;
 use cartridge::{ConsoleType, Region};
@@ -138,6 +136,32 @@ impl Nes {
         self.apu
             .blip_buf
             .set_rates(apu::Apu::CLOCK_RATE, sample_rate);
+    }
+
+    pub fn run_blargg_test(&mut self) -> String {
+        let mut test_running = false;
+
+        loop {
+            self.cpu_tick();
+
+            let test_state = self.cpu_read(0x6000);
+            if test_state == 0x80 {
+                test_running = true;
+            }
+
+            if test_running && test_state <= 81 {
+                break;
+            }
+        }
+
+        let mut s = String::new();
+        let mut p: usize = 0x6004;
+        while self.cpu_read(p) != 0 {
+            s.push(self.cpu_read(p) as char);
+            p += 1;
+        }
+
+        s
     }
 }
 

@@ -1,4 +1,6 @@
-use super::*;
+use common::{blargg_test, hash_test};
+
+mod common;
 
 #[test]
 fn blargg_instr_all() {
