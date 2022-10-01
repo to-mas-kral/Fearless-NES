@@ -15,7 +15,7 @@ pub static PALETTE: [u8; 192] = [
     214, 228, 160, 162, 160, 0, 0, 0, 0, 0, 0,
 ];
 
-#[derive(Debug, Clone, Copy, Decode, Encode)]
+#[derive(Debug, Clone, Copy, Decode, Encode, PartialEq)]
 pub enum Mirroring {
     Horizontal,
     Vertical,

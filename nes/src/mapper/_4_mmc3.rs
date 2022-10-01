@@ -159,10 +159,15 @@ impl _4Mmc3 {
                 _ => unreachable!(),
             },
             0xA000..=0xBFFF if addr % 2 == 0 => {
-                self.mirroring = if val & 1 == 1 {
-                    Mirroring::Horizontal
-                } else {
-                    Mirroring::Vertical
+                /*
+                This bit has no effect on cartridges with hardwired 4-screen VRAM.
+                */
+                if self.mirroring != Mirroring::FourScreen {
+                    self.mirroring = if val & 1 == 1 {
+                        Mirroring::Horizontal
+                    } else {
+                        Mirroring::Vertical
+                    }
                 }
             }
             // Do not emulate RAM protect for better compatibility with MMC6
