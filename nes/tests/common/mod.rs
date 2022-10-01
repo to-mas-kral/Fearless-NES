@@ -29,7 +29,7 @@ pub fn hash_test(rom_path: &str, frames_to_run: u64, expected_hash: u64) {
     let mut nes = Nes::new(&rom).expect("error when creating test NES instance");
 
     for _ in 0..frames_to_run {
-        nes.run_one_frame();
+        nes.run_frame();
     }
 
     let mut hasher = SipHasher13::new();

@@ -5,6 +5,8 @@ mod apu;
 mod cartridge;
 mod controller;
 mod cpu;
+#[cfg(feature = "debug_tools")]
+mod debug_events;
 mod mapper;
 mod ppu;
 mod replay;
@@ -18,6 +20,8 @@ use ppu::Ppu;
 
 pub use cartridge::{BankSize, Cartridge, Header};
 pub use controller::Button;
+#[cfg(feature = "debug_tools")]
+pub use debug_events::{DebugEvents, EventKind};
 pub use ppu::{FRAMEBUFFER_SIZE, NES_HEIGHT, NES_WIDTH, PALETTE};
 pub use replay::ReplayInputs;
 
@@ -35,6 +39,9 @@ pub struct Nes {
     /// CPU cycle count
     cycle_count: u64,
     frame_count: u64,
+
+    #[cfg(feature = "debug_tools")]
+    debug_events: DebugEvents,
 }
 
 impl Nes {
@@ -54,6 +61,9 @@ impl Nes {
             cycle_count: 0,
 
             frame_count: 0,
+
+            #[cfg(feature = "debug_tools")]
+            debug_events: DebugEvents::new(),
         };
 
         nes.cpu_gen_reset();
@@ -68,28 +78,25 @@ impl Nes {
         self.cpu_gen_reset();
     }
 
-    pub fn run_one_frame(&mut self) {
+    pub fn run_frame(&mut self) {
         while !self.frame_ready {
             self.cpu_tick();
         }
-        self.frame_ready = false;
 
-        self.frame_count += 1;
+        self.on_frame_ended();
     }
 
-    pub fn run_scanline(&mut self) {
+    /// Runs a scanline and returns true if the next frame is ready
+    pub fn run_scanline(&mut self) -> bool {
         for _ in 0..114 {
             self.cpu_tick();
         }
-    }
 
-    pub fn frame_ready_reset(&mut self) -> bool {
-        if self.frame_ready {
-            self.frame_ready = false;
-            true
-        } else {
-            false
+        let frame_ready = self.frame_ready;
+        if frame_ready {
+            self.on_frame_ended();
         }
+        frame_ready
     }
 
     pub fn run_cpu_cycle(&mut self) {
@@ -138,6 +145,7 @@ impl Nes {
             .set_rates(apu::Apu::CLOCK_RATE, sample_rate);
     }
 
+    // TODO: Move this back to tests and have some public API for debug cpu_reads...
     pub fn run_blargg_test(&mut self) -> String {
         let mut test_running = false;
 
@@ -180,6 +188,14 @@ impl Nes {
         self.apu_tick();
 
         self.mapper.cpu_clock(&mut self.cpu.irq_mapper_signal);
+    }
+
+    fn on_frame_ended(&mut self) {
+        self.frame_ready = false;
+        self.frame_count += 1;
+
+        #[cfg(feature = "debug_tools")]
+        self.debug_events.on_frame_ended();
     }
 }
 

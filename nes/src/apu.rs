@@ -123,9 +123,6 @@ impl Nes {
             }
         } else {
             match self.apu.cycles {
-                0 => {
-                    //TODO: clock after writing to 4015
-                }
                 7457 => {
                     self.apu.quarter_frame_clock();
                 }
@@ -349,6 +346,7 @@ impl FrameCounter {
         if self.irq_inhibit {
             self.interrupt_flag = false;
         }
+        // INVESTIGATE: reset timer (?) after 3 or 4 CPU clocks
     }
 }
 

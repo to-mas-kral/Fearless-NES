@@ -49,14 +49,14 @@ impl Nes {
     pub(crate) fn _drive_replay_inputs(&mut self, inputs: &ReplayInputs) {
         for ic in &inputs.inputs {
             while self.frame_count < ic.frame {
-                self.run_one_frame();
+                self.run_frame();
             }
 
             self.set_button_state(ic.button, ic.state);
         }
 
         while self.frame_count < inputs.end_frame {
-            self.run_one_frame();
+            self.run_frame();
         }
     }
 }

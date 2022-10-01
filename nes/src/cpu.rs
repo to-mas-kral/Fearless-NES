@@ -1,9 +1,12 @@
 use bincode::{Decode, Encode};
 
+#[cfg(feature = "debug_tools")]
+use crate::EventKind;
+
 use super::Nes;
 
 #[derive(Decode, Encode)]
-enum InterruptType {
+pub enum InterruptType {
     Nmi,
     Irq,
     Reset,
@@ -2033,7 +2036,7 @@ impl Nes {
     }
 
     fn halt(&mut self, _: u8) {
-        // TODO: shouldn't panic here
+        #[cfg(debug_assertions)]
         panic!("The CPU executed a halt instruction, this implies either an emulator bug, or a game bug.");
     }
 }
@@ -2070,6 +2073,14 @@ impl Nes {
             self.cpu.nmi_signal = false;
             self.cpu.take_interrupt = true;
             self.cpu.interrupt_type = InterruptType::Nmi;
+        }
+
+        #[cfg(feature = "debug_tools")]
+        {
+            if let InterruptType::Irq = self.cpu.interrupt_type {
+                self.debug_events
+                    .add(EventKind::Irq, self.ppu.scanline, self.ppu.xpos);
+            }
         }
     }
 

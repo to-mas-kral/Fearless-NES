@@ -13,3 +13,6 @@ thiserror = "1.0"
 
 [[bin]]
 name = "bench"
+
+[features]
+debug_tools = []

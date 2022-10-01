@@ -22,7 +22,7 @@ fn game_bench(rom_path: &str, inputs_path: &str) {
     for ic in &inputs.inputs {
         while nes.frame_count() < ic.frame {
             let start = Instant::now();
-            nes.run_one_frame();
+            nes.run_frame();
             let duration = start.elapsed();
 
             // The first few frames are ususally unproportionally fast
@@ -40,7 +40,7 @@ fn game_bench(rom_path: &str, inputs_path: &str) {
     }
 
     while nes.frame_count() < inputs.end_frame {
-        nes.run_one_frame();
+        nes.run_frame();
     }
 
     let mut hasher = DefaultHasher::new();

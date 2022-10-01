@@ -65,9 +65,7 @@ pub fn run_nes_thread(nes: Arc<Mutex<Nes>>, channel: Receiver<NesMsg>) -> JoinHa
             if !state.paused {
                 let mut n = nes.lock().unwrap();
 
-                while !n.frame_ready_reset() {
-                    n.run_scanline();
-
+                while !n.run_scanline() {
                     n.apu_samples(&mut samples);
 
                     for s in samples.iter() {

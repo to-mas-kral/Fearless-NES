@@ -38,7 +38,7 @@ impl Debug {
                         .default_width(0.)
                         .show(egui_ctx, |ui| {
                             if ui.button("Step frame").clicked() {
-                                nes.run_one_frame();
+                                nes.run_frame();
                             }
 
                             if ui.button("Step CPU cycle").clicked() {
