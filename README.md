@@ -15,15 +15,18 @@ Fearless-NES is a work-in-progress Nintendo entertainment system emulator writte
 
 # Features
 - Cycle-accurate CPU emulation
-- Very accurate PPU emulation
+- Accurate PPU emulation
+    - Mostly cycle-accurate, but has some timing bugs
 - Good APU emulation
+    - Uses the blip buffer
 - Basic mapper support
 - Basic GUI
+    - currently using egui, but immediate-gui isn't great for writing apps
 - Save states
 - Gamepad support
 - Controllable overscan
 - Game loading using the NES 2.0 XML Game Database
-- Custom key bindings and mouse cursor auto-hide
+- Custom key bindings
 
 # Build instructions:
 1. Build with `cargo run --profile=release-lto` and enjoy !
@@ -41,21 +44,19 @@ Run these with 'cargo test'.
 | 3 (CNROM) | Solomon's Key, Arkista's Ring |
 | 4 (MMC3)* | Kirby's Adventure, Mega Man 3-6, Ninja Gaiden II: ... |
 | 7 (AxROM) | Battletoads, Jeopardy! |
+| 69 (FME-7) | Batman: Return of the Joker, Gimmick! |
 
-* Some MMC3 games like Mega Man III have major graphical issues, but SMB3 a Kirby's adventures do work.
+* Some MMC3 games have graphical glitches.
 
-With these mappers, Fearless-NES supports 84 % of commercial NES games.
+With these mappers, Fearless-NES should support 84 % of commercial NES games.
 
 # TODO
 - [ ] (frontend) user-defined RGB palettes
-- [ ] (frontend) NTSC filter
+- [ ] (frontend) NTSC / xBRZ filters
 
 - [ ] (core) iNES 2.0 support
-- [ ] (core) APU - low / high pass filters and better resampling to match typical sound card frequency
 - [ ] (core) advanced mappers such as MMC5, VRC2/4...
 - [ ] (core) various accuracy tests
-
-- [ ] (dev) better (and more) integration tests
 
 # Controls
 ### Keyboard
