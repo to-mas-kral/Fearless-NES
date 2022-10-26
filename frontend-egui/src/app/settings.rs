@@ -123,7 +123,7 @@ impl KeybindsUi {
     ) {
         let bind = &mut binds[btn];
 
-        ui.label(btn.name());
+        ui.label(btn.to_string());
 
         let txt_color = ui.style().visuals.text_color();
         let highlight_color = ui.style().visuals.warn_fg_color;

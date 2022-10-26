@@ -57,7 +57,7 @@ impl Saves {
     }
 
     fn load_save(&mut self, save_path: &Path, egui_ctx: &egui::Context) -> Result<()> {
-        let save_file = std::fs::File::open(&save_path)?;
+        let save_file = std::fs::File::open(save_path)?;
         let mut save_archive = zip::ZipArchive::new(&save_file)?;
 
         let screenshot = {
@@ -146,7 +146,7 @@ impl Saves {
             if ui
                 .add(egui::ImageButton::new(
                     &save.texture_handle,
-                    &[NES_WIDTH as f32, NES_HEIGHT as f32],
+                    [NES_WIDTH as f32, NES_HEIGHT as f32],
                 ))
                 .clicked()
             {

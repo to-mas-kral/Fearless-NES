@@ -102,8 +102,8 @@ impl<const S: usize> BlipBuf<S> {
 
     fn add_delta(&mut self, mut delta: i32) {
         // TODO: fix hack
-        let fixed: u32 = (((self.time as u64).wrapping_mul(self.factor) + self.offset)
-            >> Self::PRE_SHIFT) as u32;
+        let fixed: u32 =
+            (((self.time).wrapping_mul(self.factor) + self.offset) >> Self::PRE_SHIFT) as u32;
         let phase = fixed >> Self::PHASE_SHIFT & (Self::PHASE_COUNT - 1);
 
         let interp: i32 =
@@ -122,12 +122,11 @@ impl<const S: usize> BlipBuf<S> {
         buf_index %= S - 15;
 
         for i in 0..8 {
-            self.buf[(buf_index + i) as usize] +=
-                s_in[i as usize] as i32 * delta + in_half_width[i as usize] as i32 * delta2;
+            self.buf[buf_index + i] += s_in[i] as i32 * delta + in_half_width[i] as i32 * delta2;
         }
 
         for (i, j) in (8..16).zip((0..8).rev()) {
-            self.buf[(buf_index + i) as usize] +=
+            self.buf[buf_index + i] +=
                 rev[j as usize] as i32 * delta + rev_half_width[j as usize] as i32 * delta2;
         }
     }

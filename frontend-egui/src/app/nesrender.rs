@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use fearless_nes::{FRAMEBUFFER_SIZE, NES_HEIGHT, NES_WIDTH, PALETTE};
 
+use super::pause_overlay;
+
 pub struct NesRender {
     pub image: ColorImage,
     texture: Option<TextureHandle>,
@@ -21,6 +23,7 @@ impl NesRender {
         nes_framebuffer: &[u8; FRAMEBUFFER_SIZE],
         egui_context: &egui::Context,
         overscan: &Overscan,
+        paused: bool,
     ) {
         for y in 0..NES_HEIGHT {
             for x in 0..NES_WIDTH {
@@ -55,10 +58,14 @@ impl NesRender {
             let rect = Self::calculate_nes_rect(available);
 
             img.paint_at(ui, rect);
+
+            if paused {
+                pause_overlay::pause_overlay(egui_context, rect, paused);
+            }
         });
     }
 
-    fn calculate_nes_size(overscan: &Overscan) -> [f32; 2] {
+    pub fn calculate_nes_size(overscan: &Overscan) -> [f32; 2] {
         let width = NES_WIDTH as f32 - overscan.left as f32 - overscan.right as f32;
         let height = NES_HEIGHT as f32 - overscan.top as f32 - overscan.bottom as f32;
 

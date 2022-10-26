@@ -1,3 +1,5 @@
+use std::fmt;
+
 use bincode::{Decode, Encode};
 
 #[derive(Decode, Encode)]
@@ -64,17 +66,17 @@ pub enum Button {
     Right,
 }
 
-impl Button {
-    pub fn name(self) -> &'static str {
+impl fmt::Display for Button {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Button::A => "A",
-            Button::B => "B",
-            Button::Start => "Start",
-            Button::Select => "Select",
-            Button::Up => "Up",
-            Button::Right => "Right",
-            Button::Down => "Down",
-            Button::Left => "Left",
+            Button::A => write!(f, "A"),
+            Button::B => write!(f, "B"),
+            Button::Start => write!(f, "Start"),
+            Button::Select => write!(f, "Select"),
+            Button::Up => write!(f, "Up"),
+            Button::Right => write!(f, "Right"),
+            Button::Down => write!(f, "Down"),
+            Button::Left => write!(f, "Left"),
         }
     }
 }

@@ -67,7 +67,7 @@ fn main() {
                     *control_flow = glutin::event_loop::ControlFlow::Exit;
                 }
 
-                egui_glium.on_event(&event);
+                let _ = egui_glium.on_event(&event);
 
                 match event {
                     WindowEvent::KeyboardInput { input, .. } => app.handle_keyboard_input(input),
