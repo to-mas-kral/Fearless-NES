@@ -15,6 +15,7 @@ use fearless_nes::{Button as NesButton, Nes};
 mod config;
 mod debug;
 mod nesrender;
+mod pause_overlay;
 mod replays;
 mod saves;
 mod settings;
@@ -201,8 +202,12 @@ impl App {
             let nes = nes.lock().unwrap();
 
             let nes_framebuffer = nes.frame_buffer();
-            self.render
-                .draw_nes(nes_framebuffer, egui_ctx, &self.config.overscan);
+            self.render.draw_nes(
+                nes_framebuffer,
+                egui_ctx,
+                &self.config.overscan,
+                self.paused,
+            );
         }
     }
 

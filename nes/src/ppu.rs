@@ -1138,7 +1138,7 @@ impl Nes {
                 let spr = &mut self.ppu.sprite_buffer[i as usize];
                 let shift = self.ppu.xpos as i32 - spr.x as i32 - 1;
 
-                if shift >= 0 && shift <= 7 {
+                if (0..=7).contains(&shift) {
                     let sp_color = if spr.horizontal_flip {
                         ((spr.tile_low >> shift) & 1) | (((spr.tile_high >> shift) & 1) << 1)
                     } else {

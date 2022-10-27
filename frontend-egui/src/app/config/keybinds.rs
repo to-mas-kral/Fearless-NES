@@ -100,3 +100,30 @@ impl Keys {
         Self { ctrl, kbd }
     }
 }
+
+///trivial getter for `Keys`.
+///This is done to allow trait bounds.
+pub trait GetBind {
+    fn ctrl(&self) -> &GButton;
+    fn kbd(&self) -> &VirtualKeyCode;
+}
+
+impl GetBind for Keys {
+    fn ctrl(&self) -> &GButton {
+        &self.ctrl
+    }
+
+    fn kbd(&self) -> &VirtualKeyCode {
+        &self.kbd
+    }
+}
+
+impl GetBind for &mut Keys {
+    fn ctrl(&self) -> &GButton {
+        &self.ctrl
+    }
+
+    fn kbd(&self) -> &VirtualKeyCode {
+        &self.kbd
+    }
+}

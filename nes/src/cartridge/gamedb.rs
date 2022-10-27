@@ -73,7 +73,7 @@ impl Header {
                 && chr_mmatches
                 && is_normal_nes
             {
-                return Self::parse_game_info(game).map(|gi| Some(gi));
+                return Self::parse_game_info(game).map(Some);
             }
         }
 
