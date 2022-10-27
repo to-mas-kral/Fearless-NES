@@ -15,7 +15,7 @@ use super::nesrender::Overscan;
 
 mod keybinds;
 
-pub use keybinds::Keybinds;
+pub use keybinds::{GetBind, Keybinds};
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {

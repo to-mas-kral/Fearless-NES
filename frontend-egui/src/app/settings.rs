@@ -1,9 +1,13 @@
+use std::{
+    fmt::Display,
+    ops::{Index, IndexMut},
+};
+
 use egui_glium::egui_winit::egui::{self, Button, RichText, Ui};
 use gilrs::Button as GButton;
 use winit::event::VirtualKeyCode;
 
-use crate::app::config::Keybinds;
-
+use crate::app::config::{GetBind, Keybinds};
 use fearless_nes::Button as NesButton;
 
 use super::App;
@@ -102,7 +106,7 @@ impl OverscanUi {
 
 pub struct KeybindsUi {
     pub window_shown: bool,
-    pub selected_nesbtn: SelectedButton,
+    pub selected_nesbtn: SelectedButton<NesButton>,
     pub input_btn: Option<InputButton>,
 }
 
@@ -115,12 +119,17 @@ impl KeybindsUi {
         }
     }
 
-    fn display_keybind(
-        binds: &mut Keybinds,
-        btn: NesButton,
+    fn display_keybind<'a, T, F>(
+        binds: &'a mut T,
+        btn: F,
         ui: &mut Ui,
-        selected: &mut SelectedButton,
-    ) {
+        selected: &mut SelectedButton<F>,
+    ) where
+        F: Display + std::cmp::PartialEq + Copy,
+        T: Index<F> + IndexMut<F>,
+        &'a mut <T as std::ops::Index<F>>::Output: GetBind,
+        <T as std::ops::Index<F>>::Output: 'a,
+    {
         let bind = &mut binds[btn];
 
         ui.label(btn.to_string());
@@ -136,7 +145,7 @@ impl KeybindsUi {
 
         if ui
             .add(Button::new(
-                RichText::new(format!("{:?}", bind.ctrl)).color(ctrl_color),
+                RichText::new(format!("{:?}", GetBind::ctrl(&bind))).color(ctrl_color),
             ))
             .clicked()
         {
@@ -149,7 +158,7 @@ impl KeybindsUi {
 
         if ui
             .add(Button::new(
-                RichText::new(format!("{:?}", bind.kbd)).color(kbd_color),
+                RichText::new(format!("{:?}", GetBind::kbd(&bind))).color(kbd_color),
             ))
             .clicked()
         {
@@ -165,7 +174,7 @@ impl KeybindsUi {
 
     fn change_keybind(
         binds: &mut Keybinds,
-        selected: &mut SelectedButton,
+        selected: &mut SelectedButton<NesButton>,
         input_button: &mut Option<InputButton>,
     ) {
         match *selected {
@@ -226,9 +235,9 @@ impl KeybindsUi {
 }
 
 #[derive(PartialEq)]
-pub enum SelectedButton {
-    Controller(NesButton),
-    Keyboard(NesButton),
+pub enum SelectedButton<T> {
+    Controller(T),
+    Keyboard(T),
     None,
 }
 
