@@ -1,6 +1,6 @@
 use std::ops::Add;
 
-use egui::{Color32, Id, Pos2, Rect, Stroke};
+use egui::{Id, Pos2, Rect, Stroke};
 use egui_glium::egui_winit::egui::{self, epaint::PathShape};
 
 const TRIANGLE_SIZE: f32 = 40.0;
@@ -11,13 +11,18 @@ pub fn pause_overlay(egui_ctx: &egui::Context, rect: Rect, paused: bool) {
         order: egui::Order::Middle,
         id: Id::new("pause_overlay"),
     });
-
+    let mut bg = egui_ctx.style().noninteractive().bg_fill;
     let trans = egui_ctx.animate_bool(Id::new("transition"), paused);
-    let bg = egui_ctx.style().noninteractive().bg_fill;
-    let color = if egui_ctx.style().visuals.dark_mode {
-        Color32::from_rgba_premultiplied(bg.r(), bg.g(), bg.b(), (150.0 * trans) as u8)
+
+    //transparent overlay
+    bg[3] = (150.0 * trans) as u8;
+    let (color, contrast_bg) = if egui_ctx.style().visuals.dark_mode {
+        (bg, egui::Visuals::light().noninteractive().bg_fill)
     } else {
-        Color32::from_rgba_unmultiplied(bg.r(), bg.g(), bg.b(), (50.0 * trans) as u8)
+        (
+            bg.linear_multiply(0.1),
+            egui::Visuals::dark().noninteractive().bg_fill,
+        )
     };
     painter.rect_filled(rect, 0.5, color);
 
@@ -33,10 +38,8 @@ pub fn pause_overlay(egui_ctx: &egui::Context, rect: Rect, paused: bool) {
         ],
         Stroke::none(),
     );
-    triangle.fill = if egui_ctx.style().visuals.dark_mode {
-        Color32::from_rgba_premultiplied(bg.r(), bg.g(), bg.b(), (255.0 * trans) as u8)
-    } else {
-        Color32::from_rgba_unmultiplied(bg.r(), bg.g(), bg.b(), (255.0 * trans) as u8)
-    };
+    bg[3] = (255.0 * trans) as u8;
+    triangle.fill = bg;
+    triangle.stroke = Stroke::new(5.0, contrast_bg);
     painter.add(triangle);
 }
